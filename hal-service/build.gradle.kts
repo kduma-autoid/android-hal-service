@@ -57,6 +57,10 @@ android {
             excludes += "META-INF/io.netty.versions.properties"
         }
     }
+
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
 }
 
 dependencies {
@@ -99,6 +103,18 @@ dependencies {
 
     // Test
     testImplementation(libs.junit)
+    testImplementation(libs.junit.jupiter)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.mockk)
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.junit.vintage.engine)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.androidx.room.testing)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
 }

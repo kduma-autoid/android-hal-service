@@ -1,5 +1,6 @@
 package dev.duma.android.hal.contract
 
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -23,10 +24,10 @@ class EventBus {
         val callback: (eventName: String, jsonData: String) -> Unit
     )
 
-    private val _events = MutableSharedFlow<EventEnvelope>(extraBufferCapacity = 64)
+    private val _events = MutableSharedFlow<EventEnvelope>(extraBufferCapacity = 256)
     val events: SharedFlow<EventEnvelope> = _events.asSharedFlow()
 
-    private val listeners = mutableListOf<PluginListener>()
+    private val listeners = CopyOnWriteArrayList<PluginListener>()
 
     fun emit(eventName: String, jsonData: String, sourcePluginId: String) {
         val envelope = EventEnvelope(eventName, jsonData, sourcePluginId)

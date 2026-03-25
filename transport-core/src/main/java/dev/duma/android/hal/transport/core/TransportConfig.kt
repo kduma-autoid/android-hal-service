@@ -9,5 +9,6 @@ import android.content.Context
 data class TransportConfig(
     val port: Int = 8400,
     val context: Context,
-    val enabledBroadcastEvents: Set<String> = emptySet()
+    val enabledBroadcastEvents: Set<String> = emptySet(),
+    val ktorServerManager: Any? = null
 )
