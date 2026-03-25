@@ -11,7 +11,17 @@
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/hal-contract" />
             <option value="$PROJECT_DIR$/hal-service" />
-            <option value="$PROJECT_DIR$/plugin-sunmi" />
+            <option value="$PROJECT_DIR$/plugin-generic-lib" />
+            <option value="$PROJECT_DIR$/plugin-sunmi-bundle" />
+            <option value="$PROJECT_DIR$/plugin-sunmi-printer-lib" />
+            <option value="$PROJECT_DIR$/plugin-sunmi-scanner-lib" />
+            <option value="$PROJECT_DIR$/transport-aidl" />
+            <option value="$PROJECT_DIR$/transport-broadcast" />
+            <option value="$PROJECT_DIR$/transport-core" />
+            <option value="$PROJECT_DIR$/transport-http" />
+            <option value="$PROJECT_DIR$/transport-intent" />
+            <option value="$PROJECT_DIR$/transport-ktor-core" />
+            <option value="$PROJECT_DIR$/transport-ws" />
           </set>
         </option>
       </GradleProjectSettings>

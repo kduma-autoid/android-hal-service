@@ -34,4 +34,5 @@ android {
 
 dependencies {
     implementation(project(":hal-contract"))
+    implementation(libs.kotlinx.coroutines.core)
 }

@@ -7,6 +7,7 @@ interface IHardwarePlugin {
     int getVersion();
     List<String> getCapabilities();
     String execute(String method, String jsonParams);
+    String getDescriptorJson();
     void registerEventCallback(IPluginEventCallback callback);
     void unregisterEventCallback(IPluginEventCallback callback);
 }
