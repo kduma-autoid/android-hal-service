@@ -35,4 +35,5 @@ android {
 dependencies {
     implementation(project(":transport-core"))
     implementation(libs.androidx.appcompat)
+    implementation(libs.kotlinx.coroutines.core)
 }

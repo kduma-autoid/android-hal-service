@@ -38,4 +38,6 @@ android {
 
 dependencies {
     implementation(project(":transport-core"))
+    implementation(project(":hal-contract"))
+    implementation(libs.kotlinx.coroutines.core)
 }
