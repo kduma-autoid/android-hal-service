@@ -1,0 +1,159 @@
+# Architektura HAL Service
+
+## Przegląd
+
+Hardware Abstraction Layer (HAL) Service — Foreground Service na Androidzie
+udostępniający sprzęt (Sunmi, Zebra, Chainway itp.) innym aplikacjom.
+Architektura pluginowa z modularnymi kanałami komunikacji.
+
+## Moduły Gradle
+
+### Kontrakt
+- `hal-contract` — AAR, interfejsy pluginów + PluginContext + PluginDescriptor
+
+### Transporty (kanały komunikacji — osobne AAR)
+- `transport-core` — interfejsy TransportChannel, CommandHandler, CallerContext
+- `transport-ktor-core` — zarządzanie lifecycle jednego shared Ktor serwera
+- `transport-aidl` — kanał AIDL (Binder IPC, komendy + eventy)
+- `transport-ws` — kanał WebSocket (komendy + eventy, via Ktor)
+- `transport-http` — kanał HTTP REST (komendy, via Ktor)
+- `transport-intent` — kanał Android Intent (komendy, Activity gateway)
+- `transport-broadcast` — kanał Android Broadcast (eventy push, publiczny)
+
+### Główna usługa
+- `hal-service` — APK, Foreground Service z build flavors per urządzenie
+
+### Pluginy
+- `plugin-generic-lib` — AAR, pluginy abstrakcji (printer, scanner)
+- `plugin-sunmi-printer-lib` — AAR, plugin drukarki Sunmi (stub)
+- `plugin-sunmi-scanner-lib` — AAR, plugin skanera Sunmi (stub)
+- `plugin-sunmi-bundle` — APK, standalone wrapper bundlujący sunmi pluginy
+
+## Zależności
+
+```
+hal-contract                 ← brak
+transport-core               ← hal-contract
+transport-ktor-core          ← transport-core + ktor-server-core + ktor-server-netty
+transport-aidl               ← transport-core (+ aidl=true)
+transport-ws                 ← transport-core + transport-ktor-core + ktor-websockets + serialization
+transport-http               ← transport-core + transport-ktor-core + ktor-content-negotiation + serialization
+transport-intent             ← transport-core + appcompat
+transport-broadcast          ← transport-core
+plugin-generic-lib           ← hal-contract
+plugin-sunmi-printer-lib     ← hal-contract + core-ktx
+plugin-sunmi-scanner-lib     ← hal-contract + core-ktx
+plugin-sunmi-bundle          ← hal-contract + plugin-sunmi-printer-lib + plugin-sunmi-scanner-lib
+hal-service                  ← hal-contract + transport-core + transport-ktor-core
+                               + all transport-* (opcjonalne)
+                               + plugin-generic-lib (zawsze)
+                               + vendor plugins per flavor
+                               + Room + serialization + coroutines + nimbus-jose-jwt
+```
+
+## Build flavors hal-service
+
+```kotlin
+flavorDimensions += "device"
+productFlavors {
+    create("generic") { dimension = "device" }  // bez vendor pluginów
+    create("sunmi") { dimension = "device" }    // + sunmi plugins
+}
+dependencies {
+    implementation(project(":plugin-generic-lib"))  // zawsze
+    "sunmiImplementation"(project(":plugin-sunmi-printer-lib"))
+    "sunmiImplementation"(project(":plugin-sunmi-scanner-lib"))
+}
+```
+
+Transporty NIE są flavorami — są compile-time dependencies.
+Wyłączenie kanału = zakomentowanie linii w dependencies.
+
+Kod wykrywa wkompilowane transporty i pluginy przez refleksję:
+```kotlin
+fun tryRegister(className: String) {
+    try { Class.forName(className)... } catch (e: ClassNotFoundException) { /* skip */ }
+}
+```
+
+## Wzorzec pluginów
+
+Granulacja: jeden moduł AAR per plugin (nie per vendor).
+
+```
+plugin-xxx-yyy-lib/    ← AAR z logiką jednego pluginu (HalPlugin)
+plugin-xxx-bundle/     ← APK wrapper bundlujący wiele plugin-xxx-*-lib
+```
+
+Bundle APK ma osobny Service per plugin:
+```xml
+<service android:name=".SunmiPrinterService" android:exported="true">
+    <intent-filter><action android:name="dev.duma.hal.HARDWARE_PLUGIN" /></intent-filter>
+    <meta-data android:name="plugin.id" android:value="sunmi.printer" />
+</service>
+<service android:name=".SunmiScannerService" android:exported="true">
+    <intent-filter><action android:name="dev.duma.hal.HARDWARE_PLUGIN" /></intent-filter>
+    <meta-data android:name="plugin.id" android:value="sunmi.scanner" />
+</service>
+```
+
+## Scenariusze bundlowania
+
+```
+A: Wkompiluj wszystko (sunmi flavor)
+   hal-service ← plugin-sunmi-printer-lib + plugin-sunmi-scanner-lib
+
+B: Zewnętrzny bundle APK (generic flavor)
+   hal-service (bez vendor pluginów)
+   plugin-sunmi-bundle.apk ← oba plugin libs
+
+C: Mix — drukarka wkompilowana, skaner jako APK
+   hal-service ← plugin-sunmi-printer-lib
+   plugin-sunmi-scanner.apk ← plugin-sunmi-scanner-lib
+```
+
+## Kanały komunikacji
+
+### 4 kanały komend (request → response)
+
+| Kanał | Transport | Autoryzacja | Wymaga połączenia |
+|-------|-----------|-------------|-------------------|
+| AIDL  | Binder IPC | authenticate(token) na sesję | Tak (bind) |
+| WS    | WebSocket JSON | authenticate(token) po connect | Tak (persistent) |
+| HTTP  | REST JSON | Bearer token per request | Nie |
+| Intent | Android Intent | token w extra | Nie |
+
+### 3 kanały eventów (push)
+
+| Kanał | Transport | Mechanizm | Wymaga połączenia |
+|-------|-----------|-----------|-------------------|
+| AIDL callback | Binder IPC | RemoteCallbackList + subskrypcje | Tak |
+| WS stream | WebSocket JSON | Server push + subskrypcje | Tak |
+| Broadcast | Android Intent | sendBroadcast, bez autoryzacji | Nie |
+
+Plugin nie wie skąd przyszła komenda. Format zawsze: `(method, params) → result`.
+
+## Struktura pakietów hal-service
+
+```
+hal-service/src/main/java/.../
+├── auth/                 — TokenManager, DeveloperKeyVerifier, AuthManager, GrantPermissionActivity
+├── core/                 — ServiceCommandHandler, TransportBootstrap
+├── plugin/               — PluginRegistry, PluginContextImpl, EventBus
+├── config/               — BroadcastConfig, TransportConfig
+└── service/              — HalService, BootReceiver, DashboardActivity
+```
+
+## Kolejność inicjalizacji w HalService.onCreate
+
+1. Auth (TokenManager, DeveloperKeyVerifier, AuthManager)
+2. EventBus
+3. PluginRegistry
+4. Rejestruj vendor-specific pluginy (refleksja per flavor)
+5. Odkryj external pluginy (PackageManager)
+6. Rejestruj generic pluginy (zawsze)
+7. initializeAll na pluginach (PluginContext per plugin)
+8. Transporty (refleksja) → TransportRegistry
+9. Start transportów
+10. Bridge: EventBus.events → TransportRegistry.pushEvent()
+11. Foreground notification
