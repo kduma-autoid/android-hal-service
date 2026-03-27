@@ -7,6 +7,14 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <queries>
+        <intent>
+            <action android:name="dev.duma.android.hal.HARDWARE_PLUGIN" />
+        </intent>
+    </queries>
 
     <application
         android:allowBackup="true"
@@ -38,8 +46,9 @@
 
         <activity
             android:name=".auth.GrantPermissionActivity"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:theme="@style/Theme.HALService.Transparent"
             android:excludeFromRecents="true"
+            android:taskAffinity=""
             android:exported="false" />
 
         <activity

@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">HAL Service</string>
+    <string name="grant_dialog_title">Permission Request</string>
+    <string name="grant_dialog_allow_permanent">Allow permanently</string>
+    <string name="grant_dialog_allow_once">Allow for today</string>
+    <string name="grant_dialog_deny">Deny</string>
 </resources>

@@ -82,7 +82,7 @@ class SunmiScannerService : Service() {
 }
 ```
 
-AndroidManifest: dwa Service z intent-filter `dev.duma.hal.HARDWARE_PLUGIN`
+AndroidManifest: dwa Service z intent-filter `dev.duma.android.hal.HARDWARE_PLUGIN`
 i meta-data plugin.id / plugin.label.
 
 ## plugin-generic-lib: GenericPrinterPlugin

@@ -15,6 +15,7 @@ import dev.duma.android.hal.contract.EventBus
 import dev.duma.android.hal.service.auth.AuthManager
 import dev.duma.android.hal.service.auth.DeveloperKeyVerifier
 import dev.duma.android.hal.service.auth.GrantDecision
+import dev.duma.android.hal.service.auth.GrantOverlayDialog
 import dev.duma.android.hal.service.auth.GrantPermissionActivity
 import dev.duma.android.hal.service.auth.TokenDatabase
 import dev.duma.android.hal.service.auth.TokenManager
@@ -30,6 +31,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import android.provider.Settings
 
 /**
  * Main foreground service that bootstraps and manages the HAL system.
@@ -42,6 +44,8 @@ class HalService : Service() {
         private const val TAG = "HalService"
         private const val CHANNEL_ID = "hal_service"
         private const val NOTIFICATION_ID = 1
+        private const val GRANT_CHANNEL_ID = "hal_grant_requests"
+        private const val GRANT_NOTIFICATION_ID = 2
         const val PORT = 8400
     }
 
@@ -64,17 +68,34 @@ class HalService : Service() {
         // TODO: Load real public key from resources — using generated key for now
         val testKey = RSAKeyGenerator(2048).generate()
         val verifier = DeveloperKeyVerifier(testKey.toPublicJWK())
+        val serviceContext = this
         val authManager = AuthManager(tokenManager, verifier) { callerContext, request ->
+            Log.i(TAG, "Grant dialog requested for clientId=${request.clientId}")
             val deferred = CompletableDeferred<GrantDecision>()
-            GrantPermissionActivity.pendingResult = deferred
-            val intent = Intent(this, GrantPermissionActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                putExtra(GrantPermissionActivity.EXTRA_CLIENT_ID, request.clientId)
-                putExtra(GrantPermissionActivity.EXTRA_PACKAGE_NAME, callerContext.packageName)
-                putExtra(GrantPermissionActivity.EXTRA_ORIGIN, callerContext.origin)
+
+            if (Settings.canDrawOverlays(serviceContext)) {
+                // Primary: overlay dialog over any app
+                Log.i(TAG, "Showing overlay dialog")
+                kotlinx.coroutines.withContext(Dispatchers.Main) {
+                    GrantOverlayDialog.show(
+                        serviceContext, request.clientId,
+                        callerContext.packageName, callerContext.origin, deferred
+                    )
+                }
+            } else {
+                // Fallback: notification with PendingIntent to Activity
+                Log.i(TAG, "No overlay permission, using notification fallback")
+                GrantPermissionActivity.pendingResult = deferred
+                val activityIntent = Intent(serviceContext, GrantPermissionActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK or Intent.FLAG_ACTIVITY_NEW_DOCUMENT)
+                    putExtra(GrantPermissionActivity.EXTRA_CLIENT_ID, request.clientId)
+                    putExtra(GrantPermissionActivity.EXTRA_PACKAGE_NAME, callerContext.packageName)
+                    putExtra(GrantPermissionActivity.EXTRA_ORIGIN, callerContext.origin)
+                }
+                showGrantNotification(activityIntent, request.clientId)
             }
-            startActivity(intent)
-            deferred.await()
+
+            kotlinx.coroutines.withTimeout(60_000) { deferred.await() }
         }
 
         // 3. EventBus
@@ -207,6 +228,43 @@ class HalService : Service() {
             .build()
 
         startForeground(NOTIFICATION_ID, notification)
+    }
+
+    private fun showGrantNotification(activityIntent: Intent, clientId: String) {
+        val notificationManager = getSystemService(NotificationManager::class.java)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val grantChannel = NotificationChannel(
+                GRANT_CHANNEL_ID,
+                "Permission Requests",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Notifications for hardware access permission requests"
+            }
+            notificationManager.createNotificationChannel(grantChannel)
+        }
+
+        val pendingIntent = android.app.PendingIntent.getActivity(
+            this, System.currentTimeMillis().toInt(),
+            activityIntent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(this, GRANT_CHANNEL_ID)
+        } else {
+            @Suppress("DEPRECATION")
+            Notification.Builder(this)
+        }
+            .setContentTitle("Permission Request")
+            .setContentText("\"$clientId\" is requesting hardware access. Tap to respond.")
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setPriority(Notification.PRIORITY_HIGH)
+            .build()
+
+        notificationManager.notify(GRANT_NOTIFICATION_ID, notification)
     }
 
     private fun tryRegisterPlugin(className: String) {

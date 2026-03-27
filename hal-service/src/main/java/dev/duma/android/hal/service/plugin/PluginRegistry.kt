@@ -22,7 +22,7 @@ class PluginRegistry {
 
     companion object {
         private const val TAG = "PluginRegistry"
-        private const val ACTION_HARDWARE_PLUGIN = "dev.duma.hal.HARDWARE_PLUGIN"
+        private const val ACTION_HARDWARE_PLUGIN = "dev.duma.android.hal.HARDWARE_PLUGIN"
     }
 
     private val plugins = ConcurrentHashMap<String, HalPlugin>()
@@ -39,7 +39,10 @@ class PluginRegistry {
 
     fun discoverExternal(context: Context) {
         val intent = Intent(ACTION_HARDWARE_PLUGIN)
-        val resolveInfos = context.packageManager.queryIntentServices(intent, 0)
+        val resolveInfos = context.packageManager.queryIntentServices(
+            intent, android.content.pm.PackageManager.GET_META_DATA
+        )
+        Log.i(TAG, "External plugin discovery: found ${resolveInfos.size} services")
 
         for (info in resolveInfos) {
             val componentName = ComponentName(info.serviceInfo.packageName, info.serviceInfo.name)

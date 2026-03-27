@@ -1,16 +1,19 @@
 package dev.duma.android.hal.service.auth
 
-import android.app.AlertDialog
 import android.os.Bundle
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import dev.duma.android.hal.service.R
 import kotlinx.coroutines.CompletableDeferred
 
 /**
  * Transparent activity that shows a permission grant dialog to the user.
- * Displayed when a client requests a token without a developer key.
+ * Used as notification fallback when SYSTEM_ALERT_WINDOW is not granted.
  * Result is delivered via [pendingResult] CompletableDeferred in companion object.
  */
 class GrantPermissionActivity : AppCompatActivity() {
+
+    private var decided = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -20,31 +23,52 @@ class GrantPermissionActivity : AppCompatActivity() {
         val origin = intent.getStringExtra(EXTRA_ORIGIN)
 
         val callerInfo = when {
-            packageName != null -> "App: $packageName"
             origin != null -> "Origin: $origin"
+            packageName != null -> {
+                val appLabel = try {
+                    val appInfo = packageManager.getApplicationInfo(packageName, 0)
+                    packageManager.getApplicationLabel(appInfo).toString()
+                } catch (_: Exception) {
+                    packageName
+                }
+                "$appLabel ($packageName)"
+            }
             else -> "Unknown caller"
         }
 
+        val message = "\"$clientId\" ($callerInfo) is requesting access to hardware services."
+
         AlertDialog.Builder(this)
-            .setTitle("Permission Request")
-            .setMessage("\"$clientId\" ($callerInfo) is requesting access to hardware services.")
-            .setPositiveButton("Allow permanently") { _, _ ->
-                pendingResult?.complete(GrantDecision.AllowPermanent)
-                finish()
+            .setTitle(R.string.grant_dialog_title)
+            .setMessage(message)
+            .setPositiveButton(R.string.grant_dialog_allow_permanent) { _, _ ->
+                completeWith(GrantDecision.AllowPermanent)
             }
-            .setNeutralButton("Allow for today") { _, _ ->
-                pendingResult?.complete(GrantDecision.AllowDay)
-                finish()
+            .setNeutralButton(R.string.grant_dialog_allow_once) { _, _ ->
+                completeWith(GrantDecision.AllowDay)
             }
-            .setNegativeButton("Deny") { _, _ ->
-                pendingResult?.complete(GrantDecision.Deny)
-                finish()
+            .setNegativeButton(R.string.grant_dialog_deny) { _, _ ->
+                completeWith(GrantDecision.Deny)
             }
-            .setOnCancelListener {
-                pendingResult?.complete(GrantDecision.Deny)
-                finish()
-            }
+            .setCancelable(false)
             .show()
+    }
+
+    private fun completeWith(decision: GrantDecision) {
+        if (!decided) {
+            decided = true
+            pendingResult?.complete(decision)
+            pendingResult = null
+        }
+        finish()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (!decided) {
+            pendingResult?.complete(GrantDecision.Deny)
+            pendingResult = null
+        }
     }
 
     companion object {

@@ -88,11 +88,11 @@ plugin-xxx-bundle/     ← APK wrapper bundlujący wiele plugin-xxx-*-lib
 Bundle APK ma osobny Service per plugin:
 ```xml
 <service android:name=".SunmiPrinterService" android:exported="true">
-    <intent-filter><action android:name="dev.duma.hal.HARDWARE_PLUGIN" /></intent-filter>
+    <intent-filter><action android:name="dev.duma.android.hal.HARDWARE_PLUGIN" /></intent-filter>
     <meta-data android:name="plugin.id" android:value="sunmi.printer" />
 </service>
 <service android:name=".SunmiScannerService" android:exported="true">
-    <intent-filter><action android:name="dev.duma.hal.HARDWARE_PLUGIN" /></intent-filter>
+    <intent-filter><action android:name="dev.duma.android.hal.HARDWARE_PLUGIN" /></intent-filter>
     <meta-data android:name="plugin.id" android:value="sunmi.scanner" />
 </service>
 ```

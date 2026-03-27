@@ -12,7 +12,7 @@
             android:name=".SunmiPrinterService"
             android:exported="true">
             <intent-filter>
-                <action android:name="dev.duma.hal.HARDWARE_PLUGIN" />
+                <action android:name="dev.duma.android.hal.HARDWARE_PLUGIN" />
             </intent-filter>
             <meta-data android:name="plugin.id" android:value="sunmi.printer" />
             <meta-data android:name="plugin.label" android:value="Sunmi Printer" />
@@ -22,7 +22,7 @@
             android:name=".SunmiScannerService"
             android:exported="true">
             <intent-filter>
-                <action android:name="dev.duma.hal.HARDWARE_PLUGIN" />
+                <action android:name="dev.duma.android.hal.HARDWARE_PLUGIN" />
             </intent-filter>
             <meta-data android:name="plugin.id" android:value="sunmi.scanner" />
             <meta-data android:name="plugin.label" android:value="Sunmi Scanner" />
