@@ -30,4 +30,20 @@ interface TokenDao {
 
     @Query("UPDATE tokens SET expiresAt = :expiresAt WHERE token = :token")
     suspend fun updateExpiry(token: String, expiresAt: Long)
+
+    @Query("""
+        SELECT * FROM tokens
+        WHERE clientId = :clientId
+        AND (boundPackageName IS :boundPackageName)
+        AND (boundCertHash IS :boundCertHash)
+        AND (boundOrigin IS :boundOrigin)
+        AND (expiresAt IS NULL OR expiresAt > :now)
+    """)
+    suspend fun findCandidateTokens(
+        clientId: String,
+        boundPackageName: String?,
+        boundCertHash: String?,
+        boundOrigin: String?,
+        now: Long
+    ): List<TokenEntity>
 }

@@ -26,14 +26,26 @@ class AuthManager(
             is VerificationResult.Success -> {
                 val claims = result.claims
                 val effectivePermissions = filterPermissions(claims.permissions, request.requestedPermissions)
-                val token = tokenManager.createToken(
+                val boundPackageName = if (claims.clientType == "android") callerContext.packageName else null
+                val boundCertHash = if (claims.clientType == "android") callerContext.certHash else null
+                val boundOrigin = if (claims.clientType == "web") callerContext.origin else null
+
+                val existing = tokenManager.findExistingToken(
+                    clientId = request.clientId,
+                    requiredPermissions = effectivePermissions,
+                    boundPackageName = boundPackageName,
+                    boundCertHash = boundCertHash,
+                    boundOrigin = boundOrigin
+                )
+
+                val token = existing ?: tokenManager.createToken(
                     clientId = request.clientId,
                     permissions = effectivePermissions,
                     grantedBy = "developer_key",
                     duration = "permanent",
-                    boundPackageName = if (claims.clientType == "android") callerContext.packageName else null,
-                    boundCertHash = if (claims.clientType == "android") callerContext.certHash else null,
-                    boundOrigin = if (claims.clientType == "web") callerContext.origin else null
+                    boundPackageName = boundPackageName,
+                    boundCertHash = boundCertHash,
+                    boundOrigin = boundOrigin
                 )
                 TokenResponse.Success(
                     token = token.token,
@@ -53,8 +65,20 @@ class AuthManager(
     }
 
     private suspend fun handleUserGrant(request: TokenRequest, callerContext: CallerContext): TokenResponse {
-        val decision = showGrantDialog(callerContext, request)
         val grantedPermissions = request.requestedPermissions ?: listOf("*")
+
+        val existing = tokenManager.findExistingToken(
+            clientId = request.clientId,
+            requiredPermissions = grantedPermissions,
+            boundPackageName = callerContext.packageName,
+            boundCertHash = callerContext.certHash,
+            boundOrigin = callerContext.origin
+        )
+        if (existing != null) {
+            return TokenResponse.Success(existing.token, grantedPermissions, existing.expiresAt)
+        }
+
+        val decision = showGrantDialog(callerContext, request)
 
         return when (decision) {
             GrantDecision.AllowPermanent -> {

@@ -85,6 +85,26 @@ class TokenManager(private val dao: TokenDao) {
         dao.deleteByClientId(clientId)
     }
 
+    suspend fun findExistingToken(
+        clientId: String,
+        requiredPermissions: List<String>,
+        boundPackageName: String?,
+        boundCertHash: String?,
+        boundOrigin: String?
+    ): TokenEntity? {
+        val candidates = dao.findCandidateTokens(
+            clientId, boundPackageName, boundCertHash, boundOrigin,
+            System.currentTimeMillis()
+        )
+        return candidates.firstOrNull { permissionsAreSufficient(it.permissions, requiredPermissions) }
+    }
+
+    private fun permissionsAreSufficient(stored: String, required: List<String>): Boolean {
+        val granted = stored.split(",")
+        if ("*" in granted) return true
+        return required.all { req -> granted.any { req.startsWith(it) } }
+    }
+
     suspend fun cleanExpired() {
         dao.deleteExpired(System.currentTimeMillis())
     }

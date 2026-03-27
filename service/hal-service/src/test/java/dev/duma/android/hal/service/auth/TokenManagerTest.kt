@@ -148,4 +148,173 @@ class TokenManagerTest {
             transport = "ws", origin = "https://any.com"
         )))
     }
+
+    @Test
+    fun `findExistingToken returns matching token`() = runTest {
+        val token = manager.createToken(
+            clientId = "test-app",
+            permissions = listOf("printer"),
+            grantedBy = "user_permanent",
+            duration = "permanent",
+            boundPackageName = "com.test.app",
+            boundCertHash = null,
+            boundOrigin = null
+        )
+
+        val result = manager.findExistingToken(
+            clientId = "test-app",
+            requiredPermissions = listOf("printer"),
+            boundPackageName = "com.test.app",
+            boundCertHash = null,
+            boundOrigin = null
+        )
+        assertNotNull(result)
+        assertEquals(token.token, result!!.token)
+    }
+
+    @Test
+    fun `findExistingToken returns null when no match`() = runTest {
+        val result = manager.findExistingToken(
+            clientId = "nonexistent",
+            requiredPermissions = listOf("printer"),
+            boundPackageName = null,
+            boundCertHash = null,
+            boundOrigin = null
+        )
+        assertNull(result)
+    }
+
+    @Test
+    fun `findExistingToken ignores expired tokens`() = runTest {
+        val token = manager.createToken(
+            clientId = "test",
+            permissions = listOf("printer"),
+            grantedBy = "user_day",
+            duration = "day",
+            boundPackageName = null,
+            boundCertHash = null,
+            boundOrigin = null
+        )
+
+        db.tokenDao().updateExpiry(token.token, System.currentTimeMillis() - 1000)
+
+        val result = manager.findExistingToken(
+            clientId = "test",
+            requiredPermissions = listOf("printer"),
+            boundPackageName = null,
+            boundCertHash = null,
+            boundOrigin = null
+        )
+        assertNull(result)
+    }
+
+    @Test
+    fun `findExistingToken with wildcard covers specific request`() = runTest {
+        manager.createToken(
+            clientId = "test",
+            permissions = listOf("*"),
+            grantedBy = "user_permanent",
+            duration = "permanent",
+            boundPackageName = null,
+            boundCertHash = null,
+            boundOrigin = null
+        )
+
+        val result = manager.findExistingToken(
+            clientId = "test",
+            requiredPermissions = listOf("printer"),
+            boundPackageName = null,
+            boundCertHash = null,
+            boundOrigin = null
+        )
+        assertNotNull(result)
+    }
+
+    @Test
+    fun `findExistingToken with subset permissions returns null`() = runTest {
+        manager.createToken(
+            clientId = "test",
+            permissions = listOf("printer"),
+            grantedBy = "user_permanent",
+            duration = "permanent",
+            boundPackageName = null,
+            boundCertHash = null,
+            boundOrigin = null
+        )
+
+        val result = manager.findExistingToken(
+            clientId = "test",
+            requiredPermissions = listOf("printer", "scanner"),
+            boundPackageName = null,
+            boundCertHash = null,
+            boundOrigin = null
+        )
+        assertNull(result)
+    }
+
+    @Test
+    fun `findExistingToken with superset permissions returns match`() = runTest {
+        manager.createToken(
+            clientId = "test",
+            permissions = listOf("printer", "scanner"),
+            grantedBy = "user_permanent",
+            duration = "permanent",
+            boundPackageName = null,
+            boundCertHash = null,
+            boundOrigin = null
+        )
+
+        val result = manager.findExistingToken(
+            clientId = "test",
+            requiredPermissions = listOf("printer"),
+            boundPackageName = null,
+            boundCertHash = null,
+            boundOrigin = null
+        )
+        assertNotNull(result)
+    }
+
+    @Test
+    fun `findExistingToken rejects wrong binding`() = runTest {
+        manager.createToken(
+            clientId = "test",
+            permissions = listOf("printer"),
+            grantedBy = "user_permanent",
+            duration = "permanent",
+            boundPackageName = "com.test.app",
+            boundCertHash = null,
+            boundOrigin = null
+        )
+
+        val result = manager.findExistingToken(
+            clientId = "test",
+            requiredPermissions = listOf("printer"),
+            boundPackageName = "com.other.app",
+            boundCertHash = null,
+            boundOrigin = null
+        )
+        assertNull(result)
+    }
+
+    @Test
+    fun `findExistingToken with prefix permission matching`() = runTest {
+        manager.createToken(
+            clientId = "test",
+            permissions = listOf("printer"),
+            grantedBy = "user_permanent",
+            duration = "permanent",
+            boundPackageName = null,
+            boundCertHash = null,
+            boundOrigin = null
+        )
+
+        val result = manager.findExistingToken(
+            clientId = "test",
+            requiredPermissions = listOf("printer.status"),
+            boundPackageName = null,
+            boundCertHash = null,
+            boundOrigin = null
+        )
+        assertNotNull(result)
+    }
 }
