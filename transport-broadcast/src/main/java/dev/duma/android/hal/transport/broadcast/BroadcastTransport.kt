@@ -20,22 +20,24 @@ class BroadcastTransport : EventTransport {
 
     private var running = false
     private var context: Context? = null
-    private var enabledEvents: Set<String> = emptySet()
+    private var eventFilter: ((String) -> Boolean)? = null
 
     override fun start(config: TransportConfig) {
         this.context = config.context
-        this.enabledEvents = config.enabledBroadcastEvents
+        this.eventFilter = config.broadcastEventFilter
+            ?: { it in config.enabledBroadcastEvents }
         running = true
     }
 
     override fun stop() {
         running = false
         context = null
+        eventFilter = null
     }
 
     override fun pushEvent(eventName: String, jsonData: String) {
         if (!isEnabled) return
-        if (eventName !in enabledEvents) return
+        if (eventFilter?.invoke(eventName) != true) return
 
         val intent = Intent("dev.duma.hal.event.$eventName").apply {
             putExtra("event", eventName)

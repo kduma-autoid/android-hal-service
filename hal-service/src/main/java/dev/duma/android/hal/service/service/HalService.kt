@@ -18,6 +18,7 @@ import dev.duma.android.hal.service.auth.GrantDecision
 import dev.duma.android.hal.service.auth.GrantOverlayDialog
 import dev.duma.android.hal.service.auth.GrantPermissionActivity
 import dev.duma.android.hal.service.auth.TokenDatabase
+import dev.duma.android.hal.service.auth.TokenDao
 import dev.duma.android.hal.service.auth.TokenManager
 import dev.duma.android.hal.service.config.BroadcastConfig
 import dev.duma.android.hal.service.core.ServiceCommandHandler
@@ -48,6 +49,17 @@ class HalService : Service() {
         private const val GRANT_CHANNEL_ID = "hal_grant_requests"
         private const val GRANT_NOTIFICATION_ID = 2
         const val PORT = 8400
+
+        var isServiceRunning: Boolean = false
+            private set
+        var transportRegistry: TransportRegistry? = null
+            private set
+        var pluginRegistry: PluginRegistry? = null
+            private set
+        var tokenDao: TokenDao? = null
+            private set
+        var broadcastConfig: BroadcastConfig? = null
+            private set
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -128,6 +140,7 @@ class HalService : Service() {
             port = PORT,
             context = applicationContext,
             enabledBroadcastEvents = broadcastConfig.getEnabledEvents(),
+            broadcastEventFilter = { broadcastConfig.isEventEnabled(it) },
             ktorServerManager = ktorServerManager
         )
 
@@ -181,7 +194,14 @@ class HalService : Service() {
             tokenManager.cleanExpired()
         }
 
-        // 18. Foreground notification
+        // 18. Expose state for DashboardActivity
+        Companion.transportRegistry = transportRegistry
+        Companion.pluginRegistry = pluginRegistry
+        Companion.tokenDao = db.tokenDao()
+        Companion.broadcastConfig = broadcastConfig
+        Companion.isServiceRunning = true
+
+        // 19. Foreground notification
         startForegroundNotification()
 
         Log.i(TAG, "HAL Service started successfully")
@@ -197,6 +217,11 @@ class HalService : Service() {
 
     override fun onDestroy() {
         Log.i(TAG, "HAL Service stopping...")
+        Companion.isServiceRunning = false
+        Companion.transportRegistry = null
+        Companion.pluginRegistry = null
+        Companion.tokenDao = null
+        Companion.broadcastConfig = null
         transportRegistry.stopAll()
         ktorServerManager.stop()
         pluginRegistry.disconnectAll(this)
