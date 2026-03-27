@@ -1,9 +1,10 @@
 plugins {
     alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
-    namespace = "dev.duma.android.hal.plugins.generic"
+    namespace = "dev.duma.android.hal.transport.ws"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -33,13 +34,16 @@ android {
 }
 
 dependencies {
-    implementation(project(":hal-contract"))
+    implementation(project(":service:transport:transport-core"))
+    implementation(project(":service:transport:transport-ktor-core"))
+    implementation(project(":service:hal-contract"))
+    implementation(libs.ktor.server.websockets)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.core)
 
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.kotlin.test)
     testImplementation(libs.kotlinx.coroutines.test)
-    testImplementation(libs.mockk)
 }
 
 tasks.withType<Test> {

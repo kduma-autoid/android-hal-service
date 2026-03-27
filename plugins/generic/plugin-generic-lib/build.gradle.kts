@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace = "dev.duma.android.hal.transport.intent"
+    namespace = "dev.duma.android.hal.plugins.generic"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -33,7 +33,15 @@ android {
 }
 
 dependencies {
-    implementation(project(":transport-core"))
-    implementation(libs.androidx.appcompat)
+    implementation(project(":service:hal-contract"))
     implementation(libs.kotlinx.coroutines.core)
+
+    testImplementation(libs.junit.jupiter)
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.mockk)
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
 }

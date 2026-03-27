@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace = "dev.duma.android.hal.plugins.sunmi.printer"
+    namespace = "dev.duma.android.hal.transport.core"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -33,6 +33,6 @@ android {
 }
 
 dependencies {
-    implementation(project(":hal-contract"))
-    implementation(libs.androidx.core.ktx)
+    implementation(project(":service:hal-contract"))
+    implementation(libs.kotlinx.coroutines.core)
 }

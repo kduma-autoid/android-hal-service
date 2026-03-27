@@ -1,9 +1,9 @@
 plugins {
-    alias(libs.plugins.android.application)
+    alias(libs.plugins.android.library)
 }
 
 android {
-    namespace = "dev.duma.android.hal.plugins.sunmi.bundle"
+    namespace = "dev.duma.android.hal.transport.aidl"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -11,13 +11,14 @@ android {
     }
 
     defaultConfig {
-        applicationId = "dev.duma.android.hal.plugins.sunmi"
         minSdk = 24
-        targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        consumerProguardFiles("consumer-rules.pro")
+    }
+
+    buildFeatures {
+        aidl = true
     }
 
     buildTypes {
@@ -36,7 +37,7 @@ android {
 }
 
 dependencies {
-    implementation(project(":hal-contract"))
-    implementation(project(":plugin-sunmi-printer-lib"))
-    implementation(project(":plugin-sunmi-scanner-lib"))
+    implementation(project(":service:transport:transport-core"))
+    implementation(project(":service:hal-contract"))
+    implementation(libs.kotlinx.coroutines.core)
 }

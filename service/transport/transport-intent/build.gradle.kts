@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace = "dev.duma.android.hal.plugins.sunmi.scanner"
+    namespace = "dev.duma.android.hal.transport.intent"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -33,6 +33,7 @@ android {
 }
 
 dependencies {
-    implementation(project(":hal-contract"))
-    implementation(libs.androidx.core.ktx)
+    implementation(project(":service:transport:transport-core"))
+    implementation(libs.androidx.appcompat)
+    implementation(libs.kotlinx.coroutines.core)
 }

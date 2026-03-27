@@ -75,7 +75,7 @@ Przed rozpoczeciem pracy musisz ustalisc, jaki typ pluginu tworzysz. Istnieja tr
 ### 3.1 Struktura katalogow
 
 ```
-plugin-{vendor}-{device}-lib/
+plugins/{vendor}/plugin-{vendor}-{device}-lib/
   src/main/
     java/dev/duma/android/hal/plugins/{vendor}/{device}/
       {Vendor}{Device}Plugin.kt
@@ -124,7 +124,7 @@ android {
 }
 
 dependencies {
-    implementation(project(":hal-contract"))
+    implementation(project(":service:hal-contract"))
     implementation(libs.androidx.core.ktx)
 }
 ```
@@ -278,9 +278,9 @@ android {
 }
 
 dependencies {
-    implementation(project(":hal-contract"))
-    implementation(project(":plugin-{vendor}-{device1}-lib"))
-    implementation(project(":plugin-{vendor}-{device2}-lib"))
+    implementation(project(":service:hal-contract"))
+    implementation(project(":plugins:{vendor}:plugin-{vendor}-{device1}-lib"))
+    implementation(project(":plugins:{vendor}:plugin-{vendor}-{device2}-lib"))
 }
 ```
 
@@ -339,7 +339,7 @@ class {Vendor}{Device}Service : Service() {
 ### 4.4 Zasoby
 
 - `res/values/strings.xml` z `app_name`
-- Pliki ikon -- skopiuj z `plugin-sunmi-bundle/src/main/res/`
+- Pliki ikon -- skopiuj z `plugins/sunmi/plugin-sunmi-bundle/src/main/res/`
 
 ### 4.5 Plik `.gitignore`
 
@@ -347,7 +347,7 @@ Zawiera `/build`
 
 ### 4.6 Dodawanie nowego pluginu do istniejacego bundle
 
-1. Dodaj zaleznosc w `build.gradle.kts`: `implementation(project(":plugin-{vendor}-{nowyDevice}-lib"))`
+1. Dodaj zaleznosc w `build.gradle.kts`: `implementation(project(":plugins:{vendor}:plugin-{vendor}-{nowyDevice}-lib"))`
 2. Dodaj klase serwisu (szablon z 4.3)
 3. Dodaj `<service>` w `AndroidManifest.xml` (szablon z 4.2)
 
@@ -359,7 +359,7 @@ Generic plugin to klasa dodawana do istniejacego modulu `plugin-generic-lib`. NI
 
 ### 5.1 Wariant BEZ transformacji eventow
 
-Plik: `plugin-generic-lib/src/main/java/dev/duma/android/hal/plugins/generic/Generic{Device}Plugin.kt`
+Plik: `plugins/generic/plugin-generic-lib/src/main/java/dev/duma/android/hal/plugins/generic/Generic{Device}Plugin.kt`
 
 ```kotlin
 package dev.duma.android.hal.plugins.generic
@@ -469,15 +469,15 @@ override fun setEventCallback(callback: HalPluginEventCallback?) {
 
 ### 6.1 `settings.gradle.kts`
 
-Dodaj `include()` (przed `include(":hal-service")`):
+Dodaj `include()`:
 
 ```kotlin
-include(":plugin-{vendor}-{device}-lib")  // dla vendor lib
-include(":plugin-{vendor}-bundle")         // dla bundle APK
+include(":plugins:{vendor}:plugin-{vendor}-{device}-lib")  // dla vendor lib
+include(":plugins:{vendor}:plugin-{vendor}-bundle")         // dla bundle APK
 // Generic: NIE DODAWAJ -- modul juz istnieje
 ```
 
-### 6.2 `hal-service/build.gradle.kts`
+### 6.2 `service/hal-service/build.gradle.kts`
 
 #### Nowy vendor (nowy flavor):
 
@@ -486,14 +486,14 @@ include(":plugin-{vendor}-bundle")         // dla bundle APK
 create("{vendor}") { dimension = "device" }
 
 // W dependencies:
-"{vendor}Implementation"(project(":plugin-{vendor}-{device}-lib"))
+"{vendor}Implementation"(project(":plugins:{vendor}:plugin-{vendor}-{device}-lib"))
 ```
 
 #### Istniejacy vendor (np. sunmi):
 
 ```kotlin
 // Tylko zaleznosc:
-"sunmiImplementation"(project(":plugin-sunmi-{nowyDevice}-lib"))
+"sunmiImplementation"(project(":plugins:sunmi:plugin-sunmi-{nowyDevice}-lib"))
 ```
 
 #### Generic: nic nie dodawaj (juz jest).
@@ -501,7 +501,7 @@ create("{vendor}") { dimension = "device" }
 
 ### 6.3 `HalService.kt`
 
-Plik: `hal-service/src/main/java/dev/duma/android/hal/service/service/HalService.kt`
+Plik: `service/hal-service/src/main/java/dev/duma/android/hal/service/service/HalService.kt`
 
 #### Vendor-specific -- dodaj w sekcji krok 5 (vendor-specific plugins):
 ```kotlin
@@ -540,7 +540,7 @@ private val VENDOR_PREFIXES = listOf(
 
 ### 7.1 Test generic pluginu (WYMAGANY)
 
-Plik: `plugin-generic-lib/src/test/java/dev/duma/android/hal/plugins/generic/Generic{Device}PluginTest.kt`
+Plik: `plugins/generic/plugin-generic-lib/src/test/java/dev/duma/android/hal/plugins/generic/Generic{Device}PluginTest.kt`
 
 ```kotlin
 package dev.duma.android.hal.plugins.generic
@@ -600,7 +600,7 @@ fun `transforms vendor event to unified`() = runTest {
 }
 ```
 
-Uruchomienie: `./gradlew :plugin-generic-lib:test`
+Uruchomienie: `./gradlew :plugins:generic:plugin-generic-lib:test`
 
 ---
 
@@ -609,7 +609,7 @@ Uruchomienie: `./gradlew :plugin-generic-lib:test`
 ### Scenariusz A: Nowy vendor-specific plugin (in-process)
 1. Utworz modul `plugin-{vendor}-{device}-lib` (sekcja 3)
 2. `settings.gradle.kts` -- dodaj `include()` (sekcja 6.1)
-3. `hal-service/build.gradle.kts` -- flavor + zaleznosc (sekcja 6.2)
+3. `service/hal-service/build.gradle.kts` -- flavor + zaleznosc (sekcja 6.2)
 4. `HalService.kt` -- dodaj `tryRegisterPlugin()` w sekcji vendor (sekcja 6.3)
 5. (Opcjonalnie) Aktualizuj generic plugin (sekcja 6.4)
 
@@ -617,12 +617,12 @@ Uruchomienie: `./gradlew :plugin-generic-lib:test`
 1. Utworz modul `plugin-{vendor}-{device}-lib` (sekcja 3)
 2. Utworz/zaktualizuj `plugin-{vendor}-bundle` (sekcja 4)
 3. `settings.gradle.kts` -- dodaj oba moduly (sekcja 6.1)
-4. NIE dodawaj do `hal-service/build.gradle.kts`
+4. NIE dodawaj do `service/hal-service/build.gradle.kts`
 5. NIE dodawaj `tryRegisterPlugin()` -- discovery automatyczne
 6. (Opcjonalnie) Aktualizuj generic plugin (sekcja 6.4)
 
 ### Scenariusz C: Nowy generic abstraction
-1. Utworz klase w `plugin-generic-lib` (sekcja 5)
+1. Utworz klase w `plugins/generic/plugin-generic-lib` (sekcja 5)
 2. `HalService.kt` -- dodaj `tryRegisterPlugin()` w sekcji generic (sekcja 6.3)
 3. Napisz testy (sekcja 7)
 
@@ -641,7 +641,7 @@ Uruchomienie: `./gradlew :plugin-generic-lib:test`
 6. **pluginId musi byc unikalny** w calym systemie
 7. **Capabilities musza byc unikalne** -- ta sama capability nie moze byc w dwoch pluginach
 8. **Konstruktor pluginu:** Vendor-specific pluginy MUSZA miec konstruktor z opcjonalnym `Context` parametrem: `(appContext: Context? = null)`. `tryRegisterPlugin()` uzywa refleksji -- probuje najpierw konstruktor `(Context)`, potem bezargumentowy. Bundle serwisy przekazuja `applicationContext` wprost. Generic pluginy moga miec bezargumentowy konstruktor (nie potrzebuja `Context` w konstruktorze -- dostaja go przez `PluginContext.applicationContext`)
-9. **Kazdy plugin-lib MUSI zalezec od `:hal-contract`**
+9. **Kazdy plugin-lib MUSI zalezec od `:service:hal-contract`**
 
 ---
 
@@ -656,17 +656,17 @@ Uruchomienie: `./gradlew :plugin-generic-lib:test`
 - [ ] `setEventCallback()` zapisuje callback
 - [ ] Konstruktor z opcjonalnym `Context`: `(appContext: Context? = null)`
 - [ ] `settings.gradle.kts` -- `include()`
-- [ ] `hal-service/build.gradle.kts` -- flavor + zaleznosc (jesli in-process)
+- [ ] `service/hal-service/build.gradle.kts` -- flavor + zaleznosc (jesli in-process)
 - [ ] `HalService.kt` -- `tryRegisterPlugin()` (jesli in-process)
 
 ### Bundle APK:
-- [ ] `build.gradle.kts` z `applicationId`, zaleznosci na `:hal-contract` + plugin-libs
+- [ ] `build.gradle.kts` z `applicationId`, zaleznosci na `:service:hal-contract` + plugin-libs
 - [ ] `AndroidManifest.xml` -- `<service>` per plugin: `exported=true`, intent-filter, meta-data
 - [ ] Klasa serwisu uzywa `PluginServiceWrapper` i przekazuje `applicationContext` do konstruktora pluginu
 - [ ] `settings.gradle.kts` -- `include()`
 
 ### Generic plugin:
-- [ ] Klasa w `plugin-generic-lib`
+- [ ] Klasa w `plugins/generic/plugin-generic-lib`
 - [ ] `pluginId` BEZ prefixu vendora
 - [ ] Lista vendorow z priorytetem
 - [ ] `initialize()` zapisuje PluginContext
@@ -683,15 +683,15 @@ Uruchomienie: `./gradlew :plugin-generic-lib:test`
 
 | Plik | Rola |
 |---|---|
-| `hal-contract/src/main/java/dev/duma/android/hal/contract/HalPlugin.kt` | Interfejs kontraktowy |
-| `hal-contract/src/main/java/dev/duma/android/hal/contract/PluginContext.kt` | Kontekst inter-plugin |
-| `hal-contract/src/main/java/dev/duma/android/hal/contract/PluginDescriptor.kt` | Deskryptor pluginu |
-| `hal-contract/src/main/java/dev/duma/android/hal/contract/PluginServiceWrapper.kt` | Wrapper HalPlugin -> AIDL |
-| `hal-service/src/main/java/.../service/HalService.kt` | Rejestracja pluginow |
-| `hal-service/build.gradle.kts` | Flavory i zaleznosci |
+| `service/hal-contract/src/main/java/dev/duma/android/hal/contract/HalPlugin.kt` | Interfejs kontraktowy |
+| `service/hal-contract/src/main/java/dev/duma/android/hal/contract/PluginContext.kt` | Kontekst inter-plugin |
+| `service/hal-contract/src/main/java/dev/duma/android/hal/contract/PluginDescriptor.kt` | Deskryptor pluginu |
+| `service/hal-contract/src/main/java/dev/duma/android/hal/contract/PluginServiceWrapper.kt` | Wrapper HalPlugin -> AIDL |
+| `service/hal-service/src/main/java/.../service/HalService.kt` | Rejestracja pluginow |
+| `service/hal-service/build.gradle.kts` | Flavory i zaleznosci |
 | `settings.gradle.kts` | Moduly Gradle |
-| `plugin-sunmi-printer-lib/.../SunmiPrinterPlugin.kt` | Wzorzec vendor plugin |
-| `plugin-sunmi-scanner-lib/.../SunmiScannerPlugin.kt` | Wzorzec vendor plugin z eventami |
-| `plugin-generic-lib/.../GenericPrinterPlugin.kt` | Wzorzec generic plugin |
-| `plugin-generic-lib/.../GenericScannerPlugin.kt` | Wzorzec generic plugin z eventami |
-| `plugin-sunmi-bundle/.../SunmiPrinterService.kt` | Wzorzec serwisu bundle |
+| `plugins/sunmi/plugin-sunmi-printer-lib/.../SunmiPrinterPlugin.kt` | Wzorzec vendor plugin |
+| `plugins/sunmi/plugin-sunmi-scanner-lib/.../SunmiScannerPlugin.kt` | Wzorzec vendor plugin z eventami |
+| `plugins/generic/plugin-generic-lib/.../GenericPrinterPlugin.kt` | Wzorzec generic plugin |
+| `plugins/generic/plugin-generic-lib/.../GenericScannerPlugin.kt` | Wzorzec generic plugin z eventami |
+| `plugins/sunmi/plugin-sunmi-bundle/.../SunmiPrinterService.kt` | Wzorzec serwisu bundle |

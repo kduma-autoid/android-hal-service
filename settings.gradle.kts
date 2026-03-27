@@ -23,16 +23,20 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "HAL Service"
-include(":hal-contract")
-include(":transport-core")
-include(":transport-ktor-core")
-include(":transport-aidl")
-include(":transport-ws")
-include(":transport-http")
-include(":transport-intent")
-include(":transport-broadcast")
-include(":plugin-generic-lib")
-include(":plugin-sunmi-printer-lib")
-include(":plugin-sunmi-scanner-lib")
-include(":plugin-sunmi-bundle")
-include(":hal-service")
+
+include(":service:hal-contract")
+include(":service:hal-service")
+
+include(":service:transport:transport-core")
+include(":service:transport:transport-ktor-core")
+include(":service:transport:transport-aidl")
+include(":service:transport:transport-ws")
+include(":service:transport:transport-http")
+include(":service:transport:transport-intent")
+include(":service:transport:transport-broadcast")
+
+include(":plugins:generic:plugin-generic-lib")
+
+include(":plugins:sunmi:plugin-sunmi-bundle")
+include(":plugins:sunmi:plugin-sunmi-printer-lib")
+include(":plugins:sunmi:plugin-sunmi-scanner-lib")

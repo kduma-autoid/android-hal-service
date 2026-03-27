@@ -33,5 +33,5 @@ android {
 }
 
 dependencies {
-    implementation(project(":transport-core"))
+    implementation(project(":service:transport:transport-core"))
 }

@@ -1,9 +1,10 @@
 plugins {
     alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
-    namespace = "dev.duma.android.hal.transport.ktor.core"
+    namespace = "dev.duma.android.hal.transport.http"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -33,10 +34,9 @@ android {
 }
 
 dependencies {
-    implementation(project(":transport-core"))
-    implementation(libs.ktor.server.core)
-    implementation(libs.ktor.server.netty)
+    implementation(project(":service:transport:transport-core"))
+    implementation(project(":service:transport:transport-ktor-core"))
     implementation(libs.ktor.server.content.negotiation)
     implementation(libs.ktor.serialization.kotlinx.json)
-    implementation(libs.ktor.server.cors)
+    implementation(libs.kotlinx.serialization.json)
 }

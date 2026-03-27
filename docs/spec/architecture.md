@@ -8,26 +8,26 @@ Architektura pluginowa z modularnymi kanałami komunikacji.
 
 ## Moduły Gradle
 
-### Kontrakt
-- `hal-contract` — AAR, interfejsy pluginów + PluginContext + PluginDescriptor
+### service/ — kontrakt + główna usługa
+- `service/hal-contract` — AAR, interfejsy pluginów + PluginContext + PluginDescriptor
+- `service/hal-service` — APK, Foreground Service z build flavors per urządzenie
 
-### Transporty (kanały komunikacji — osobne AAR)
-- `transport-core` — interfejsy TransportChannel, CommandHandler, CallerContext
-- `transport-ktor-core` — zarządzanie lifecycle jednego shared Ktor serwera
-- `transport-aidl` — kanał AIDL (Binder IPC, komendy + eventy)
-- `transport-ws` — kanał WebSocket (komendy + eventy, via Ktor)
-- `transport-http` — kanał HTTP REST (komendy, via Ktor)
-- `transport-intent` — kanał Android Intent (komendy, Activity gateway)
-- `transport-broadcast` — kanał Android Broadcast (eventy push, publiczny)
+### service/transport/ — kanały komunikacji (osobne AAR)
+- `service/transport/transport-core` — interfejsy TransportChannel, CommandHandler, CallerContext
+- `service/transport/transport-ktor-core` — zarządzanie lifecycle jednego shared Ktor serwera
+- `service/transport/transport-aidl` — kanał AIDL (Binder IPC, komendy + eventy)
+- `service/transport/transport-ws` — kanał WebSocket (komendy + eventy, via Ktor)
+- `service/transport/transport-http` — kanał HTTP REST (komendy, via Ktor)
+- `service/transport/transport-intent` — kanał Android Intent (komendy, Activity gateway)
+- `service/transport/transport-broadcast` — kanał Android Broadcast (eventy push, publiczny)
 
-### Główna usługa
-- `hal-service` — APK, Foreground Service z build flavors per urządzenie
+### plugins/generic/ — pluginy abstrakcji
+- `plugins/generic/plugin-generic-lib` — AAR, pluginy abstrakcji (printer, scanner)
 
-### Pluginy
-- `plugin-generic-lib` — AAR, pluginy abstrakcji (printer, scanner)
-- `plugin-sunmi-printer-lib` — AAR, plugin drukarki Sunmi (stub)
-- `plugin-sunmi-scanner-lib` — AAR, plugin skanera Sunmi (stub)
-- `plugin-sunmi-bundle` — APK, standalone wrapper bundlujący sunmi pluginy
+### plugins/sunmi/ — pluginy Sunmi
+- `plugins/sunmi/plugin-sunmi-printer-lib` — AAR, plugin drukarki Sunmi (stub)
+- `plugins/sunmi/plugin-sunmi-scanner-lib` — AAR, plugin skanera Sunmi (stub)
+- `plugins/sunmi/plugin-sunmi-bundle` — APK, standalone wrapper bundlujący sunmi pluginy
 
 ## Zależności
 
@@ -60,9 +60,9 @@ productFlavors {
     create("sunmi") { dimension = "device" }    // + sunmi plugins
 }
 dependencies {
-    implementation(project(":plugin-generic-lib"))  // zawsze
-    "sunmiImplementation"(project(":plugin-sunmi-printer-lib"))
-    "sunmiImplementation"(project(":plugin-sunmi-scanner-lib"))
+    implementation(project(":plugins:generic:plugin-generic-lib"))  // zawsze
+    "sunmiImplementation"(project(":plugins:sunmi:plugin-sunmi-printer-lib"))
+    "sunmiImplementation"(project(":plugins:sunmi:plugin-sunmi-scanner-lib"))
 }
 ```
 
@@ -81,8 +81,8 @@ fun tryRegister(className: String) {
 Granulacja: jeden moduł AAR per plugin (nie per vendor).
 
 ```
-plugin-xxx-yyy-lib/    ← AAR z logiką jednego pluginu (HalPlugin)
-plugin-xxx-bundle/     ← APK wrapper bundlujący wiele plugin-xxx-*-lib
+plugins/{vendor}/plugin-xxx-yyy-lib/    ← AAR z logiką jednego pluginu (HalPlugin)
+plugins/{vendor}/plugin-xxx-bundle/     ← APK wrapper bundlujący wiele plugin-xxx-*-lib
 ```
 
 Bundle APK ma osobny Service per plugin:
@@ -136,7 +136,7 @@ Plugin nie wie skąd przyszła komenda. Format zawsze: `(method, params) → res
 ## Struktura pakietów hal-service
 
 ```
-hal-service/src/main/java/.../
+service/hal-service/src/main/java/.../
 ├── auth/                 — TokenManager, DeveloperKeyVerifier, AuthManager, GrantPermissionActivity
 ├── core/                 — ServiceCommandHandler, TransportBootstrap
 ├── plugin/               — PluginRegistry, PluginContextImpl, EventBus

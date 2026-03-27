@@ -65,21 +65,21 @@ android {
 
 dependencies {
     // Project modules - core
-    implementation(project(":hal-contract"))
-    implementation(project(":transport-core"))
-    implementation(project(":transport-ktor-core"))
+    implementation(project(":service:hal-contract"))
+    implementation(project(":service:transport:transport-core"))
+    implementation(project(":service:transport:transport-ktor-core"))
 
     // Project modules - transports
-    implementation(project(":transport-aidl"))
-    implementation(project(":transport-ws"))
-    implementation(project(":transport-http"))
-    implementation(project(":transport-intent"))
-    implementation(project(":transport-broadcast"))
+    implementation(project(":service:transport:transport-aidl"))
+    implementation(project(":service:transport:transport-ws"))
+    implementation(project(":service:transport:transport-http"))
+    implementation(project(":service:transport:transport-intent"))
+    implementation(project(":service:transport:transport-broadcast"))
 
     // Project modules - plugins
-    implementation(project(":plugin-generic-lib"))
-    "sunmiImplementation"(project(":plugin-sunmi-printer-lib"))
-    "sunmiImplementation"(project(":plugin-sunmi-scanner-lib"))
+    implementation(project(":plugins:generic:plugin-generic-lib"))
+    "sunmiImplementation"(project(":plugins:sunmi:plugin-sunmi-printer-lib"))
+    "sunmiImplementation"(project(":plugins:sunmi:plugin-sunmi-scanner-lib"))
 
     // AndroidX
     implementation(libs.androidx.core.ktx)
