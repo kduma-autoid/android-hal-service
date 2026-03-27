@@ -9,6 +9,7 @@ import android.util.Log
 import dev.duma.android.hal.contract.AidlPluginAdapter
 import dev.duma.android.hal.contract.EventBus
 import dev.duma.android.hal.contract.HalPlugin
+import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.IHardwarePlugin
 import dev.duma.android.hal.contract.PluginDescriptor
 import java.util.concurrent.ConcurrentHashMap
@@ -88,6 +89,14 @@ class PluginRegistry {
                 eventBus = eventBus,
                 applicationContext = appContext
             )
+            plugin.setEventCallback(object : HalPluginEventCallback {
+                override fun onEvent(eventName: String, jsonData: String) {
+                    eventBus.emit(eventName, jsonData, plugin.pluginId)
+                }
+                override fun onError(deviceType: String, code: Int, message: String) {
+                    Log.w(TAG, "Plugin ${plugin.pluginId} error [$deviceType]: $code $message")
+                }
+            })
             plugin.initialize(context)
         }
         Log.i(TAG, "Initialized ${plugins.size} plugins")
