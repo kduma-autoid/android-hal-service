@@ -102,7 +102,7 @@ class ServiceCommandHandler(
     override fun getStatus(): String = handleStatus()
 
     override fun describeApi(): String {
-        return Json.encodeToString(Json.encodeToJsonElement(pluginRegistry.getAllDescriptors()))
+        return Json.encodeToString(Json.encodeToJsonElement(pluginRegistry.getSupportedDescriptors()))
     }
 
     private fun handlePing(): String {
@@ -118,7 +118,7 @@ class ServiceCommandHandler(
         return buildJsonObject {
             put("uptime", uptimeSeconds)
             putJsonObject("plugins") {
-                pluginRegistry.getAllDescriptors().forEach { desc ->
+                pluginRegistry.getSupportedDescriptors().forEach { desc ->
                     putJsonObject(desc.pluginId) {
                         put("version", desc.version)
                         putJsonArray("capabilities") { desc.capabilities.forEach { add(JsonPrimitive(it)) } }
@@ -144,7 +144,7 @@ class ServiceCommandHandler(
 
     private fun handleDescribe(tokenEntity: TokenEntity): String {
         val permissions = tokenEntity.permissions.split(",")
-        val allDescriptors = pluginRegistry.getAllDescriptors()
+        val allDescriptors = pluginRegistry.getSupportedDescriptors()
 
         val filtered = if ("*" in permissions) {
             allDescriptors

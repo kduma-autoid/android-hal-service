@@ -41,6 +41,12 @@ class SunmiDockerPlugin(
         }
     }
 
+    override fun isSupported(): Boolean {
+        val ctx = context ?: return false
+        val intent = Intent("com.sunmi.docker.service")
+        return ctx.packageManager.resolveService(intent, 0) != null
+    }
+
     override fun getCapabilities(): List<String> = listOf("sunmi.docker")
 
     override fun getDescriptor(): PluginDescriptor = PluginDescriptor(

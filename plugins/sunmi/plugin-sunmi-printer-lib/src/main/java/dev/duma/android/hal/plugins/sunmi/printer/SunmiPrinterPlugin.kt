@@ -20,6 +20,8 @@ class SunmiPrinterPlugin(private val appContext: Context? = null) : HalPlugin {
 
     private var callback: HalPluginEventCallback? = null
 
+    override fun isSupported(): Boolean = true
+
     override fun getCapabilities(): List<String> = listOf("sunmi.printer")
 
     override fun getDescriptor(): PluginDescriptor = PluginDescriptor(

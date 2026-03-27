@@ -1,6 +1,7 @@
 package dev.duma.android.hal.plugins.sunmi.statuslight
 
 import android.content.Context
+import android.content.Intent
 import com.sunmi.peripheralsdk.Color
 import com.sunmi.peripheralsdk.StatusLightManager
 import dev.duma.android.hal.contract.HalPlugin
@@ -30,6 +31,15 @@ class SunmiStatusLightPlugin(
 
     private var callback: HalPluginEventCallback? = null
     private val mutex = Mutex()
+
+    override fun isSupported(): Boolean {
+        val ctx = context ?: return false
+        val intent = Intent().setComponent(android.content.ComponentName(
+            "com.sunmi.peripheralmanager",
+            "com.sunmi.statuslightmanager.StatusLightService"
+        ))
+        return ctx.packageManager.resolveService(intent, 0) != null
+    }
 
     override fun getCapabilities(): List<String> = listOf("sunmi.statuslight")
 

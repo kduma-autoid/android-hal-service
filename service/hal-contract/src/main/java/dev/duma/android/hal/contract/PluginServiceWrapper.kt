@@ -32,6 +32,8 @@ class PluginServiceWrapper(
 
     override fun getVersion(): Int = plugin.version
 
+    override fun isSupported(): Boolean = plugin.isSupported()
+
     override fun getCapabilities(): List<String> = plugin.getCapabilities()
 
     override fun execute(method: String, jsonParams: String): String {

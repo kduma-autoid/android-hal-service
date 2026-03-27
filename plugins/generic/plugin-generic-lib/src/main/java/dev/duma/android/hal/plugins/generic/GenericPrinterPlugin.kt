@@ -23,6 +23,8 @@ class GenericPrinterPlugin : HalPlugin {
         private val VENDOR_PRINTERS = listOf("sunmi.printer", "zebra.printer", "chainway.printer")
     }
 
+    override fun isSupported(): Boolean = true
+
     override fun getCapabilities(): List<String> = listOf("printer")
 
     override fun getDescriptor(): PluginDescriptor = PluginDescriptor(

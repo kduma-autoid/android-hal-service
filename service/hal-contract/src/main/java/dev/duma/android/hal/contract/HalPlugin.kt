@@ -8,6 +8,7 @@ package dev.duma.android.hal.contract
 interface HalPlugin {
     val pluginId: String
     val version: Int
+    fun isSupported(): Boolean
     fun getCapabilities(): List<String>
     fun getDescriptor(): PluginDescriptor
     fun initialize(context: PluginContext)

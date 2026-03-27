@@ -24,6 +24,8 @@ class GenericScannerPlugin : HalPlugin {
         private val VENDOR_PREFIXES = listOf("sunmi", "zebra", "chainway")
     }
 
+    override fun isSupported(): Boolean = true
+
     override fun getCapabilities(): List<String> = listOf("scanner")
 
     override fun getDescriptor(): PluginDescriptor = PluginDescriptor(

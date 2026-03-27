@@ -1,6 +1,7 @@
 package dev.duma.android.hal.plugins.sunmi.nfc
 
 import android.content.Context
+import android.content.Intent
 import com.sunmi.nfc.INfcListener
 import com.sunmi.nfc.Nfc
 import com.sunmi.peripheralsdk.NfcManager
@@ -40,6 +41,12 @@ class SunmiNfcPlugin(
         override fun onNfcListChanged(nfcList: MutableList<Nfc>?) {
             callback?.onEvent("sunmi.nfc.modulesChanged", buildNfcListJson(nfcList))
         }
+    }
+
+    override fun isSupported(): Boolean {
+        val ctx = context ?: return false
+        val intent = Intent("com.sunmi.nfc.ctrl").setPackage("com.sunmi.peripheralmanager")
+        return ctx.packageManager.resolveService(intent, 0) != null
     }
 
     override fun getCapabilities(): List<String> = listOf("sunmi.nfc")

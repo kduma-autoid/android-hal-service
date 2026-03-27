@@ -305,7 +305,7 @@ class DashboardActivity : AppCompatActivity() {
             setPadding(16, 0, 16, 8)
         })
 
-        val allEvents = pluginReg.getAllDescriptors()
+        val allEvents = pluginReg.getSupportedDescriptors()
             .flatMap { it.events }
             .distinctBy { it.name }
 
@@ -356,10 +356,14 @@ class DashboardActivity : AppCompatActivity() {
             return
         }
 
+        val unsupportedIds = pluginReg.getUnsupportedPluginIds()
+
         for (desc in descriptors) {
+            val isUnsupported = desc.pluginId in unsupportedIds
             val block = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(16, 12, 16, 12)
+                if (isUnsupported) alpha = 0.5f
             }
 
             block.addView(TextView(this).apply {
@@ -373,11 +377,23 @@ class DashboardActivity : AppCompatActivity() {
                 textSize = 13f
             })
 
-            block.addView(TextView(this).apply {
-                text = "${desc.methods.size} methods, ${desc.events.size} events"
-                textSize = 13f
-                setTextColor(Color.DKGRAY)
-            })
+            val infoParts = mutableListOf<String>()
+            if (desc.methods.isNotEmpty()) infoParts.add("${desc.methods.size} methods")
+            if (desc.events.isNotEmpty()) infoParts.add("${desc.events.size} events")
+            if (isUnsupported) infoParts.add("UNSUPPORTED")
+
+            if (infoParts.isNotEmpty()) {
+                block.addView(TextView(this).apply {
+                    text = infoParts.joinToString(", ")
+                    textSize = 13f
+                    if (isUnsupported) {
+                        setTypeface(null, Typeface.BOLD)
+                        setTextColor(Color.parseColor("#C62828"))
+                    } else {
+                        setTextColor(Color.DKGRAY)
+                    }
+                })
+            }
 
             pluginContainer.addView(block)
             pluginContainer.addView(divider())

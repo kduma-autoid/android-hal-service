@@ -1,6 +1,7 @@
 package dev.duma.android.hal.plugins.sunmi.subscreen
 
 import android.content.Context
+import android.content.Intent
 import com.sunmi.peripheralsdk.SubScreenManager
 import com.sunmi.usbscreen.ISetCall
 import dev.duma.android.hal.contract.EventDescriptor
@@ -39,6 +40,12 @@ class SunmiSubScreenPlugin(
                 put("extra", extra2 ?: "")
             }.toString())
         }
+    }
+
+    override fun isSupported(): Boolean {
+        val ctx = context ?: return false
+        val intent = Intent("com.sunmi.usbscreen.IUsbScreenInterface").setPackage("com.sunmi.usbscreen")
+        return ctx.packageManager.resolveService(intent, 0) != null
     }
 
     override fun getCapabilities(): List<String> = listOf("sunmi.screen")

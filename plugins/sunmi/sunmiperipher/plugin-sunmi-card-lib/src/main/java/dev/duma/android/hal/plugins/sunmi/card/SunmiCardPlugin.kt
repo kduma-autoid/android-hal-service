@@ -1,6 +1,7 @@
 package dev.duma.android.hal.plugins.sunmi.card
 
 import android.content.Context
+import android.content.Intent
 import com.sunmi.card.IDataListener
 import com.sunmi.peripheralsdk.CardManager
 import dev.duma.android.hal.contract.EventDescriptor
@@ -35,6 +36,12 @@ class SunmiCardPlugin(
             val parsed = parseTrackData(data)
             callback?.onEvent("sunmi.card.swipe", parsed)
         }
+    }
+
+    override fun isSupported(): Boolean {
+        val ctx = context ?: return false
+        val intent = Intent("com.sunmi.mscard.service").setPackage("com.sunmi.peripheralmanager")
+        return ctx.packageManager.resolveService(intent, 0) != null
     }
 
     override fun getCapabilities(): List<String> = listOf("sunmi.card")

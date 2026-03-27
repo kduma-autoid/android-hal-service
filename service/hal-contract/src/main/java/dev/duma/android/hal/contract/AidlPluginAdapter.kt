@@ -19,6 +19,8 @@ class AidlPluginAdapter(
     override val version: Int
         get() = binder.version
 
+    override fun isSupported(): Boolean = binder.isSupported
+
     override fun getCapabilities(): List<String> = binder.capabilities
 
     override fun getDescriptor(): PluginDescriptor {

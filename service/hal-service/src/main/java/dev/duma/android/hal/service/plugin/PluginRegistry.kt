@@ -26,15 +26,21 @@ class PluginRegistry {
     }
 
     private val plugins = ConcurrentHashMap<String, HalPlugin>()
+    private val unsupportedPlugins = ConcurrentHashMap<String, HalPlugin>()
     private val capabilityToPlugin = ConcurrentHashMap<String, HalPlugin>()
     private val serviceConnections = mutableListOf<ServiceConnection>()
 
     fun registerBuiltIn(plugin: HalPlugin) {
-        plugins[plugin.pluginId] = plugin
-        plugin.getCapabilities().forEach { capability ->
-            capabilityToPlugin[capability] = plugin
+        if (plugin.isSupported()) {
+            plugins[plugin.pluginId] = plugin
+            plugin.getCapabilities().forEach { capability ->
+                capabilityToPlugin[capability] = plugin
+            }
+            Log.i(TAG, "Registered built-in plugin: ${plugin.pluginId}")
+        } else {
+            unsupportedPlugins[plugin.pluginId] = plugin
+            Log.i(TAG, "Plugin not supported on this device: ${plugin.pluginId}")
         }
-        Log.i(TAG, "Registered built-in plugin: ${plugin.pluginId}")
     }
 
     fun discoverExternal(context: Context) {
@@ -109,8 +115,16 @@ class PluginRegistry {
         return capabilityToPlugin.keys().toList()
     }
 
-    fun getAllDescriptors(): List<PluginDescriptor> {
+    fun getSupportedDescriptors(): List<PluginDescriptor> {
         return plugins.values.map { it.getDescriptor() }
+    }
+
+    fun getAllDescriptors(): List<PluginDescriptor> {
+        return (plugins.values + unsupportedPlugins.values).map { it.getDescriptor() }
+    }
+
+    fun getUnsupportedPluginIds(): Set<String> {
+        return unsupportedPlugins.keys.toSet()
     }
 
     fun disconnectAll(context: Context) {
