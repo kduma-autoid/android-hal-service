@@ -24,6 +24,7 @@ class SunmiScannerPlugin(private val appContext: Context? = null) : HalPlugin {
 
     override fun getDescriptor(): PluginDescriptor = PluginDescriptor(
         pluginId = pluginId,
+        name = "[DEMO] Sunmi Scanner",
         version = version,
         capabilities = getCapabilities(),
         methods = listOf(

@@ -28,6 +28,7 @@ class GenericScannerPlugin : HalPlugin {
 
     override fun getDescriptor(): PluginDescriptor = PluginDescriptor(
         pluginId = pluginId,
+        name = "[DEMO] Scanner",
         version = version,
         capabilities = getCapabilities(),
         methods = listOf(

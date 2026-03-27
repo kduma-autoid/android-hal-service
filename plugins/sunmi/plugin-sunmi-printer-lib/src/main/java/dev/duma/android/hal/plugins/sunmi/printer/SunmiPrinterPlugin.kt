@@ -24,6 +24,7 @@ class SunmiPrinterPlugin(private val appContext: Context? = null) : HalPlugin {
 
     override fun getDescriptor(): PluginDescriptor = PluginDescriptor(
         pluginId = pluginId,
+        name = "[DEMO] Sunmi Printer",
         version = version,
         capabilities = getCapabilities(),
         methods = listOf(

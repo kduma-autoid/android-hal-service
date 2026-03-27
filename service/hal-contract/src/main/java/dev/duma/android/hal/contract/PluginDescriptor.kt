@@ -10,6 +10,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class PluginDescriptor(
     val pluginId: String,
+    val name: String,
     val version: Int,
     val capabilities: List<String>,
     val methods: List<MethodDescriptor>,

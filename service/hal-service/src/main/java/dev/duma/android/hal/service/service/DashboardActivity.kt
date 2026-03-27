@@ -363,7 +363,7 @@ class DashboardActivity : AppCompatActivity() {
             }
 
             block.addView(TextView(this).apply {
-                text = "${desc.pluginId} v${desc.version}"
+                text = "${desc.name} (${desc.pluginId}) v${desc.version}"
                 textSize = 15f
                 setTypeface(null, Typeface.BOLD)
             })

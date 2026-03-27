@@ -45,35 +45,45 @@ class SunmiSubScreenPlugin(
 
     override fun getDescriptor(): PluginDescriptor = PluginDescriptor(
         pluginId = pluginId,
+        name = "Sunmi Customer Screen Controller",
         version = version,
         capabilities = getCapabilities(),
         methods = listOf(
             MethodDescriptor(
                 "sunmi.screen.getDeviceInfo",
                 "Get connected screen info.",
-                "sunmi.screen"
+                "sunmi.screen",
+                exampleParameters = "{}",
+                exampleOutput = """{"info": {"sn": "SCR-001", "resolution": "1920x1080"}}"""
             ),
             MethodDescriptor(
                 "sunmi.screen.setScreenSwitch",
-                "Enable/disable screen. Params: {\"sn\": \"...\", \"enabled\": true}",
-                "sunmi.screen"
+                "Enable or disable a connected screen.",
+                "sunmi.screen",
+                exampleParameters = """{"sn": "SCR-001", "enabled": true}""",
+                exampleOutput = """{"status": "ok"}"""
             ),
             MethodDescriptor(
                 "sunmi.screen.setTouchSwitch",
-                "Enable/disable touch panel. Params: {\"sn\": \"...\", \"enabled\": true}",
-                "sunmi.screen"
+                "Enable or disable the touch panel on a connected screen.",
+                "sunmi.screen",
+                exampleParameters = """{"sn": "SCR-001", "enabled": true}""",
+                exampleOutput = """{"status": "ok"}"""
             ),
             MethodDescriptor(
                 "sunmi.screen.setBrightness",
-                "Set screen brightness. Params: {\"sn\": \"...\", \"brightness\": 80}",
-                "sunmi.screen"
+                "Set screen brightness level.",
+                "sunmi.screen",
+                exampleParameters = """{"sn": "SCR-001", "brightness": 80}""",
+                exampleOutput = """{"status": "ok"}"""
             )
         ),
         events = listOf(
             EventDescriptor(
                 "sunmi.screen.screensChanged",
-                "Fired when screen state changes. Payload: {\"sn\":\"...\",\"type\":0,\"value\":0,\"extra\":\"...\"}",
-                "sunmi.screen"
+                "Fired when screen state changes.",
+                "sunmi.screen",
+                exampleEvent = """{"sn": "SCR-001", "type": 1, "value": 0, "extra": ""}"""
             )
         )
     )

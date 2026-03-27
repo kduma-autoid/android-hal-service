@@ -2,13 +2,13 @@
 <project version="4">
   <component name="deploymentTargetSelector">
     <selectionStates>
-      <SelectionState runConfigName="hal-service">
+      <SelectionState runConfigName="plugins.sunmi.plugin-sunmi-bundle">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
-      <SelectionState runConfigName="plugin-sunmi">
+      <SelectionState runConfigName="service.hal-service">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
-      <SelectionState runConfigName="plugin-sunmi-bundle">
+      <SelectionState runConfigName="plugins.sunmi.sunmiperipher.plugin-sunmi-sunmiperipher-bundle">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
     </selectionStates>

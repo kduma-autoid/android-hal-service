@@ -45,23 +45,30 @@ class SunmiDockerPlugin(
 
     override fun getDescriptor(): PluginDescriptor = PluginDescriptor(
         pluginId = pluginId,
+        name = "Sunmi Docker Service Controller",
         version = version,
         capabilities = getCapabilities(),
         methods = listOf(
             MethodDescriptor(
                 "sunmi.docker.enableReversePower",
                 "Enable reverse power (power from tablet to dock).",
-                "sunmi.docker"
+                "sunmi.docker",
+                exampleParameters = "{}",
+                exampleOutput = """{"status": "ok"}"""
             ),
             MethodDescriptor(
                 "sunmi.docker.disableReversePower",
                 "Disable reverse power.",
-                "sunmi.docker"
+                "sunmi.docker",
+                exampleParameters = "{}",
+                exampleOutput = """{"status": "ok"}"""
             ),
             MethodDescriptor(
                 "sunmi.docker.isReversePowerEnabled",
-                "Check if reverse power is enabled.",
-                "sunmi.docker"
+                "Check if reverse power is currently enabled.",
+                "sunmi.docker",
+                exampleParameters = "{}",
+                exampleOutput = """{"enabled": true}"""
             )
         ),
         events = emptyList()

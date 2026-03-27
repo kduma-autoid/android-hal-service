@@ -35,32 +35,37 @@ class SunmiStatusLightPlugin(
 
     override fun getDescriptor(): PluginDescriptor = PluginDescriptor(
         pluginId = pluginId,
+        name = "Sunmi FLEX 3 Status Light Controller",
         version = version,
         capabilities = getCapabilities(),
         methods = listOf(
             MethodDescriptor(
                 "sunmi.statuslight.setColor",
-                "Set LED color. Params: {\"color\": \"red|green|blue|yellow|magenta|cyan|white\"}",
-                "sunmi.statuslight"
+                "Set LED color. Supported colors: red, green, blue, yellow, magenta, cyan, white.",
+                "sunmi.statuslight",
+                exampleParameters = """{"color": "red"}""",
+                exampleOutput = """{"status": "ok"}"""
             ),
             MethodDescriptor(
                 "sunmi.statuslight.turnOff",
                 "Turn off the status LED.",
-                "sunmi.statuslight"
+                "sunmi.statuslight",
+                exampleParameters = "{}",
+                exampleOutput = """{"status": "ok"}"""
             ),
             MethodDescriptor(
                 "sunmi.statuslight.setFlashing",
-                "Set LED to flash in a single color. " +
-                "Params: {\"color\": \"...\", \"onMs\": 500, \"offMs\": 500}. " +
-                "NOTE: Hardware support limited — effect stops automatically when app exits.",
-                "sunmi.statuslight"
+                "Set LED to flash in a single color. NOTE: Hardware support limited — effect stops automatically when app exits.",
+                "sunmi.statuslight",
+                exampleParameters = """{"color": "red", "onMs": 500, "offMs": 500}""",
+                exampleOutput = """{"status": "ok"}"""
             ),
             MethodDescriptor(
                 "sunmi.statuslight.setMultiFlashing",
-                "Set LED to cycle through multiple colors. " +
-                "Params: {\"steps\": [{\"color\": \"red\", \"onMs\": 500, \"offMs\": 500}, ...]}. " +
-                "NOTE: Hardware support limited — effect stops automatically when app exits.",
-                "sunmi.statuslight"
+                "Set LED to cycle through multiple colors. NOTE: Hardware support limited — effect stops automatically when app exits.",
+                "sunmi.statuslight",
+                exampleParameters = """{"steps": [{"color": "red", "onMs": 500, "offMs": 500}, {"color": "green", "onMs": 300, "offMs": 300}]}""",
+                exampleOutput = """{"status": "ok"}"""
             )
         ),
         events = emptyList()

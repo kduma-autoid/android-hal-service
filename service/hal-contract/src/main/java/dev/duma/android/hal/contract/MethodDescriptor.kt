@@ -10,5 +10,7 @@ import kotlinx.serialization.Serializable
 data class MethodDescriptor(
     val name: String,
     val description: String,
-    val requiredPermission: String
+    val requiredPermission: String,
+    val exampleParameters: String? = null,
+    val exampleOutput: String? = null
 )

@@ -41,21 +41,24 @@ class SunmiCardPlugin(
 
     override fun getDescriptor(): PluginDescriptor = PluginDescriptor(
         pluginId = pluginId,
+        name = "Sunmi FLEX 3 Magnetic Card Reader",
         version = version,
         capabilities = getCapabilities(),
         methods = listOf(
             MethodDescriptor(
                 "sunmi.card.getInfo",
                 "Get card reader info (name, version, serial number, connection status).",
-                "sunmi.card"
+                "sunmi.card",
+                exampleParameters = "{}",
+                exampleOutput = """{"name": "MSR Reader", "version": "1.0", "sn": "MSR-001", "connected": true}"""
             )
         ),
         events = listOf(
             EventDescriptor(
                 "sunmi.card.swipe",
-                "Fired when a magnetic stripe card is swiped. " +
-                "Payload: {\"raw\":\"...\",\"track1\":\"...\",\"track2\":\"...\",\"track3\":\"...\"}",
-                "sunmi.card"
+                "Fired when a magnetic stripe card is swiped. Returns raw data and parsed tracks (track1/2/3 are null if not present).",
+                "sunmi.card",
+                exampleEvent = """{"raw": "%B4111111111111111^DOE/JOHN^2512101123400001?;4111111111111111=25121011234000010001?", "track1": "%B4111111111111111^DOE/JOHN^2512101123400001?", "track2": ";4111111111111111=25121011234000010001?", "track3": null}"""
             )
         )
     )

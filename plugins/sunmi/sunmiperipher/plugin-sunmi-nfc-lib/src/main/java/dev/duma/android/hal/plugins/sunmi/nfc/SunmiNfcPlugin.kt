@@ -46,26 +46,31 @@ class SunmiNfcPlugin(
 
     override fun getDescriptor(): PluginDescriptor = PluginDescriptor(
         pluginId = pluginId,
+        name = "Sunmi NFC Controller",
         version = version,
         capabilities = getCapabilities(),
         methods = listOf(
             MethodDescriptor(
                 "sunmi.nfc.switchModule",
-                "Switch active NFC module by SN. Params: {\"sn\": \"<module_sn>\"}",
-                "sunmi.nfc"
+                "Switch active NFC module by serial number.",
+                "sunmi.nfc",
+                exampleParameters = """{"sn": "NFC-001"}""",
+                exampleOutput = """{"status": "ok"}"""
             ),
             MethodDescriptor(
                 "sunmi.nfc.setWatermarkAlpha",
-                "Set NFC watermark transparency (0-100). Params: {\"alpha\": 100}",
-                "sunmi.nfc"
+                "Set NFC watermark transparency (0-100).",
+                "sunmi.nfc",
+                exampleParameters = """{"alpha": 100}""",
+                exampleOutput = """{"status": "ok"}"""
             )
         ),
         events = listOf(
             EventDescriptor(
                 "sunmi.nfc.modulesChanged",
-                "Fired when the list of available NFC modules changes. " +
-                "Payload: {\"modules\": [{\"sn\": \"...\"}]}",
-                "sunmi.nfc"
+                "Fired when the list of available NFC modules changes.",
+                "sunmi.nfc",
+                exampleEvent = """{"modules": [{"sn": "NFC-001"}, {"sn": "NFC-002"}]}"""
             )
         )
     )

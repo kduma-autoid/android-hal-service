@@ -27,6 +27,7 @@ class GenericPrinterPlugin : HalPlugin {
 
     override fun getDescriptor(): PluginDescriptor = PluginDescriptor(
         pluginId = pluginId,
+        name = "[DEMO] Printer",
         version = version,
         capabilities = getCapabilities(),
         methods = listOf(
