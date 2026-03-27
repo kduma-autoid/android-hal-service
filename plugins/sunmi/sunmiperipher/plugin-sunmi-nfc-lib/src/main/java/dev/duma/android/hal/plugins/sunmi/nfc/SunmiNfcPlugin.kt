@@ -35,6 +35,7 @@ class SunmiNfcPlugin(
     override val version = 1
 
     private var callback: HalPluginEventCallback? = null
+    private var pluginContext: PluginContext? = null
     private val mutex = Mutex()
 
     private val nfcListener = object : INfcListener.Stub() {
@@ -83,6 +84,7 @@ class SunmiNfcPlugin(
     )
 
     override fun initialize(context: PluginContext) {
+        this.pluginContext = context
         this.context?.let { ctx ->
             NfcManager.init(ctx) { success ->
                 if (success) NfcManager.registerNfcListener(nfcListener)
@@ -94,7 +96,11 @@ class SunmiNfcPlugin(
         return@withLock try {
             when (method) {
                 "sunmi.nfc.switchModule" -> {
-                    val sn = JSONObject(params).getString("sn")
+                    val json = JSONObject(params)
+                    val sn = json.optString("sn", "").ifEmpty {
+                        getDeviceSerialNo()
+                            ?: return@withLock error("invalid_params", "No SN provided and device serial unavailable")
+                    }
                     NfcManager.switchNfc(sn)
                     success()
                 }
@@ -123,6 +129,41 @@ class SunmiNfcPlugin(
             arr.put(JSONObject().apply { put("sn", nfc.sn) })
         }
         return JSONObject().apply { put("modules", arr) }.toString()
+    }
+
+    /**
+     * Resolve device serial number. Priority:
+     * 1. sunmi.tms.device plugin (if available) — most reliable on Sunmi devices
+     * 2. Build.getSerial() / Build.SERIAL — requires READ_PHONE_STATE on API 26+
+     * 3. ANDROID_ID — last resort fallback
+     */
+    private suspend fun getDeviceSerialNo(): String? {
+        // Try sunmi.tms.device plugin first
+        pluginContext?.let { ctx ->
+            if (ctx.hasCapability("sunmi.tms.device")) {
+                try {
+                    val result = ctx.execute("sunmi.tms.device.device_info.getSerialNo", "{}")
+                    val serialNo = JSONObject(result).optString("result", "")
+                    if (serialNo.isNotEmpty()) return serialNo
+                } catch (_: Exception) { }
+            }
+        }
+
+        // Fallback to Android APIs
+        try {
+            val serial = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                android.os.Build.getSerial()
+            } else {
+                @Suppress("DEPRECATION")
+                android.os.Build.SERIAL
+            }
+            if (serial != android.os.Build.UNKNOWN) return serial
+        } catch (_: SecurityException) { }
+
+        // Last resort
+        return android.provider.Settings.Secure.getString(
+            context?.contentResolver, android.provider.Settings.Secure.ANDROID_ID
+        )
     }
 
     private fun success(): String = """{"status":"ok"}"""

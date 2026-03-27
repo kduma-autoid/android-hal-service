@@ -19,6 +19,9 @@
       <SelectionState runConfigName="plugins.sunmi.sunmiperipher.plugin-sunmi-sunmiperipher-bundle">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
+      <SelectionState runConfigName="plugins.sunmi.tms.plugin-sunmi-tms-bundle">
+        <option name="selectionMode" value="DROPDOWN" />
+      </SelectionState>
     </selectionStates>
   </component>
 </project>
