@@ -92,7 +92,8 @@ class HalService : Service() {
                 kotlinx.coroutines.withContext(Dispatchers.Main) {
                     GrantOverlayDialog.show(
                         serviceContext, request.clientId,
-                        callerContext.packageName, callerContext.origin, deferred
+                        callerContext.packageName, callerContext.origin,
+                        request.requestedPermissions, deferred
                     )
                 }
             } else {
@@ -104,6 +105,7 @@ class HalService : Service() {
                     putExtra(GrantPermissionActivity.EXTRA_CLIENT_ID, request.clientId)
                     putExtra(GrantPermissionActivity.EXTRA_PACKAGE_NAME, callerContext.packageName)
                     putExtra(GrantPermissionActivity.EXTRA_ORIGIN, callerContext.origin)
+                    putExtra(GrantPermissionActivity.EXTRA_REQUESTED_PERMISSIONS, request.requestedPermissions?.toTypedArray())
                 }
                 showGrantNotification(activityIntent, request.clientId)
             }

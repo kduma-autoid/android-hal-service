@@ -21,6 +21,7 @@ class GrantPermissionActivity : AppCompatActivity() {
         val clientId = intent.getStringExtra(EXTRA_CLIENT_ID) ?: "Unknown"
         val packageName = intent.getStringExtra(EXTRA_PACKAGE_NAME)
         val origin = intent.getStringExtra(EXTRA_ORIGIN)
+        val requestedPermissions = intent.getStringArrayExtra(EXTRA_REQUESTED_PERMISSIONS)
 
         val callerInfo = when {
             origin != null -> "Origin: $origin"
@@ -36,7 +37,13 @@ class GrantPermissionActivity : AppCompatActivity() {
             else -> "Unknown caller"
         }
 
-        val message = "\"$clientId\" ($callerInfo) is requesting access to hardware services."
+        val permissionsInfo = if (requestedPermissions != null) {
+            "\n\nRequested permissions:\n${requestedPermissions.joinToString("\n") { "  \u2022 $it" }}"
+        } else {
+            "\n\nRequested permissions: all (*)"
+        }
+
+        val message = "\"$clientId\" ($callerInfo) is requesting access to hardware services.$permissionsInfo"
 
         AlertDialog.Builder(this)
             .setTitle(R.string.grant_dialog_title)
@@ -75,6 +82,7 @@ class GrantPermissionActivity : AppCompatActivity() {
         const val EXTRA_CLIENT_ID = "client_id"
         const val EXTRA_PACKAGE_NAME = "package_name"
         const val EXTRA_ORIGIN = "origin"
+        const val EXTRA_REQUESTED_PERMISSIONS = "requested_permissions"
 
         var pendingResult: CompletableDeferred<GrantDecision>? = null
     }

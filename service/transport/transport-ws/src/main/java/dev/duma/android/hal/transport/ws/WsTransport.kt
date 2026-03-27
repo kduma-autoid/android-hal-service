@@ -7,6 +7,7 @@ import dev.duma.android.hal.transport.core.EventTransport
 import dev.duma.android.hal.transport.core.TransportConfig
 import dev.duma.android.hal.transport.ktor.core.KtorServerManager
 import io.ktor.server.application.*
+import io.ktor.server.request.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
@@ -36,7 +37,9 @@ class WsTransport : CommandTransport, EventTransport {
         var token: String? = null,
         var permissions: List<String> = emptyList(),
         val subscribedEvents: CopyOnWriteArraySet<String> = CopyOnWriteArraySet(),
-        val wsSession: WebSocketServerSession
+        val wsSession: WebSocketServerSession,
+        val origin: String? = null,
+        val remoteAddress: String? = null
     )
 
     private val sessions = ConcurrentHashMap<String, WsSession>()
@@ -83,7 +86,14 @@ class WsTransport : CommandTransport, EventTransport {
 
     private suspend fun handleSession(handler: CommandHandler, ws: WebSocketServerSession) {
         val sessionId = UUID.randomUUID().toString()
-        val session = WsSession(sessionId = sessionId, wsSession = ws)
+        val origin = ws.call.request.header("Origin")
+        val remoteAddr = ws.call.request.local.remoteAddress
+        val session = WsSession(
+            sessionId = sessionId,
+            wsSession = ws,
+            origin = origin,
+            remoteAddress = remoteAddr
+        )
         sessions[sessionId] = session
 
         try {
@@ -106,8 +116,8 @@ class WsTransport : CommandTransport, EventTransport {
 
         val callerContext = CallerContext(
             transport = "ws",
-            origin = null,
-            remoteAddress = null
+            origin = session.origin,
+            remoteAddress = session.remoteAddress
         )
 
         return when (msg) {

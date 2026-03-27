@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Status Light Control</title>
+    <style>
+        * { box-sizing: border-box; font-family: -apple-system, sans-serif; }
+        body { margin: 0; padding: 20px; background: #1a1a2e; color: #eee; min-height: 100vh; }
+        h1 { margin: 0 0 20px; font-size: 22px; color: #fff; }
+        .card { background: #16213e; padding: 16px; margin-bottom: 16px; border-radius: 10px; }
+        .card h2 { margin: 0 0 12px; font-size: 14px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+        input { padding: 8px 12px; border: 1px solid #333; border-radius: 6px; font-size: 14px; background: #0f3460; color: #eee; width: 260px; }
+        input::placeholder { color: #555; }
+        button { padding: 10px 18px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; transition: opacity 0.15s, transform 0.1s; }
+        button:hover { opacity: 0.85; }
+        button:active { transform: scale(0.97); }
+        .row { margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+        .row label { width: 80px; font-size: 13px; color: #888; flex-shrink: 0; }
+        .btn-connect { background: #34a853; color: #fff; }
+        .status { font-size: 12px; color: #888; margin-left: 8px; }
+        .status.ok { color: #34a853; }
+        .status.err { color: #ea4335; }
+
+        .colors { display: flex; flex-wrap: wrap; gap: 8px; }
+        .color-btn { width: 64px; height: 64px; border-radius: 12px; border: 3px solid transparent; color: #fff; font-size: 11px; font-weight: 700; text-transform: uppercase; text-shadow: 0 1px 3px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
+        .color-btn:hover { border-color: rgba(255,255,255,0.5); }
+        .color-btn[data-color="red"] { background: #e53935; }
+        .color-btn[data-color="green"] { background: #43a047; }
+        .color-btn[data-color="blue"] { background: #1e88e5; }
+        .color-btn[data-color="yellow"] { background: #fdd835; color: #333; text-shadow: none; }
+        .color-btn[data-color="magenta"] { background: #d81b60; }
+        .color-btn[data-color="cyan"] { background: #00acc1; }
+        .color-btn[data-color="white"] { background: #eeeeee; color: #333; text-shadow: none; }
+
+        .off-btn { background: #333; color: #aaa; font-size: 16px; padding: 12px 32px; width: 100%; margin-top: 4px; }
+
+        .flash-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .flash-row select, .flash-row input[type="number"] { background: #0f3460; color: #eee; border: 1px solid #333; border-radius: 6px; padding: 6px 8px; font-size: 13px; }
+        .flash-row select { width: 100px; }
+        .flash-row input[type="number"] { width: 70px; }
+        .flash-btn { background: #7c4dff; color: #fff; }
+        .multi-flash-btn { background: #e8710a; color: #fff; }
+        .timing-label { width: auto !important; font-size: 12px; color: #aaa; }
+
+        #response { font-family: monospace; font-size: 12px; padding: 10px; background: #0a0a1a; border-radius: 6px; min-height: 32px; color: #7f7; white-space: pre-wrap; word-break: break-all; }
+        #response.err { color: #f77; }
+    </style>
+</head>
+<body>
+    <h1>Status Light Control</h1>
+
+    <div class="card">
+        <h2>Connection</h2>
+        <div class="row">
+            <label>URL</label>
+            <input id="baseUrl" value="http://localhost:8400" />
+        </div>
+        <div class="row">
+            <label>Client ID</label>
+            <input id="clientId" value="lights-client" />
+        </div>
+        <div class="row">
+            <label>Token</label>
+            <input id="token" placeholder="Auto-filled" />
+        </div>
+        <div class="row" style="margin-top:4px">
+            <button class="btn-connect" onclick="doConnect()">Connect</button>
+            <span id="connStatus" class="status"></span>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Set Color</h2>
+        <div class="colors">
+            <button class="color-btn" data-color="red" onclick="setColor('red')">Red</button>
+            <button class="color-btn" data-color="green" onclick="setColor('green')">Green</button>
+            <button class="color-btn" data-color="blue" onclick="setColor('blue')">Blue</button>
+            <button class="color-btn" data-color="yellow" onclick="setColor('yellow')">Yellow</button>
+            <button class="color-btn" data-color="magenta" onclick="setColor('magenta')">Magenta</button>
+            <button class="color-btn" data-color="cyan" onclick="setColor('cyan')">Cyan</button>
+            <button class="color-btn" data-color="white" onclick="setColor('white')">White</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Turn Off</h2>
+        <button class="off-btn" onclick="turnOff()">Turn Off Light</button>
+    </div>
+
+    <div class="card">
+        <h2>Single Color Flash</h2>
+        <div class="flash-row">
+            <select id="flashColor">
+                <option value="red">Red</option>
+                <option value="green">Green</option>
+                <option value="blue">Blue</option>
+                <option value="yellow">Yellow</option>
+                <option value="magenta">Magenta</option>
+                <option value="cyan">Cyan</option>
+                <option value="white">White</option>
+            </select>
+            <label class="timing-label">ON</label>
+            <input type="number" id="flashOn" value="500" min="50" step="50" /> ms
+            <label class="timing-label">OFF</label>
+            <input type="number" id="flashOff" value="500" min="50" step="50" /> ms
+            <button class="flash-btn" onclick="setFlashing()">Start</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Rainbow Flash</h2>
+        <div class="flash-row">
+            <label class="timing-label">ON</label>
+            <input type="number" id="multiOn" value="400" min="50" step="50" /> ms
+            <label class="timing-label">OFF</label>
+            <input type="number" id="multiOff" value="100" min="50" step="50" /> ms
+            <button class="multi-flash-btn" onclick="setRainbow()">Start</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Response</h2>
+        <div id="response">-</div>
+    </div>
+
+    <script src="hal-client.js"></script>
+    <script>
+        let client = null;
+        const COLORS = ['red','green','blue','yellow','magenta','cyan','white'];
+
+        function getClient() {
+            const url = document.getElementById('baseUrl').value;
+            if (!client || client.baseUrl !== url) client = new HalClient(url);
+            const t = document.getElementById('token').value;
+            if (t) client.token = t;
+            return client;
+        }
+
+        function showResponse(data, isError) {
+            const el = document.getElementById('response');
+            el.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+            el.className = isError ? 'err' : '';
+        }
+
+        async function doConnect() {
+            const status = document.getElementById('connStatus');
+            try {
+                status.textContent = 'Connecting...';
+                status.className = 'status';
+                const c = getClient();
+                const res = await c.requestToken(document.getElementById('clientId').value, null, ['sunmi.statuslight']);
+                if (res.token) {
+                    document.getElementById('token').value = res.token;
+                    status.textContent = 'Connected';
+                    status.className = 'status ok';
+                    showResponse(res);
+                } else {
+                    status.textContent = 'Token error';
+                    status.className = 'status err';
+                    showResponse(res, true);
+                }
+            } catch (e) {
+                status.textContent = 'Error';
+                status.className = 'status err';
+                showResponse(e.message, true);
+            }
+        }
+
+        async function exec(method, params) {
+            try {
+                const res = await getClient().execute(method, params);
+                showResponse(res, !!res.error);
+            } catch (e) {
+                showResponse(e.message, true);
+            }
+        }
+
+        function setColor(color) {
+            exec('sunmi.statuslight.setColor', { color });
+        }
+
+        function turnOff() {
+            exec('sunmi.statuslight.turnOff', {});
+        }
+
+        function setFlashing() {
+            exec('sunmi.statuslight.setFlashing', {
+                color: document.getElementById('flashColor').value,
+                onMs: parseInt(document.getElementById('flashOn').value),
+                offMs: parseInt(document.getElementById('flashOff').value)
+            });
+        }
+
+        function setRainbow() {
+            const onMs = parseInt(document.getElementById('multiOn').value);
+            const offMs = parseInt(document.getElementById('multiOff').value);
+            exec('sunmi.statuslight.setMultiFlashing', {
+                steps: COLORS.map(color => ({ color, onMs, offMs }))
+            });
+        }
+    </script>
+</body>
+</html>

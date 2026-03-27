@@ -19,6 +19,7 @@ object GrantOverlayDialog {
         clientId: String,
         packageName: String?,
         origin: String?,
+        requestedPermissions: List<String>?,
         deferred: CompletableDeferred<GrantDecision>
     ) {
         val callerInfo = when {
@@ -35,7 +36,13 @@ object GrantOverlayDialog {
             else -> "Unknown caller"
         }
 
-        val message = "\"$clientId\" ($callerInfo) is requesting access to hardware services."
+        val permissionsInfo = if (requestedPermissions != null) {
+            "\n\nRequested permissions:\n${requestedPermissions.joinToString("\n") { "  \u2022 $it" }}"
+        } else {
+            "\n\nRequested permissions: all (*)"
+        }
+
+        val message = "\"$clientId\" ($callerInfo) is requesting access to hardware services.$permissionsInfo"
 
         val dialog = AlertDialog.Builder(context, android.R.style.Theme_Material_Light_Dialog_Alert)
             .setTitle("Permission Request")

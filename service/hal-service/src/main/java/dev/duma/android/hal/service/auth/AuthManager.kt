@@ -25,9 +25,10 @@ class AuthManager(
         return when (result) {
             is VerificationResult.Success -> {
                 val claims = result.claims
+                val effectivePermissions = filterPermissions(claims.permissions, request.requestedPermissions)
                 val token = tokenManager.createToken(
                     clientId = request.clientId,
-                    permissions = claims.permissions,
+                    permissions = effectivePermissions,
                     grantedBy = "developer_key",
                     duration = "permanent",
                     boundPackageName = if (claims.clientType == "android") callerContext.packageName else null,
@@ -36,7 +37,7 @@ class AuthManager(
                 )
                 TokenResponse.Success(
                     token = token.token,
-                    permissions = claims.permissions,
+                    permissions = effectivePermissions,
                     expiresAt = token.expiresAt
                 )
             }
@@ -53,35 +54,47 @@ class AuthManager(
 
     private suspend fun handleUserGrant(request: TokenRequest, callerContext: CallerContext): TokenResponse {
         val decision = showGrantDialog(callerContext, request)
+        val grantedPermissions = request.requestedPermissions ?: listOf("*")
 
         return when (decision) {
             GrantDecision.AllowPermanent -> {
                 val token = tokenManager.createToken(
                     clientId = request.clientId,
-                    permissions = listOf("*"),
+                    permissions = grantedPermissions,
                     grantedBy = "user_permanent",
                     duration = "permanent",
                     boundPackageName = callerContext.packageName,
                     boundCertHash = callerContext.certHash,
                     boundOrigin = callerContext.origin
                 )
-                TokenResponse.Success(token.token, listOf("*"), token.expiresAt)
+                TokenResponse.Success(token.token, grantedPermissions, token.expiresAt)
             }
             GrantDecision.AllowDay -> {
                 val token = tokenManager.createToken(
                     clientId = request.clientId,
-                    permissions = listOf("*"),
+                    permissions = grantedPermissions,
                     grantedBy = "user_day",
                     duration = "day",
                     boundPackageName = callerContext.packageName,
                     boundCertHash = callerContext.certHash,
                     boundOrigin = callerContext.origin
                 )
-                TokenResponse.Success(token.token, listOf("*"), token.expiresAt)
+                TokenResponse.Success(token.token, grantedPermissions, token.expiresAt)
             }
             GrantDecision.Deny -> {
                 TokenResponse.Error("user_denied", "User denied permission")
             }
         }
+    }
+
+    /**
+     * Intersects granted permissions with requested ones.
+     * If requested is null, all granted permissions are returned.
+     * Wildcard "*" in granted means all requested permissions are allowed.
+     */
+    private fun filterPermissions(granted: List<String>, requested: List<String>?): List<String> {
+        if (requested == null) return granted
+        if ("*" in granted) return requested
+        return requested.filter { req -> granted.any { req.startsWith(it) } }
     }
 }

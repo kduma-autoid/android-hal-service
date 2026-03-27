@@ -15,6 +15,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
@@ -37,12 +38,16 @@ class ServiceCommandHandler(
         val json = Json.parseToJsonElement(request) as? JsonObject
             ?: return errorJson("invalid_request", "Invalid JSON")
 
+        val requestedPermissions = (json["requestedPermissions"] ?: json["requested_permissions"])
+            ?.jsonArray?.map { it.jsonPrimitive.content }
+
         val tokenRequest = TokenRequest(
             developerKey = json["developerKey"]?.jsonPrimitive?.content
                 ?: json["developer_key"]?.jsonPrimitive?.content,
             clientId = json["clientId"]?.jsonPrimitive?.content
                 ?: json["client_id"]?.jsonPrimitive?.content
-                ?: "unknown"
+                ?: "unknown",
+            requestedPermissions = requestedPermissions
         )
 
         return when (val result = authManager.requestToken(tokenRequest, callerContext)) {

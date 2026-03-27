@@ -19,6 +19,35 @@
         #log { width: 100%; height: 400px; font-family: monospace; font-size: 12px; background: #1e1e1e; color: #d4d4d4; padding: 12px; border: none; border-radius: 4px; overflow: auto; white-space: pre-wrap; }
         label { display: inline-block; width: 100px; font-weight: bold; font-size: 14px; }
         .row { margin-bottom: 8px; }
+        .plugin { border: 1px solid #e0e0e0; border-radius: 6px; margin-bottom: 12px; overflow: hidden; }
+        .plugin-header { padding: 10px 14px; background: #f8f9fa; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; }
+        .plugin-header:hover { background: #e8eaed; }
+        .plugin-header h3 { margin: 0; font-size: 14px; }
+        .plugin-header .plugin-meta { color: #888; font-size: 12px; font-weight: normal; }
+        .plugin-header .toggle { font-size: 12px; color: #999; transition: transform 0.2s; }
+        .plugin-header .toggle.open { transform: rotate(90deg); }
+        .plugin-body { padding: 10px 14px 14px; }
+        .plugin-body.collapsed { display: none; }
+        .section-label { font-size: 11px; font-weight: bold; color: #999; text-transform: uppercase; letter-spacing: 0.5px; margin: 12px 0 4px; }
+        .section-label:first-child { margin-top: 0; }
+        .method-card { background: #fafafa; border: 1px solid #eee; border-radius: 4px; padding: 10px; margin-top: 6px; }
+        .method-name { font-family: monospace; font-weight: bold; font-size: 13px; color: #1a73e8; cursor: pointer; }
+        .method-name:hover { text-decoration: underline; }
+        .method-desc { font-size: 12px; color: #666; margin: 3px 0 8px; }
+        .method-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+        .method-field label { display: block; width: auto; font-size: 11px; font-weight: bold; color: #888; text-transform: uppercase; margin-bottom: 2px; }
+        .method-field textarea { width: 100%; height: 60px; font-family: monospace; font-size: 12px; resize: vertical; }
+        .method-field textarea::placeholder { color: #bbb; }
+        .method-actions { margin-top: 6px; display: flex; gap: 4px; }
+        .method-actions button { margin: 0; font-size: 12px; padding: 5px 12px; }
+        .method-actions button.ws-btn { background: #7c4dff; }
+        .method-actions button.ws-btn:hover { background: #651fff; }
+        .event-card { background: #fff8f0; border: 1px solid #fce8cc; border-radius: 4px; padding: 10px; margin-top: 6px; }
+        .event-name { font-family: monospace; font-weight: bold; font-size: 13px; color: #e8710a; }
+        .event-desc { font-size: 12px; color: #666; margin: 3px 0 0; }
+        .event-example { margin-top: 6px; }
+        .event-example label { display: block; width: auto; font-size: 11px; font-weight: bold; color: #888; text-transform: uppercase; margin-bottom: 2px; }
+        .event-example code { display: block; background: #f5f0eb; padding: 6px 8px; border-radius: 3px; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
     </style>
 </head>
 <body>
@@ -79,6 +108,8 @@
         <button onclick="doWsExecute()">WS Execute</button>
     </div>
 
+    <div id="plugins"></div>
+
     <div class="section">
         <h2>Log</h2>
         <button onclick="clearLog()">Clear</button>
@@ -88,6 +119,7 @@
     <script src="hal-client.js"></script>
     <script>
         let client = null;
+        let methodCounter = 0;
 
         function getClient() {
             const url = document.getElementById('baseUrl').value;
@@ -112,6 +144,11 @@
 
         function clearLog() {
             document.getElementById('log').textContent = '';
+        }
+
+        function formatJson(str) {
+            if (!str) return '';
+            try { return JSON.stringify(JSON.parse(str), null, 2); } catch { return str; }
         }
 
         async function doRequestToken() {
@@ -146,6 +183,7 @@
                 log('→ GET /api/describe');
                 const res = await getClient().getDescribe();
                 log(`← ${JSON.stringify(res, null, 2)}`);
+                renderPlugins(res);
             } catch (e) { log(`ERROR: ${e.message}`); }
         }
 
@@ -207,6 +245,111 @@
                 const res = await getClient().wsExecute(method, params);
                 log(`← ${JSON.stringify(res)}`);
             } catch (e) { log(`ERROR: ${e.message}`); }
+        }
+
+        function renderPlugins(describeResponse) {
+            const container = document.getElementById('plugins');
+            const plugins = describeResponse.plugins || [];
+            if (!plugins.length) {
+                container.innerHTML = '<div class="section"><h2>Plugins</h2><p style="color:#888">No plugins found.</p></div>';
+                return;
+            }
+
+            let html = '<div class="section"><h2>Plugins</h2>';
+            plugins.forEach((plugin, pi) => {
+                const name = plugin.name || plugin.pluginId;
+                html += `<div class="plugin">`;
+                html += `<div class="plugin-header" onclick="togglePlugin(${pi})">`;
+                html += `<h3>${esc(name)} <span class="plugin-meta">${esc(plugin.pluginId)} v${plugin.version}</span></h3>`;
+                html += `<span class="toggle open" id="toggle-${pi}">&#9654;</span>`;
+                html += `</div>`;
+                html += `<div class="plugin-body" id="plugin-body-${pi}">`;
+
+                if (plugin.methods && plugin.methods.length) {
+                    html += `<div class="section-label">Methods</div>`;
+                    plugin.methods.forEach(m => {
+                        const id = methodCounter++;
+                        const paramsId = `params-${id}`;
+                        const outputId = `output-${id}`;
+                        const defaultParams = formatJson(m.exampleParameters) || '{}';
+                        const placeholderOutput = m.exampleOutput ? formatJson(m.exampleOutput) : '';
+
+                        html += `<div class="method-card">`;
+                        html += `<div class="method-name" onclick="fillMethod('${esc(m.name)}', '${paramsId}')" title="Click to fill HTTP/WS fields">${esc(m.name)}</div>`;
+                        html += `<div class="method-desc">${esc(m.description)}</div>`;
+                        html += `<div class="method-fields">`;
+                        html += `<div class="method-field"><label>Parameters</label><textarea id="${paramsId}">${esc(defaultParams)}</textarea></div>`;
+                        html += `<div class="method-field"><label>Response</label><textarea id="${outputId}" placeholder="${esc(placeholderOutput)}" readonly></textarea></div>`;
+                        html += `</div>`;
+                        html += `<div class="method-actions">`;
+                        html += `<button onclick="executeMethod('${esc(m.name)}', '${paramsId}', '${outputId}', false)">Execute (HTTP)</button>`;
+                        html += `<button class="ws-btn" onclick="executeMethod('${esc(m.name)}', '${paramsId}', '${outputId}', true)">Execute (WS)</button>`;
+                        html += `</div>`;
+                        html += `</div>`;
+                    });
+                }
+
+                if (plugin.events && plugin.events.length) {
+                    html += `<div class="section-label">Events</div>`;
+                    plugin.events.forEach(e => {
+                        html += `<div class="event-card">`;
+                        html += `<div class="event-name">${esc(e.name)}</div>`;
+                        html += `<div class="event-desc">${esc(e.description)}</div>`;
+                        if (e.exampleEvent) {
+                            html += `<div class="event-example"><label>Example payload</label><code>${esc(formatJson(e.exampleEvent))}</code></div>`;
+                        }
+                        html += `</div>`;
+                    });
+                }
+
+                html += `</div></div>`;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function togglePlugin(index) {
+            const body = document.getElementById(`plugin-body-${index}`);
+            const toggle = document.getElementById(`toggle-${index}`);
+            body.classList.toggle('collapsed');
+            toggle.classList.toggle('open');
+        }
+
+        function fillMethod(methodName, paramsId) {
+            const params = document.getElementById(paramsId).value;
+            document.getElementById('httpMethod').value = methodName;
+            document.getElementById('httpParams').value = params;
+            document.getElementById('wsMethod').value = methodName;
+            document.getElementById('wsParams').value = params;
+        }
+
+        async function executeMethod(methodName, paramsId, outputId, useWs) {
+            const outputEl = document.getElementById(outputId);
+            try {
+                const params = JSON.parse(document.getElementById(paramsId).value);
+                if (useWs) {
+                    log(`→ WS command(${methodName}, ${JSON.stringify(params)})`);
+                    const res = await getClient().wsExecute(methodName, params);
+                    const formatted = JSON.stringify(res, null, 2);
+                    log(`← ${formatted}`);
+                    outputEl.value = formatted;
+                } else {
+                    log(`→ execute(${methodName}, ${JSON.stringify(params)})`);
+                    const res = await getClient().execute(methodName, params);
+                    const formatted = JSON.stringify(res, null, 2);
+                    log(`← ${formatted}`);
+                    outputEl.value = formatted;
+                }
+            } catch (e) {
+                log(`ERROR: ${e.message}`);
+                outputEl.value = `ERROR: ${e.message}`;
+            }
+        }
+
+        function esc(str) {
+            const el = document.createElement('span');
+            el.textContent = str;
+            return el.innerHTML;
         }
     </script>
 </body>
