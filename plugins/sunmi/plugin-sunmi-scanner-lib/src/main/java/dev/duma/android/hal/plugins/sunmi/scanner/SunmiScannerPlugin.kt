@@ -7,6 +7,9 @@ import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
+import java.util.Timer
+import kotlin.concurrent.fixedRateTimer
+import kotlin.random.Random
 
 /**
  * Stub implementation of Sunmi barcode scanner plugin. Returns hardcoded responses
@@ -19,6 +22,7 @@ class SunmiScannerPlugin(private val appContext: Context? = null) : HalPlugin {
     override val version = 1
 
     private var callback: HalPluginEventCallback? = null
+    private var demoTimer: Timer? = null
 
     override fun isSupported(): Boolean = true
 
@@ -39,15 +43,39 @@ class SunmiScannerPlugin(private val appContext: Context? = null) : HalPlugin {
     )
 
     override fun initialize(context: PluginContext) {
-        // Stub — no PluginContext usage needed
+        // Stub — timer started by trigger, stopped by stop
     }
 
     override suspend fun execute(method: String, params: String): String {
         return when (method) {
-            "sunmi.scanner.trigger" -> """{"status":"scanning"}"""
-            "sunmi.scanner.stop" -> """{"status":"idle"}"""
+            "sunmi.scanner.trigger" -> {
+                startDemoTimer()
+                """{"status":"scanning"}"""
+            }
+            "sunmi.scanner.stop" -> {
+                stopDemoTimer()
+                """{"status":"idle"}"""
+            }
             else -> """{"error":"unsupported_method","method":"$method"}"""
         }
+    }
+
+    private fun startDemoTimer() {
+        stopDemoTimer()
+        demoTimer = fixedRateTimer("demo-scanner", daemon = true, initialDelay = 30_000L, period = 30_000L) {
+            val barcode = buildString {
+                val prefixes = listOf("590", "978", "200", "400")
+                append(prefixes.random())
+                repeat(10) { append(Random.nextInt(10)) }
+            }
+            val formats = listOf("EAN13", "CODE128", "QR_CODE", "UPC_A", "DATA_MATRIX")
+            callback?.onEvent("sunmi.scanner.barcode", """{"data":"$barcode","format":"${formats.random()}"}""")
+        }
+    }
+
+    private fun stopDemoTimer() {
+        demoTimer?.cancel()
+        demoTimer = null
     }
 
     override fun setEventCallback(callback: HalPluginEventCallback?) {
