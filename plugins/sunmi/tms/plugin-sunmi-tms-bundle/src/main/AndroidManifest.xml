@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="true"
+        android:label="@string/app_name"
+        android:supportsRtl="true">
+
+        <service
+            android:name=".SunmiTmsDeviceService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="dev.duma.android.hal.HARDWARE_PLUGIN" />
+            </intent-filter>
+            <meta-data android:name="plugin.id" android:value="sunmi.tms.device" />
+            <meta-data android:name="plugin.label" android:value="Sunmi TMS Device" />
+        </service>
+
+        <service
+            android:name=".SunmiTmsSoftwareService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="dev.duma.android.hal.HARDWARE_PLUGIN" />
+            </intent-filter>
+            <meta-data android:name="plugin.id" android:value="sunmi.tms.software" />
+            <meta-data android:name="plugin.label" android:value="Sunmi TMS Software" />
+        </service>
+
+        <service
+            android:name=".SunmiTmsSystemService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="dev.duma.android.hal.HARDWARE_PLUGIN" />
+            </intent-filter>
+            <meta-data android:name="plugin.id" android:value="sunmi.tms.system" />
+            <meta-data android:name="plugin.label" android:value="Sunmi TMS System" />
+        </service>
+
+        <service
+            android:name=".SunmiTmsNetworkService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="dev.duma.android.hal.HARDWARE_PLUGIN" />
+            </intent-filter>
+            <meta-data android:name="plugin.id" android:value="sunmi.tms.network" />
+            <meta-data android:name="plugin.label" android:value="Sunmi TMS Network" />
+        </service>
+
+        <service
+            android:name=".SunmiTmsKioskService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="dev.duma.android.hal.HARDWARE_PLUGIN" />
+            </intent-filter>
+            <meta-data android:name="plugin.id" android:value="sunmi.tms.kiosk" />
+            <meta-data android:name="plugin.label" android:value="Sunmi TMS Kiosk" />
+        </service>
+
+    </application>
+
+</manifest>

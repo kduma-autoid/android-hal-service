@@ -85,6 +85,11 @@ dependencies {
     "sunmiImplementation"(project(":plugins:sunmi:sunmiperipher:plugin-sunmi-card-lib"))
     "sunmiImplementation"(project(":plugins:sunmi:sunmiperipher:plugin-sunmi-screen-lib"))
     "sunmiImplementation"(project(":plugins:sunmi:sunmiperipher:plugin-sunmi-docker-lib"))
+    "sunmiImplementation"(project(":plugins:sunmi:tms:plugin-sunmi-device-lib"))
+    "sunmiImplementation"(project(":plugins:sunmi:tms:plugin-sunmi-software-lib"))
+    "sunmiImplementation"(project(":plugins:sunmi:tms:plugin-sunmi-system-lib"))
+    "sunmiImplementation"(project(":plugins:sunmi:tms:plugin-sunmi-network-lib"))
+    "sunmiImplementation"(project(":plugins:sunmi:tms:plugin-sunmi-kiosk-lib"))
 
     // AndroidX
     implementation(libs.androidx.core.ktx)

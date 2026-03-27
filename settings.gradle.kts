@@ -22,6 +22,9 @@ dependencyResolutionManagement {
         flatDir {
             dirs("plugins/sunmi/sunmiperipher/plugin-sunmi-sunmiperipher-sdk/src/main/libs")
         }
+        flatDir {
+            dirs("plugins/sunmi/tms/plugin-sunmi-tms-sdk/src/main/libs")
+        }
     }
 }
 
@@ -51,3 +54,11 @@ include(":plugins:sunmi:sunmiperipher:plugin-sunmi-card-lib")
 include(":plugins:sunmi:sunmiperipher:plugin-sunmi-screen-lib")
 include(":plugins:sunmi:sunmiperipher:plugin-sunmi-docker-lib")
 include(":plugins:sunmi:sunmiperipher:plugin-sunmi-sunmiperipher-bundle")
+
+include(":plugins:sunmi:tms:plugin-sunmi-tms-sdk")
+include(":plugins:sunmi:tms:plugin-sunmi-device-lib")
+include(":plugins:sunmi:tms:plugin-sunmi-software-lib")
+include(":plugins:sunmi:tms:plugin-sunmi-system-lib")
+include(":plugins:sunmi:tms:plugin-sunmi-network-lib")
+include(":plugins:sunmi:tms:plugin-sunmi-kiosk-lib")
+include(":plugins:sunmi:tms:plugin-sunmi-tms-bundle")

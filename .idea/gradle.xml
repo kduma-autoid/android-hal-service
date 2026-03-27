@@ -23,6 +23,14 @@
             <option value="$PROJECT_DIR$/plugins/sunmi/sunmiperipher/plugin-sunmi-statuslight-lib" />
             <option value="$PROJECT_DIR$/plugins/sunmi/sunmiperipher/plugin-sunmi-sunmiperipher-bundle" />
             <option value="$PROJECT_DIR$/plugins/sunmi/sunmiperipher/plugin-sunmi-sunmiperipher-sdk" />
+            <option value="$PROJECT_DIR$/plugins/sunmi/tms" />
+            <option value="$PROJECT_DIR$/plugins/sunmi/tms/plugin-sunmi-device-lib" />
+            <option value="$PROJECT_DIR$/plugins/sunmi/tms/plugin-sunmi-kiosk-lib" />
+            <option value="$PROJECT_DIR$/plugins/sunmi/tms/plugin-sunmi-network-lib" />
+            <option value="$PROJECT_DIR$/plugins/sunmi/tms/plugin-sunmi-software-lib" />
+            <option value="$PROJECT_DIR$/plugins/sunmi/tms/plugin-sunmi-system-lib" />
+            <option value="$PROJECT_DIR$/plugins/sunmi/tms/plugin-sunmi-tms-bundle" />
+            <option value="$PROJECT_DIR$/plugins/sunmi/tms/plugin-sunmi-tms-sdk" />
             <option value="$PROJECT_DIR$/service" />
             <option value="$PROJECT_DIR$/service/hal-contract" />
             <option value="$PROJECT_DIR$/service/hal-service" />
