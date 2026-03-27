@@ -34,4 +34,14 @@ android {
 
 dependencies {
     implementation(project(":hal-contract"))
+    implementation(libs.kotlinx.coroutines.core)
+
+    testImplementation(libs.junit.jupiter)
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.mockk)
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
 }

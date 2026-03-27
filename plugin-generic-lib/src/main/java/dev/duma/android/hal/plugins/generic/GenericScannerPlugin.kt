@@ -1,0 +1,81 @@
+package dev.duma.android.hal.plugins.generic
+
+import dev.duma.android.hal.contract.EventDescriptor
+import dev.duma.android.hal.contract.HalPlugin
+import dev.duma.android.hal.contract.HalPluginEventCallback
+import dev.duma.android.hal.contract.MethodDescriptor
+import dev.duma.android.hal.contract.PluginContext
+import dev.duma.android.hal.contract.PluginDescriptor
+
+/**
+ * Generic scanner abstraction plugin. Delegates scan commands to vendor-specific
+ * scanner plugins and transforms vendor events into unified format
+ * (e.g. "sunmi.scanner.barcode" -> "scanner.barcode"). Must be in-process.
+ */
+class GenericScannerPlugin : HalPlugin {
+
+    override val pluginId = "scanner"
+    override val version = 1
+
+    private var ctx: PluginContext? = null
+
+    companion object {
+        private val VENDOR_SCANNERS = listOf("sunmi.scanner", "zebra.scanner", "chainway.scanner")
+        private val VENDOR_PREFIXES = listOf("sunmi", "zebra", "chainway")
+    }
+
+    override fun getCapabilities(): List<String> = listOf("scanner")
+
+    override fun getDescriptor(): PluginDescriptor = PluginDescriptor(
+        pluginId = pluginId,
+        version = version,
+        capabilities = getCapabilities(),
+        methods = listOf(
+            MethodDescriptor("scanner.trigger", "Trigger barcode scan", "scanner"),
+            MethodDescriptor("scanner.stop", "Stop scanning", "scanner")
+        ),
+        events = listOf(
+            EventDescriptor("scanner.barcode", "Barcode scanned (unified)", "scanner")
+        )
+    )
+
+    override fun initialize(context: PluginContext) {
+        this.ctx = context
+
+        // Register event listeners for vendor -> unified event transformation
+        for (vendor in VENDOR_PREFIXES) {
+            context.onEvent("$vendor.scanner.*") { event, data ->
+                // "sunmi.scanner.barcode" -> "scanner.barcode"
+                val unifiedEvent = event.replaceFirst("$vendor.", "")
+                context.emitEvent(unifiedEvent, data)
+            }
+        }
+    }
+
+    override suspend fun execute(method: String, params: String): String {
+        val context = ctx ?: return """{"error":"not_initialized","message":"Plugin not initialized"}"""
+
+        val operation = method.removePrefix("scanner.")
+        return when (operation) {
+            "trigger", "stop" -> {
+                val vendorMethod = findVendorMethod(context, operation)
+                    ?: return """{"error":"no_scanner_backend","message":"No vendor scanner plugin available"}"""
+                context.execute(vendorMethod, params)
+            }
+            else -> """{"error":"unsupported_method","method":"$method"}"""
+        }
+    }
+
+    override fun setEventCallback(callback: HalPluginEventCallback?) {
+        // Events are emitted via PluginContext, not direct callback
+    }
+
+    private fun findVendorMethod(context: PluginContext, operation: String): String? {
+        for (vendor in VENDOR_SCANNERS) {
+            if (context.hasCapability(vendor)) {
+                return "$vendor.$operation"
+            }
+        }
+        return null
+    }
+}

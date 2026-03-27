@@ -83,10 +83,18 @@ class HalService : Service() {
         // 4. PluginRegistry
         pluginRegistry = PluginRegistry()
 
-        // 5-7. Register plugins (vendor-specific via reflection, then generic)
-        // Plugins will be registered in Stage 5 — currently no plugins compiled in
+        // 5. Register vendor-specific plugins (available only in sunmi flavor)
+        tryRegisterPlugin("dev.duma.android.hal.plugins.sunmi.printer.SunmiPrinterPlugin")
+        tryRegisterPlugin("dev.duma.android.hal.plugins.sunmi.scanner.SunmiScannerPlugin")
 
-        // 8. Initialize all plugins
+        // 6. Discover external plugins (standalone bundle APKs)
+        pluginRegistry.discoverExternal(this)
+
+        // 7. Register generic plugins (always available)
+        tryRegisterPlugin("dev.duma.android.hal.plugins.generic.GenericPrinterPlugin")
+        tryRegisterPlugin("dev.duma.android.hal.plugins.generic.GenericScannerPlugin")
+
+        // 8. Initialize all plugins (PluginContext per plugin)
         pluginRegistry.initializeAll(applicationContext, eventBus)
 
         // 9. KtorServerManager
@@ -199,6 +207,18 @@ class HalService : Service() {
             .build()
 
         startForeground(NOTIFICATION_ID, notification)
+    }
+
+    private fun tryRegisterPlugin(className: String) {
+        try {
+            val clazz = Class.forName(className)
+            val plugin = clazz.getDeclaredConstructor().newInstance() as dev.duma.android.hal.contract.HalPlugin
+            pluginRegistry.registerBuiltIn(plugin)
+        } catch (_: ClassNotFoundException) {
+            Log.d(TAG, "Plugin not available: $className")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to register plugin: $className", e)
+        }
     }
 
     private fun loadBroadcastConfig(): Set<String> {

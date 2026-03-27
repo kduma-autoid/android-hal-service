@@ -1,10 +1,12 @@
 package dev.duma.android.hal.transport.ktor.core
 
+import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.plugins.contentnegotiation.*
+import io.ktor.server.plugins.cors.routing.*
 
 /**
  * Manages a single shared Ktor embedded server for all Ktor-based transports.
@@ -37,6 +39,13 @@ class KtorServerManager {
         check(!started) { "Server already started" }
         server = embeddedServer(Netty, port = port) {
             install(ContentNegotiation) { json() }
+            install(CORS) {
+                anyHost()
+                allowHeader(HttpHeaders.ContentType)
+                allowHeader(HttpHeaders.Authorization)
+                allowMethod(HttpMethod.Post)
+                allowMethod(HttpMethod.Get)
+            }
             modules.forEach { it(this) }
         }.start(wait = false)
         started = true
