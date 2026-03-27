@@ -80,6 +80,11 @@ dependencies {
     implementation(project(":plugins:generic:plugin-generic-lib"))
     "sunmiImplementation"(project(":plugins:sunmi:plugin-sunmi-printer-lib"))
     "sunmiImplementation"(project(":plugins:sunmi:plugin-sunmi-scanner-lib"))
+    "sunmiImplementation"(project(":plugins:sunmi:sunmiperipher:plugin-sunmi-statuslight-lib"))
+    "sunmiImplementation"(project(":plugins:sunmi:sunmiperipher:plugin-sunmi-nfc-lib"))
+    "sunmiImplementation"(project(":plugins:sunmi:sunmiperipher:plugin-sunmi-card-lib"))
+    "sunmiImplementation"(project(":plugins:sunmi:sunmiperipher:plugin-sunmi-screen-lib"))
+    "sunmiImplementation"(project(":plugins:sunmi:sunmiperipher:plugin-sunmi-docker-lib"))
 
     // AndroidX
     implementation(libs.androidx.core.ktx)

@@ -3,30 +3,8 @@
 
     <application
         android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true">
-
-        <service
-            android:name=".SunmiPrinterService"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="dev.duma.android.hal.HARDWARE_PLUGIN" />
-            </intent-filter>
-            <meta-data android:name="plugin.id" android:value="sunmi.printer" />
-            <meta-data android:name="plugin.label" android:value="Sunmi Printer" />
-        </service>
-
-        <service
-            android:name=".SunmiScannerService"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="dev.duma.android.hal.HARDWARE_PLUGIN" />
-            </intent-filter>
-            <meta-data android:name="plugin.id" android:value="sunmi.scanner" />
-            <meta-data android:name="plugin.label" android:value="Sunmi Scanner" />
-        </service>
 
         <service
             android:name=".SunmiStatusLightService"

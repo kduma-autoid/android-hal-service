@@ -19,6 +19,9 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        flatDir {
+            dirs("plugins/sunmi/sunmiperipher/plugin-sunmi-sunmiperipher-sdk/src/main/libs")
+        }
     }
 }
 
@@ -40,3 +43,11 @@ include(":plugins:generic:plugin-generic-lib")
 include(":plugins:sunmi:plugin-sunmi-bundle")
 include(":plugins:sunmi:plugin-sunmi-printer-lib")
 include(":plugins:sunmi:plugin-sunmi-scanner-lib")
+
+include(":plugins:sunmi:sunmiperipher:plugin-sunmi-sunmiperipher-sdk")
+include(":plugins:sunmi:sunmiperipher:plugin-sunmi-statuslight-lib")
+include(":plugins:sunmi:sunmiperipher:plugin-sunmi-nfc-lib")
+include(":plugins:sunmi:sunmiperipher:plugin-sunmi-card-lib")
+include(":plugins:sunmi:sunmiperipher:plugin-sunmi-screen-lib")
+include(":plugins:sunmi:sunmiperipher:plugin-sunmi-docker-lib")
+include(":plugins:sunmi:sunmiperipher:plugin-sunmi-sunmiperipher-bundle")

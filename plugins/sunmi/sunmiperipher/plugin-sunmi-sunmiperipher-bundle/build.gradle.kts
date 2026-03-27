@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace = "dev.duma.android.hal.plugins.sunmi.bundle"
+    namespace = "dev.duma.android.hal.plugins.sunmi.sunmiperipher.bundle"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -11,7 +11,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "dev.duma.android.hal.plugins.sunmi"
+        applicationId = "dev.duma.android.hal.plugins.sunmi.sunmiperipher"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
@@ -37,8 +37,6 @@ android {
 
 dependencies {
     implementation(project(":service:hal-contract"))
-    implementation(project(":plugins:sunmi:plugin-sunmi-printer-lib"))
-    implementation(project(":plugins:sunmi:plugin-sunmi-scanner-lib"))
     implementation(project(":plugins:sunmi:sunmiperipher:plugin-sunmi-statuslight-lib"))
     implementation(project(":plugins:sunmi:sunmiperipher:plugin-sunmi-nfc-lib"))
     implementation(project(":plugins:sunmi:sunmiperipher:plugin-sunmi-card-lib"))
