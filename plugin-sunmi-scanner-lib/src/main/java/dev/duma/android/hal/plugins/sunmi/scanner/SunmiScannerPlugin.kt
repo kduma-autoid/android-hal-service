@@ -1,5 +1,6 @@
 package dev.duma.android.hal.plugins.sunmi.scanner
 
+import android.content.Context
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
@@ -10,9 +11,9 @@ import dev.duma.android.hal.contract.PluginDescriptor
 /**
  * Stub implementation of Sunmi barcode scanner plugin. Returns hardcoded responses
  * simulating scan triggers. Will be replaced with real Sunmi SDK integration
- * in production.
+ * in production. Accepts optional [Context] for hardware SDK access.
  */
-class SunmiScannerPlugin : HalPlugin {
+class SunmiScannerPlugin(private val appContext: Context? = null) : HalPlugin {
 
     override val pluginId = "sunmi.scanner"
     override val version = 1

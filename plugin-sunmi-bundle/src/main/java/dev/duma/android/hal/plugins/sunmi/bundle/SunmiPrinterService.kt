@@ -13,6 +13,6 @@ import dev.duma.android.hal.plugins.sunmi.printer.SunmiPrinterPlugin
  */
 class SunmiPrinterService : Service() {
     override fun onBind(intent: Intent): IBinder {
-        return PluginServiceWrapper(SunmiPrinterPlugin())
+        return PluginServiceWrapper(SunmiPrinterPlugin(applicationContext))
     }
 }

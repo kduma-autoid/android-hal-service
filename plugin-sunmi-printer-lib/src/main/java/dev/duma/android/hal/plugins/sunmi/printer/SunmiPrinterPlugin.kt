@@ -1,5 +1,6 @@
 package dev.duma.android.hal.plugins.sunmi.printer
 
+import android.content.Context
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
@@ -10,9 +11,9 @@ import dev.duma.android.hal.contract.PluginDescriptor
 /**
  * Stub implementation of Sunmi thermal printer plugin. Returns hardcoded responses
  * simulating print jobs and printer status. Will be replaced with real Sunmi SDK
- * integration in production.
+ * integration in production. Accepts optional [Context] for hardware SDK access.
  */
-class SunmiPrinterPlugin : HalPlugin {
+class SunmiPrinterPlugin(private val appContext: Context? = null) : HalPlugin {
 
     override val pluginId = "sunmi.printer"
     override val version = 1

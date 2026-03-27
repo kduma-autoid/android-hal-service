@@ -19,6 +19,7 @@ import dev.duma.android.hal.service.auth.GrantOverlayDialog
 import dev.duma.android.hal.service.auth.GrantPermissionActivity
 import dev.duma.android.hal.service.auth.TokenDatabase
 import dev.duma.android.hal.service.auth.TokenManager
+import dev.duma.android.hal.service.config.BroadcastConfig
 import dev.duma.android.hal.service.core.ServiceCommandHandler
 import dev.duma.android.hal.service.core.TransportBootstrap
 import dev.duma.android.hal.service.plugin.PluginRegistry
@@ -122,10 +123,11 @@ class HalService : Service() {
         ktorServerManager = KtorServerManager()
 
         // 10. TransportConfig
+        val broadcastConfig = BroadcastConfig(applicationContext)
         val config = TransportConfig(
             port = PORT,
             context = applicationContext,
-            enabledBroadcastEvents = loadBroadcastConfig(),
+            enabledBroadcastEvents = broadcastConfig.getEnabledEvents(),
             ktorServerManager = ktorServerManager
         )
 
@@ -270,17 +272,19 @@ class HalService : Service() {
     private fun tryRegisterPlugin(className: String) {
         try {
             val clazz = Class.forName(className)
-            val plugin = clazz.getDeclaredConstructor().newInstance() as dev.duma.android.hal.contract.HalPlugin
+            val plugin = try {
+                // Try Context constructor first — some plugins need it for hardware SDK access
+                clazz.getDeclaredConstructor(android.content.Context::class.java)
+                    .newInstance(applicationContext) as dev.duma.android.hal.contract.HalPlugin
+            } catch (_: NoSuchMethodException) {
+                // Fall back to no-arg constructor
+                clazz.getDeclaredConstructor().newInstance() as dev.duma.android.hal.contract.HalPlugin
+            }
             pluginRegistry.registerBuiltIn(plugin)
         } catch (_: ClassNotFoundException) {
             Log.d(TAG, "Plugin not available: $className")
         } catch (e: Exception) {
             Log.w(TAG, "Failed to register plugin: $className", e)
         }
-    }
-
-    private fun loadBroadcastConfig(): Set<String> {
-        val prefs = getSharedPreferences("broadcast_config", MODE_PRIVATE)
-        return prefs.getStringSet("enabled_events", emptySet()) ?: emptySet()
     }
 }

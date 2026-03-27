@@ -148,6 +148,7 @@ dependencies {
 ```kotlin
 package dev.duma.android.hal.plugins.{vendor}.{device}
 
+import android.content.Context
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
@@ -158,9 +159,9 @@ import dev.duma.android.hal.contract.PluginDescriptor
 /**
  * Stub implementation of {Vendor} {device} plugin. Returns hardcoded responses
  * simulating {device} operations. Will be replaced with real {Vendor} SDK
- * integration in production.
+ * integration in production. Accepts optional [Context] for hardware SDK access.
  */
-class {Vendor}{Device}Plugin : HalPlugin {
+class {Vendor}{Device}Plugin(private val appContext: Context? = null) : HalPlugin {
 
     override val pluginId = "{vendor}.{device}"
     override val version = 1
@@ -198,9 +199,11 @@ class {Vendor}{Device}Plugin : HalPlugin {
 }
 ```
 
+**Konstruktor z `Context`:** Vendor-specific pluginy przyjmuja opcjonalny `android.content.Context` w konstruktorze (`Context? = null`). Umozliwia to dostep do Android SDK urzadzenia (bindowanie serwisow, rejestracja BroadcastReceiverow itp.) jeszcze przed wywolaniem `initialize()`. Domyslna wartosc `null` zapewnia kompatybilnosc z konstrukcja bez argumentow.
+
 ### 3.6 Klasa pluginu -- Z eventami
 
-Identyczna jak wyzej, z roznicami:
+Identyczna jak wyzej (wlacznie z konstruktorem `Context? = null`), z roznicami:
 
 W `getDescriptor()` dodaj eventy:
 ```kotlin
@@ -328,7 +331,7 @@ import dev.duma.android.hal.plugins.{vendor}.{device}.{Vendor}{Device}Plugin
 
 class {Vendor}{Device}Service : Service() {
     override fun onBind(intent: Intent): IBinder {
-        return PluginServiceWrapper({Vendor}{Device}Plugin())
+        return PluginServiceWrapper({Vendor}{Device}Plugin(applicationContext))
     }
 }
 ```
@@ -505,6 +508,8 @@ Plik: `hal-service/src/main/java/dev/duma/android/hal/service/service/HalService
 tryRegisterPlugin("dev.duma.android.hal.plugins.{vendor}.{device}.{Vendor}{Device}Plugin")
 ```
 
+`tryRegisterPlugin()` automatycznie probuje najpierw konstruktor z `Context` (przekazuje `applicationContext`), a jesli taki nie istnieje -- uzywa konstruktora bezargumentowego. Dzieki temu pluginy z konstruktorem `(Context? = null)` otrzymaja `Context` automatycznie.
+
 #### Generic -- dodaj w sekcji krok 7 (generic plugins):
 ```kotlin
 tryRegisterPlugin("dev.duma.android.hal.plugins.generic.Generic{Device}Plugin")
@@ -635,7 +640,7 @@ Uruchomienie: `./gradlew :plugin-generic-lib:test`
 5. **Nazwy metod MUSZA odpowiadac descriptorowi**
 6. **pluginId musi byc unikalny** w calym systemie
 7. **Capabilities musza byc unikalne** -- ta sama capability nie moze byc w dwoch pluginach
-8. **Klasy pluginow MUSZA miec bezargumentowy konstruktor** (`tryRegisterPlugin()` uzywa refleksji)
+8. **Konstruktor pluginu:** Vendor-specific pluginy MUSZA miec konstruktor z opcjonalnym `Context` parametrem: `(appContext: Context? = null)`. `tryRegisterPlugin()` uzywa refleksji -- probuje najpierw konstruktor `(Context)`, potem bezargumentowy. Bundle serwisy przekazuja `applicationContext` wprost. Generic pluginy moga miec bezargumentowy konstruktor (nie potrzebuja `Context` w konstruktorze -- dostaja go przez `PluginContext.applicationContext`)
 9. **Kazdy plugin-lib MUSI zalezec od `:hal-contract`**
 
 ---
@@ -649,7 +654,7 @@ Uruchomienie: `./gradlew :plugin-generic-lib:test`
 - [ ] `getDescriptor()` zawiera wszystkie metody i eventy
 - [ ] `execute()` obsluguje wszystkie metody z descriptora + zwraca error dla nieznanych
 - [ ] `setEventCallback()` zapisuje callback
-- [ ] Bezargumentowy konstruktor
+- [ ] Konstruktor z opcjonalnym `Context`: `(appContext: Context? = null)`
 - [ ] `settings.gradle.kts` -- `include()`
 - [ ] `hal-service/build.gradle.kts` -- flavor + zaleznosc (jesli in-process)
 - [ ] `HalService.kt` -- `tryRegisterPlugin()` (jesli in-process)
@@ -657,7 +662,7 @@ Uruchomienie: `./gradlew :plugin-generic-lib:test`
 ### Bundle APK:
 - [ ] `build.gradle.kts` z `applicationId`, zaleznosci na `:hal-contract` + plugin-libs
 - [ ] `AndroidManifest.xml` -- `<service>` per plugin: `exported=true`, intent-filter, meta-data
-- [ ] Klasa serwisu uzywa `PluginServiceWrapper`
+- [ ] Klasa serwisu uzywa `PluginServiceWrapper` i przekazuje `applicationContext` do konstruktora pluginu
 - [ ] `settings.gradle.kts` -- `include()`
 
 ### Generic plugin:
