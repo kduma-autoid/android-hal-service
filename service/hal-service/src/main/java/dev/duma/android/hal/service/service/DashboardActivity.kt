@@ -2,6 +2,7 @@ package dev.duma.android.hal.service.service
 
 import android.Manifest
 import android.app.AlertDialog
+import dev.duma.android.hal.service.R
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -27,7 +28,11 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-import com.google.android.material.tabs.TabLayout
+import android.view.Gravity
+import androidx.appcompat.app.ActionBarDrawerToggle
+import androidx.appcompat.widget.Toolbar
+import androidx.drawerlayout.widget.DrawerLayout
+import com.google.android.material.navigation.NavigationView
 import dev.duma.android.hal.service.plugin.PluginRegistry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -47,41 +52,88 @@ class DashboardActivity : AppCompatActivity() {
         private const val REQUEST_NOTIFICATION_PERMISSION = 1001
     }
 
-    private lateinit var tabLayout: TabLayout
+    private lateinit var drawerLayout: DrawerLayout
     private lateinit var contentFrame: FrameLayout
+    private var currentSection = 0
+
+    private val sectionTitles = arrayOf("Dashboard", "Transports", "Broadcasts", "Plugins", "Tokens", "Security")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        supportActionBar?.title = "HAL Service"
 
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            fitsSystemWindows = true
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isStatusBarContrastEnforced = true
         }
+        window.statusBarColor = ContextCompat.getColor(this, R.color.purple_700)
+        window.navigationBarColor = Color.TRANSPARENT
 
-        tabLayout = TabLayout(this).apply {
-            tabMode = TabLayout.MODE_FIXED
-            tabGravity = TabLayout.GRAVITY_FILL
+        val toolbar = Toolbar(this).apply {
+            val ta = context.obtainStyledAttributes(intArrayOf(androidx.appcompat.R.attr.colorPrimary))
+            setBackgroundColor(ta.getColor(0, Color.parseColor("#6200EE")))
+            ta.recycle()
+            setTitleTextColor(Color.WHITE)
+            title = "HAL Service"
+            setOnApplyWindowInsetsListener { v, insets ->
+                v.setPadding(v.paddingLeft, insets.systemWindowInsetTop, v.paddingRight, v.paddingBottom)
+                insets
+            }
         }
-        tabLayout.addTab(tabLayout.newTab().setText("Dashboard"))
-        tabLayout.addTab(tabLayout.newTab().setText("Transports"))
-        tabLayout.addTab(tabLayout.newTab().setText("Plugins"))
-        tabLayout.addTab(tabLayout.newTab().setText("Tokens"))
-        root.addView(tabLayout)
 
         contentFrame = FrameLayout(this).apply {
             layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f)
         }
-        root.addView(contentFrame)
 
-        tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
-            override fun onTabSelected(tab: TabLayout.Tab) = refreshCurrentTab()
-            override fun onTabUnselected(tab: TabLayout.Tab) {}
-            override fun onTabReselected(tab: TabLayout.Tab) = refreshCurrentTab()
-        })
+        val mainContent = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(toolbar)
+            addView(contentFrame)
+        }
 
-        setContentView(root)
-        tabLayout.selectTab(tabLayout.getTabAt(0))
+        val navigationView = NavigationView(this).apply {
+            layoutParams = DrawerLayout.LayoutParams(
+                DrawerLayout.LayoutParams.WRAP_CONTENT,
+                DrawerLayout.LayoutParams.MATCH_PARENT,
+                Gravity.START
+            )
+            sectionTitles.forEachIndexed { index, title ->
+                menu.add(0, index, index, title)
+            }
+            menu.setGroupCheckable(0, true, true)
+            menu.findItem(0)?.isChecked = true
+
+            // Demo link at the bottom
+            val demoId = sectionTitles.size + 1
+            menu.add(1, demoId, demoId, "Open Web Demo").apply {
+                isCheckable = false
+            }
+
+            setNavigationItemSelectedListener { item ->
+                if (item.itemId == demoId) {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(
+                        "https://pub-8f1277b763ab47c69fca746dc50567a2.r2.dev/test/index.html"
+                    )))
+                    drawerLayout.closeDrawers()
+                } else {
+                    currentSection = item.itemId
+                    toolbar.title = sectionTitles[currentSection]
+                    refreshCurrentTab()
+                    drawerLayout.closeDrawers()
+                }
+                true
+            }
+        }
+
+        drawerLayout = DrawerLayout(this).apply {
+            addView(mainContent)
+            addView(navigationView)
+        }
+
+        setSupportActionBar(toolbar)
+        val toggle = ActionBarDrawerToggle(this, drawerLayout, toolbar, 0, 0)
+        drawerLayout.addDrawerListener(toggle)
+        toggle.syncState()
+
+        setContentView(drawerLayout)
 
         requestMissingPermissions()
         autoStartService()
@@ -94,16 +146,18 @@ class DashboardActivity : AppCompatActivity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (tabLayout.selectedTabPosition == 0) refreshCurrentTab()
+        if (currentSection == 0) refreshCurrentTab()
     }
 
     private fun refreshCurrentTab() {
         contentFrame.removeAllViews()
-        when (tabLayout.selectedTabPosition) {
+        when (currentSection) {
             0 -> contentFrame.addView(buildDashboardTab())
             1 -> contentFrame.addView(buildTransportsTab())
-            2 -> contentFrame.addView(buildPluginsTab())
-            3 -> contentFrame.addView(buildTokensTab())
+            2 -> contentFrame.addView(buildBroadcastsTab())
+            3 -> contentFrame.addView(buildPluginsTab())
+            4 -> contentFrame.addView(buildTokensTab())
+            5 -> contentFrame.addView(buildSecurityTab())
         }
     }
 
@@ -151,66 +205,6 @@ class DashboardActivity : AppCompatActivity() {
         })
         layout.addView(row)
 
-        // Permissions
-        layout.addView(sectionHeader("Permissions"))
-
-        val canOverlay = Settings.canDrawOverlays(this)
-        layout.addView(TextView(this).apply {
-            text = "Overlay: " + if (canOverlay) "GRANTED" else "NOT GRANTED"
-            textSize = 14f
-            setTextColor(if (canOverlay) Color.parseColor("#2E7D32") else Color.parseColor("#C62828"))
-            setPadding(0, 4, 0, 4)
-        })
-        if (!canOverlay) {
-            layout.addView(Button(this).apply {
-                text = "Enable overlay permission"
-                setOnClickListener {
-                    startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
-                }
-            })
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val canNotify = ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-            layout.addView(TextView(this).apply {
-                text = "Notifications: " + if (canNotify) "GRANTED" else "NOT GRANTED"
-                textSize = 14f
-                setTextColor(if (canNotify) Color.parseColor("#2E7D32") else Color.parseColor("#C62828"))
-                setPadding(0, 4, 0, 4)
-            })
-            if (!canNotify) {
-                layout.addView(Button(this).apply {
-                    text = "Enable notifications"
-                    setOnClickListener {
-                        ActivityCompat.requestPermissions(
-                            this@DashboardActivity,
-                            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                            REQUEST_NOTIFICATION_PERMISSION
-                        )
-                    }
-                })
-            }
-        }
-
-        // Super permissions toggle
-        layout.addView(sectionHeader("Security"))
-        val superPrefs = getSharedPreferences("hal_super", MODE_PRIVATE)
-        @Suppress("UseSwitchCompatOrMaterialCode")
-        layout.addView(Switch(this).apply {
-            text = "Allow super permissions via user dialog"
-            textSize = 14f
-            isChecked = superPrefs.getBoolean("allow_super_via_dialog", false)
-            setOnCheckedChangeListener { _, isChecked ->
-                superPrefs.edit().putBoolean("allow_super_via_dialog", isChecked).apply()
-            }
-        })
-        layout.addView(TextView(this).apply {
-            text = "When disabled, super permissions can only be granted via developer key JWT."
-            textSize = 12f
-            setTextColor(Color.GRAY)
-            setPadding(0, 4, 0, 0)
-        })
-
         // Endpoint info
         layout.addView(sectionHeader("Endpoints"))
         layout.addView(TextView(this).apply {
@@ -245,6 +239,14 @@ class DashboardActivity : AppCompatActivity() {
 
         val commandTransports = registry.getCommandTransports()
         val eventTransports = registry.getEventTransports()
+
+        if (commandTransports.isEmpty() && eventTransports.isEmpty()) {
+            layout.addView(TextView(this).apply {
+                text = "No transports registered"
+                textSize = 13f
+                setTextColor(Color.GRAY)
+            })
+        }
 
         if (commandTransports.isNotEmpty()) {
             layout.addView(sectionHeader("Command Transports"))
@@ -311,40 +313,55 @@ class DashboardActivity : AppCompatActivity() {
             }
         }
 
-        // Broadcast events config
+        return wrapInScrollView(layout)
+    }
+
+    // ==================== Tab 3: Broadcasts ====================
+
+    private fun buildBroadcastsTab(): View {
+        val layout = tabContent()
+
         val pluginReg = HalService.pluginRegistry
         val config = HalService.broadcastConfig
-        if (pluginReg != null && config != null) {
-            val allEvents = pluginReg.getSupportedDescriptors()
-                .flatMap { it.events }
-                .distinctBy { it.name }
+        if (pluginReg == null || config == null) {
+            layout.addView(notRunningText())
+            return wrapInScrollView(layout)
+        }
 
-            if (allEvents.isNotEmpty()) {
-                layout.addView(sectionHeader("Broadcast Events"))
-                layout.addView(TextView(this).apply {
-                    text = "Events forwarded via Android Broadcast:"
+        val allEvents = pluginReg.getSupportedDescriptors()
+            .flatMap { it.events }
+            .distinctBy { it.name }
+
+        if (allEvents.isEmpty()) {
+            layout.addView(TextView(this).apply {
+                text = "No events available"
+                textSize = 13f
+                setTextColor(Color.GRAY)
+            })
+        } else {
+            layout.addView(TextView(this).apply {
+                text = "Events forwarded via Android Broadcast:"
+                textSize = 13f
+                setPadding(0, 0, 0, 8)
+            })
+
+            for (event in allEvents) {
+                layout.addView(CheckBox(this).apply {
+                    text = "${event.name} — ${event.description}"
                     textSize = 13f
-                    setPadding(0, 0, 0, 8)
+                    isChecked = config.isEventEnabled(event.name)
+                    setOnCheckedChangeListener { _, isChecked ->
+                        if (isChecked) config.enableEvent(event.name)
+                        else config.disableEvent(event.name)
+                    }
                 })
-
-                for (event in allEvents) {
-                    layout.addView(CheckBox(this).apply {
-                        text = "${event.name} — ${event.description}"
-                        textSize = 13f
-                        isChecked = config.isEventEnabled(event.name)
-                        setOnCheckedChangeListener { _, isChecked ->
-                            if (isChecked) config.enableEvent(event.name)
-                            else config.disableEvent(event.name)
-                        }
-                    })
-                }
             }
         }
 
         return wrapInScrollView(layout)
     }
 
-    // ==================== Tab 3: Plugins ====================
+    // ==================== Tab 4: Plugins ====================
 
     private fun buildPluginsTab(): View {
         val layout = tabContent()
@@ -492,11 +509,24 @@ class DashboardActivity : AppCompatActivity() {
             clipToPadding = false
         }
 
-        val swipeRefresh = SwipeRefreshLayout(this).apply {
-            addView(recyclerView)
+        val emptyView = TextView(this).apply {
+            text = "No active tokens"
+            textSize = 13f
+            setTextColor(Color.GRAY)
+            setPadding(32, 32, 32, 32)
+            visibility = View.GONE
         }
 
-        val adapter = TokenAdapter()
+        val container = FrameLayout(this).apply {
+            addView(recyclerView)
+            addView(emptyView)
+        }
+
+        val swipeRefresh = SwipeRefreshLayout(this).apply {
+            addView(container)
+        }
+
+        val adapter = TokenAdapter(emptyView, recyclerView)
         recyclerView.adapter = adapter
 
         val touchHelper = ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
@@ -541,8 +571,16 @@ class DashboardActivity : AppCompatActivity() {
         }
     }
 
-    private inner class TokenAdapter : RecyclerView.Adapter<TokenAdapter.VH>() {
+    private inner class TokenAdapter(
+        private val emptyView: View,
+        private val recyclerView: RecyclerView
+    ) : RecyclerView.Adapter<TokenAdapter.VH>() {
         var tokens: List<dev.duma.android.hal.service.auth.TokenEntity> = emptyList()
+            set(value) {
+                field = value
+                emptyView.visibility = if (value.isEmpty()) View.VISIBLE else View.GONE
+                recyclerView.visibility = if (value.isEmpty()) View.GONE else View.VISIBLE
+            }
         private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
 
         inner class VH(val layout: LinearLayout) : RecyclerView.ViewHolder(layout)
@@ -612,6 +650,74 @@ class DashboardActivity : AppCompatActivity() {
         }
     }
 
+    // ==================== Tab 6: Security ====================
+
+    private fun buildSecurityTab(): View {
+        val layout = tabContent()
+
+        // Permissions
+        layout.addView(sectionHeader("Permissions"))
+
+        val canOverlay = Settings.canDrawOverlays(this)
+        layout.addView(TextView(this).apply {
+            text = "Overlay: " + if (canOverlay) "GRANTED" else "NOT GRANTED"
+            textSize = 14f
+            setTextColor(if (canOverlay) Color.parseColor("#2E7D32") else Color.parseColor("#C62828"))
+            setPadding(0, 4, 0, 4)
+        })
+        if (!canOverlay) {
+            layout.addView(Button(this).apply {
+                text = "Enable overlay permission"
+                setOnClickListener {
+                    startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+                }
+            })
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val canNotify = ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            layout.addView(TextView(this).apply {
+                text = "Notifications: " + if (canNotify) "GRANTED" else "NOT GRANTED"
+                textSize = 14f
+                setTextColor(if (canNotify) Color.parseColor("#2E7D32") else Color.parseColor("#C62828"))
+                setPadding(0, 4, 0, 4)
+            })
+            if (!canNotify) {
+                layout.addView(Button(this).apply {
+                    text = "Enable notifications"
+                    setOnClickListener {
+                        ActivityCompat.requestPermissions(
+                            this@DashboardActivity,
+                            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                            REQUEST_NOTIFICATION_PERMISSION
+                        )
+                    }
+                })
+            }
+        }
+
+        // Super permissions
+        layout.addView(sectionHeader("Super Permissions"))
+        val superPrefs = getSharedPreferences("hal_super", MODE_PRIVATE)
+        @Suppress("UseSwitchCompatOrMaterialCode")
+        layout.addView(Switch(this).apply {
+            text = "Allow super permissions via user dialog"
+            textSize = 14f
+            isChecked = superPrefs.getBoolean("allow_super_via_dialog", false)
+            setOnCheckedChangeListener { _, isChecked ->
+                superPrefs.edit().putBoolean("allow_super_via_dialog", isChecked).apply()
+            }
+        })
+        layout.addView(TextView(this).apply {
+            text = "When disabled, super permissions can only be granted via developer key JWT."
+            textSize = 12f
+            setTextColor(Color.GRAY)
+            setPadding(0, 4, 0, 0)
+        })
+
+        return wrapInScrollView(layout)
+    }
+
     // ==================== Helpers ====================
 
     private fun tabContent(): LinearLayout = LinearLayout(this).apply {
@@ -675,6 +781,13 @@ class DashboardActivity : AppCompatActivity() {
     }
 
     // ==================== Permission handling ====================
+
+    private fun getColorFromAttr(attr: Int): Int {
+        val ta = obtainStyledAttributes(intArrayOf(attr))
+        val color = ta.getColor(0, Color.BLACK)
+        ta.recycle()
+        return color
+    }
 
     private fun requestMissingPermissions() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

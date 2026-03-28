@@ -201,62 +201,63 @@
         <h3>Navigation Bar</h3>
         <div class="method-row">
             <span class="method-name">showNavigationBar</span>
-            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.showNavigationBar',{show:true})">Show</button>
-            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.showNavigationBar',{show:false})">Hide</button>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.showNavigationBar',{show:true},'sysui')">Show</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.showNavigationBar',{show:false},'sysui')">Hide</button>
         </div>
         <div class="method-row">
             <span class="method-name">clickableNavigationBar</span>
-            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.clickableNavigationBar',{clickable:true})">Clickable</button>
-            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.clickableNavigationBar',{clickable:false})">Disabled</button>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.clickableNavigationBar',{clickable:true},'sysui')">Clickable</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.clickableNavigationBar',{clickable:false},'sysui')">Disabled</button>
         </div>
         <div class="method-row">
             <span class="method-name">Back button</span>
-            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.showNavigationBarBackButton',{show:true})">Show</button>
-            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.showNavigationBarBackButton',{show:false})">Hide</button>
-            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.enableNavigationBarBackButton',{enable:true})">Enable</button>
-            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.enableNavigationBarBackButton',{enable:false})">Disable</button>
-            <button class="btn-get" onclick="get('sunmi.tms.system.system_ui.isNavigationBarBackButtonEnabled')">Status</button>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.showNavigationBarBackButton',{show:true},'sysui')">Show</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.showNavigationBarBackButton',{show:false},'sysui')">Hide</button>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.enableNavigationBarBackButton',{enable:true},'sysui')">Enable</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.enableNavigationBarBackButton',{enable:false},'sysui')">Disable</button>
+            <button class="btn-get" onclick="get('sunmi.tms.system.system_ui.isNavigationBarBackButtonEnabled','sysui')">Status</button>
         </div>
         <div class="method-row">
             <span class="method-name">Home button</span>
-            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.showNavigationBarHomeButton',{show:true})">Show</button>
-            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.showNavigationBarHomeButton',{show:false})">Hide</button>
-            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.enableNavigationBarHomeButton',{enable:true})">Enable</button>
-            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.enableNavigationBarHomeButton',{enable:false})">Disable</button>
-            <button class="btn-get" onclick="get('sunmi.tms.system.system_ui.isNavigationBarHomeButtonEnabled')">Status</button>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.showNavigationBarHomeButton',{show:true},'sysui')">Show</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.showNavigationBarHomeButton',{show:false},'sysui')">Hide</button>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.enableNavigationBarHomeButton',{enable:true},'sysui')">Enable</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.enableNavigationBarHomeButton',{enable:false},'sysui')">Disable</button>
+            <button class="btn-get" onclick="get('sunmi.tms.system.system_ui.isNavigationBarHomeButtonEnabled','sysui')">Status</button>
         </div>
         <div class="method-row">
             <span class="method-name">Recents button</span>
-            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.showNavigationBarRecentsButton',{show:true})">Show</button>
-            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.showNavigationBarRecentsButton',{show:false})">Hide</button>
-            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.enableNavigationBarRecentsButton',{enable:true})">Enable</button>
-            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.enableNavigationBarRecentsButton',{enable:false})">Disable</button>
-            <button class="btn-get" onclick="get('sunmi.tms.system.system_ui.isNavigationBarRecentsButtonEnabled')">Status</button>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.showNavigationBarRecentsButton',{show:true},'sysui')">Show</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.showNavigationBarRecentsButton',{show:false},'sysui')">Hide</button>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.enableNavigationBarRecentsButton',{enable:true},'sysui')">Enable</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.enableNavigationBarRecentsButton',{enable:false},'sysui')">Disable</button>
+            <button class="btn-get" onclick="get('sunmi.tms.system.system_ui.isNavigationBarRecentsButtonEnabled','sysui')">Status</button>
         </div>
 
         <h3>Status Bar</h3>
         <div class="method-row">
             <span class="method-name">showStatusBar</span>
-            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.showStatusBar',{show:true})">Show</button>
-            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.showStatusBar',{show:false})">Hide</button>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.showStatusBar',{show:true},'sysui')">Show</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.showStatusBar',{show:false},'sysui')">Hide</button>
         </div>
         <div class="method-row">
             <span class="method-name">enableNotificationPanel</span>
-            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.enableNotificationPanel',{enable:true})">Enable</button>
-            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.enableNotificationPanel',{enable:false})">Disable</button>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.enableNotificationPanel',{enable:true},'sysui')">Enable</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.enableNotificationPanel',{enable:false},'sysui')">Disable</button>
         </div>
 
         <h3>Other</h3>
         <div class="method-row">
             <span class="method-name">ADB</span>
-            <button class="btn-get" onclick="get('sunmi.tms.system.isAdbEnabled')">Status</button>
-            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.enableAdb',{enable:true})">Enable</button>
-            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.enableAdb',{enable:false})">Disable</button>
+            <button class="btn-get" onclick="get('sunmi.tms.system.isAdbEnabled','sysui')">Status</button>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.enableAdb',{enable:true},'sysui')">Enable</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.enableAdb',{enable:false},'sysui')">Disable</button>
             <span class="super-badge">SUPER</span>
         </div>
         <div class="method-row">
-            <button class="btn-get" onclick="exec('sunmi.tms.system.doScreenshot',{})">Take Screenshot</button>
+            <button class="btn-get" onclick="exec('sunmi.tms.system.doScreenshot',{},'sysui')">Take Screenshot</button>
         </div>
+        <div class="card-response" id="resp-sysui"></div>
     </div>
 
     <!-- NETWORK -->
@@ -266,111 +267,109 @@
         <h3>Wi-Fi</h3>
         <div class="method-row">
             <span class="method-name">enableWIFI</span>
-            <button class="btn-toggle-on" onclick="exec('sunmi.tms.network.enableWIFI',{isEnable:true})">On</button>
-            <button class="btn-toggle-off" onclick="exec('sunmi.tms.network.enableWIFI',{isEnable:false})">Off</button>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.network.enableWIFI',{isEnable:true},'net')">On</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.network.enableWIFI',{isEnable:false},'net')">Off</button>
         </div>
         <div class="method-row">
-            <button class="btn-get" onclick="exec('sunmi.tms.network.getConfiguredNetworks',{})">Get Saved Networks</button>
+            <button class="btn-get" onclick="exec('sunmi.tms.network.getConfiguredNetworks',{},'net')">Get Saved Networks</button>
         </div>
         <div class="method-row">
             <span class="method-name">Hotspot</span>
-            <button class="btn-get" onclick="get('sunmi.tms.network.isWifiHotspotEnable')">Status</button>
-            <button class="btn-toggle-off" onclick="exec('sunmi.tms.network.turnOffWifiHotspot',{})">Turn Off</button>
+            <button class="btn-get" onclick="get('sunmi.tms.network.isWifiHotspotEnable','net')">Status</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.network.turnOffWifiHotspot',{},'net')">Turn Off</button>
         </div>
 
         <h3>Mobile Data</h3>
         <div class="method-row">
-            <button class="btn-get" onclick="get('sunmi.tms.network.getMobileDataStatus')">Status</button>
-            <button class="btn-get" onclick="get('sunmi.tms.network.getDefaultDataSlotIndex')">Default Slot</button>
+            <button class="btn-get" onclick="get('sunmi.tms.network.getMobileDataStatus','net')">Status</button>
+            <button class="btn-get" onclick="get('sunmi.tms.network.getDefaultDataSlotIndex','net')">Default Slot</button>
         </div>
         <div class="method-row">
             <span class="method-name">Slot 0</span>
-            <button class="btn-get" onclick="exec('sunmi.tms.network.getMobileDataStatusBySlot',{slotIndex:0})">Status</button>
-            <button class="btn-toggle-on" onclick="exec('sunmi.tms.network.enableMobileNetwork',{slotIdx:0,enable:true})">On</button>
-            <button class="btn-toggle-off" onclick="exec('sunmi.tms.network.enableMobileNetwork',{slotIdx:0,enable:false})">Off</button>
-            <button class="btn-get" onclick="exec('sunmi.tms.network.isActiveSlotIndex',{slotIndex:0})">Active?</button>
+            <button class="btn-get" onclick="exec('sunmi.tms.network.getMobileDataStatusBySlot',{slotIndex:0},'net')">Status</button>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.network.enableMobileNetwork',{slotIdx:0,enable:true},'net')">On</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.network.enableMobileNetwork',{slotIdx:0,enable:false},'net')">Off</button>
+            <button class="btn-get" onclick="exec('sunmi.tms.network.isActiveSlotIndex',{slotIndex:0},'net')">Active?</button>
         </div>
 
         <h3>Ethernet</h3>
         <div class="method-row">
             <span class="method-name">enableEthernet</span>
-            <button class="btn-toggle-on" onclick="exec('sunmi.tms.network.enableEthernet',{enable:true})">On</button>
-            <button class="btn-toggle-off" onclick="exec('sunmi.tms.network.enableEthernet',{enable:false})">Off</button>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.network.enableEthernet',{enable:true},'net')">On</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.network.enableEthernet',{enable:false},'net')">Off</button>
         </div>
 
         <h3>NTP</h3>
         <div class="method-row">
-            <button class="btn-get" onclick="get('sunmi.tms.network.getCustomNtpServer')">Get NTP Server</button>
+            <button class="btn-get" onclick="get('sunmi.tms.network.getCustomNtpServer','net')">Get NTP Server</button>
             <input id="ntpServer" value="pool.ntp.org" style="width:180px" />
-            <button class="btn-set" onclick="exec('sunmi.tms.network.setCustomNtpServer',{server:val('ntpServer')})">Set</button>
+            <button class="btn-set" onclick="exec('sunmi.tms.network.setCustomNtpServer',{server:val('ntpServer')},'net')">Set</button>
         </div>
+        <div class="card-response" id="resp-net"></div>
     </div>
 
     <!-- SOFTWARE -->
     <div class="card">
         <h2>Software</h2>
         <div class="method-row">
-            <button class="btn-get" onclick="exec('sunmi.tms.software.packages.getSystemAllPackageInfo',{})">Get All Packages</button>
+            <button class="btn-get" onclick="exec('sunmi.tms.software.packages.getSystemAllPackageInfo',{},'sw')">Get All Packages</button>
         </div>
         <div class="method-row">
             <span class="method-name">Auto-start</span>
-            <button class="btn-get" onclick="get('sunmi.tms.software.isAutoStartAppEnabled')">isEnabled</button>
-            <button class="btn-get" onclick="get('sunmi.tms.software.getAutoStartApp')">getApp</button>
-            <button class="btn-toggle-on" onclick="exec('sunmi.tms.software.enableAutoStartApp',{enable:true})">Enable</button>
-            <button class="btn-toggle-off" onclick="exec('sunmi.tms.software.enableAutoStartApp',{enable:false})">Disable</button>
+            <button class="btn-get" onclick="get('sunmi.tms.software.isAutoStartAppEnabled','sw')">isEnabled</button>
+            <button class="btn-get" onclick="get('sunmi.tms.software.getAutoStartApp','sw')">getApp</button>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.software.enableAutoStartApp',{enable:true},'sw')">Enable</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.software.enableAutoStartApp',{enable:false},'sw')">Disable</button>
         </div>
         <div class="method-row">
             <span class="method-name">App lock</span>
-            <button class="btn-get" onclick="exec('sunmi.tms.software.getCommonAppLockList',{})">Get Lock List</button>
-            <button class="btn-get" onclick="get('sunmi.tms.system.isCommonAppLockEnabled')">isEnabled</button>
+            <button class="btn-get" onclick="exec('sunmi.tms.software.getCommonAppLockList',{},'sw')">Get Lock List</button>
+            <button class="btn-get" onclick="get('sunmi.tms.system.isCommonAppLockEnabled','sw')">isEnabled</button>
         </div>
         <div class="method-row">
             <span class="method-name">Uninstall protection</span>
-            <button class="btn-get" onclick="exec('sunmi.tms.software.getProhibitUninstallList',{})">Get List</button>
+            <button class="btn-get" onclick="exec('sunmi.tms.software.getProhibitUninstallList',{},'sw')">Get List</button>
         </div>
         <div class="method-row">
             <span class="method-name">isForeground</span>
             <input id="fgPkg" value="com.example.app" style="width:200px" />
-            <button class="btn-get" onclick="exec('sunmi.tms.software.isForeground',{packageName:val('fgPkg')})">Check</button>
+            <button class="btn-get" onclick="exec('sunmi.tms.software.isForeground',{packageName:val('fgPkg')},'sw')">Check</button>
         </div>
+        <div class="card-response" id="resp-sw"></div>
     </div>
 
     <!-- KIOSK -->
     <div class="card">
         <h2>Kiosk</h2>
         <div class="method-row">
-            <button class="btn-get" onclick="get('sunmi.tms.kiosk.isKioskFunctionEnabled')">isEnabled</button>
-            <button class="btn-get" onclick="get('sunmi.tms.kiosk.getKioskModeStatus')">getStatus</button>
-            <button class="btn-get" onclick="exec('sunmi.tms.kiosk.getKioskAppList',{})">App List</button>
+            <button class="btn-get" onclick="get('sunmi.tms.kiosk.isKioskFunctionEnabled','kiosk')">isEnabled</button>
+            <button class="btn-get" onclick="get('sunmi.tms.kiosk.getKioskModeStatus','kiosk')">getStatus</button>
+            <button class="btn-get" onclick="exec('sunmi.tms.kiosk.getKioskAppList',{},'kiosk')">App List</button>
         </div>
         <div class="method-row">
             <span class="method-name">Nav bar in kiosk</span>
-            <button class="btn-get" onclick="get('sunmi.tms.kiosk.getNavigationBarStatusForKiosk')">Status</button>
+            <button class="btn-get" onclick="get('sunmi.tms.kiosk.getNavigationBarStatusForKiosk','kiosk')">Status</button>
         </div>
         <div class="method-row">
             <span class="method-name">Status bar in kiosk</span>
-            <button class="btn-get" onclick="get('sunmi.tms.kiosk.isStatusBarHiddenForKiosk')">Status</button>
+            <button class="btn-get" onclick="get('sunmi.tms.kiosk.isStatusBarHiddenForKiosk','kiosk')">Status</button>
         </div>
         <div class="method-row">
             <span class="method-name">Exit password type</span>
-            <button class="btn-get" onclick="get('sunmi.tms.kiosk.getSwitchKioskPwdByType')">Get</button>
+            <button class="btn-get" onclick="get('sunmi.tms.kiosk.getSwitchKioskPwdByType','kiosk')">Get</button>
         </div>
         <div class="method-row">
             <span class="method-name">Certificate</span>
-            <button class="btn-get" onclick="exec('sunmi.tms.kiosk.certificate.getCertificateInfo',{})">Get Info</button>
-            <button class="btn-get" onclick="exec('sunmi.tms.kiosk.certificate.getTrustedFileCertChain',{})">Get Chain</button>
+            <button class="btn-get" onclick="exec('sunmi.tms.kiosk.certificate.getCertificateInfo',{},'kiosk')">Get Info</button>
+            <button class="btn-get" onclick="exec('sunmi.tms.kiosk.certificate.getTrustedFileCertChain',{},'kiosk')">Get Chain</button>
         </div>
+        <div class="card-response" id="resp-kiosk"></div>
     </div>
 
     <!-- EVENTS -->
     <div class="card">
         <h2>Events</h2>
         <div id="events">Waiting for connection...</div>
-    </div>
-
-    <div class="card">
-        <h2>Response</h2>
-        <div id="response">-</div>
     </div>
 
     <script src="hal-client.js"></script>
@@ -388,10 +387,12 @@
         function val(id) { return document.getElementById(id).value; }
         function intVal(id) { return parseInt(document.getElementById(id).value); }
 
-        function showResponse(data, isError) {
-            const el = document.getElementById('response');
+        function showResponse(data, isError, respId) {
+            if (!respId) return;
+            const el = document.getElementById('resp-' + respId);
+            if (!el) return;
             el.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
-            el.className = isError ? 'err' : '';
+            el.className = 'card-response visible' + (isError ? ' err' : '');
         }
 
         function logEvent(event, data) {
@@ -423,22 +424,21 @@
                 status.textContent = 'Connected (WS)';
                 status.className = 'status ok';
                 document.getElementById('events').textContent = 'Listening...';
-                showResponse(res);
                 loadAllInfo();
                 loadRuntime();
             } catch (e) { status.textContent = 'Error'; status.className = 'status err'; showResponse(e.message, true); }
         }
 
-        async function exec(method, params) {
+        async function exec(method, params, respId) {
             try {
                 const res = await getClient().execute(method, params);
-                showResponse(res, !!res.error);
+                showResponse(res, !!res.error, respId);
                 return res;
-            } catch (e) { showResponse(e.message, true); return null; }
+            } catch (e) { showResponse(e.message, true, respId); return null; }
         }
 
-        async function get(method) {
-            return exec(method, {});
+        async function get(method, respId) {
+            return exec(method, {}, respId);
         }
 
         async function loadAllInfo() {

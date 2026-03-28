@@ -1,7 +1,9 @@
 package dev.duma.android.hal.service.service
 
+import dev.duma.android.hal.service.R
 import android.graphics.Color
 import android.graphics.Typeface
+import android.os.Build
 import android.os.Bundle
 import android.view.MenuItem
 import android.view.View
@@ -11,6 +13,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.Toolbar
 import dev.duma.android.hal.service.plugin.PluginRegistry
 
 class PluginDetailActivity : AppCompatActivity() {
@@ -19,15 +22,47 @@ class PluginDetailActivity : AppCompatActivity() {
         const val EXTRA_PLUGIN_ID = "plugin_id"
     }
 
+    private fun createToolbar(title: String): Toolbar {
+        return Toolbar(this).apply {
+            val ta = context.obtainStyledAttributes(intArrayOf(androidx.appcompat.R.attr.colorPrimary))
+            setBackgroundColor(ta.getColor(0, Color.parseColor("#6200EE")))
+            ta.recycle()
+            setTitleTextColor(Color.WHITE)
+            this.title = title
+            setOnApplyWindowInsetsListener { v, insets ->
+                v.setPadding(v.paddingLeft, insets.systemWindowInsetTop, v.paddingRight, v.paddingBottom)
+                insets
+            }
+        }
+    }
+
+    private fun setContentWithToolbar(toolbar: Toolbar, content: View) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isStatusBarContrastEnforced = true
+        }
+        window.statusBarColor = androidx.core.content.ContextCompat.getColor(this, R.color.purple_700)
+        window.navigationBarColor = Color.TRANSPARENT
+
+        setSupportActionBar(toolbar)
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        toolbar.navigationIcon?.setTint(Color.WHITE)
+
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(toolbar)
+            addView(content, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
+        }
+        setContentView(root)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
 
         val pluginId = intent.getStringExtra(EXTRA_PLUGIN_ID)
         val pluginReg = HalService.pluginRegistry
 
         if (pluginId == null || pluginReg == null) {
-            supportActionBar?.title = "Plugin"
+            val toolbar = createToolbar("Plugin")
             val layout = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(32, 16, 32, 32)
@@ -37,13 +72,13 @@ class PluginDetailActivity : AppCompatActivity() {
                 textSize = 14f
                 setTextColor(Color.GRAY)
             })
-            setContentView(ScrollView(this).apply { addView(layout) })
+            setContentWithToolbar(toolbar, ScrollView(this).apply { addView(layout) })
             return
         }
 
         val desc = pluginReg.getAllDescriptors().find { it.pluginId == pluginId }
         if (desc == null) {
-            supportActionBar?.title = pluginId
+            val toolbar = createToolbar(pluginId)
             val layout = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(32, 16, 32, 32)
@@ -53,11 +88,11 @@ class PluginDetailActivity : AppCompatActivity() {
                 textSize = 14f
                 setTextColor(Color.GRAY)
             })
-            setContentView(ScrollView(this).apply { addView(layout) })
+            setContentWithToolbar(toolbar, ScrollView(this).apply { addView(layout) })
             return
         }
 
-        supportActionBar?.title = desc.name
+        val toolbar = createToolbar(desc.name)
 
         val isUnsupported = pluginId in pluginReg.getUnsupportedPluginIds()
         val info = pluginReg.getPluginInfo(pluginId)
@@ -176,7 +211,7 @@ class PluginDetailActivity : AppCompatActivity() {
             }
         }
 
-        setContentView(ScrollView(this).apply { addView(layout) })
+        setContentWithToolbar(toolbar, ScrollView(this).apply { addView(layout) })
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
