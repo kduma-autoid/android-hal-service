@@ -87,6 +87,19 @@ class ServiceCommandHandler(
                     return errorJson("forbidden", "No permission for method: $method")
                 }
 
+                // Super permission check
+                val methodDescriptor = pluginRegistry.getMethodDescriptor(method)
+                if (methodDescriptor?.superRequired == true) {
+                    val hasSuperAccess = permissions.any { perm ->
+                        perm == "super" ||                          // global super
+                        perm == "$methodCapability.super" ||        // capability-level super
+                        perm == "$method.super"                     // method-level super
+                    }
+                    if (!hasSuperAccess) {
+                        return errorJson("forbidden", "Super permission required for: $method")
+                    }
+                }
+
                 pluginRegistry.executeOnPlugin(method, params)
             }
         }
@@ -127,6 +140,9 @@ class ServiceCommandHandler(
                     putJsonObject(desc.pluginId) {
                         put("version", desc.version)
                         putJsonArray("capabilities") { desc.capabilities.forEach { add(JsonPrimitive(it)) } }
+                        val info = pluginRegistry.getPluginInfo(desc.pluginId)
+                        put("source", info?.source?.name?.lowercase() ?: "unknown")
+                        info?.packageName?.let { put("package", it) }
                     }
                 }
             }

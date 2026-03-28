@@ -10,7 +10,8 @@ import dev.duma.android.hal.transport.core.CallerContext
 class AuthManager(
     private val tokenManager: TokenManager,
     private val developerKeyVerifier: DeveloperKeyVerifier,
-    private val showGrantDialog: suspend (CallerContext, TokenRequest) -> GrantDecision
+    private val showGrantDialog: suspend (CallerContext, TokenRequest) -> GrantDecision,
+    private val isSuperViaDialogAllowed: () -> Boolean = { false }
 ) {
     suspend fun requestToken(request: TokenRequest, callerContext: CallerContext): TokenResponse {
         if (request.developerKey != null) {
@@ -65,7 +66,13 @@ class AuthManager(
     }
 
     private suspend fun handleUserGrant(request: TokenRequest, callerContext: CallerContext): TokenResponse {
-        val grantedPermissions = request.requestedPermissions ?: listOf("*")
+        val requestedPerms = request.requestedPermissions ?: listOf("*")
+        // Filter out super permissions unless explicitly allowed in Dashboard
+        val grantedPermissions = if (isSuperViaDialogAllowed()) {
+            requestedPerms
+        } else {
+            requestedPerms.filter { !it.endsWith(".super") && it != "super" }
+        }
 
         val existing = tokenManager.findExistingToken(
             clientId = request.clientId,
@@ -78,7 +85,9 @@ class AuthManager(
             return TokenResponse.Success(existing.token, grantedPermissions, existing.expiresAt)
         }
 
-        val decision = showGrantDialog(callerContext, request)
+        // Pass filtered permissions to dialog so user sees only what will actually be granted
+        val filteredRequest = request.copy(requestedPermissions = grantedPermissions.takeIf { it != listOf("*") })
+        val decision = showGrantDialog(callerContext, filteredRequest)
 
         return when (decision) {
             GrantDecision.AllowPermanent -> {

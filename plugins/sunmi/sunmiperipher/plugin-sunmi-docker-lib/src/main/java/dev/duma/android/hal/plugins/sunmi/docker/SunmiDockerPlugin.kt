@@ -59,6 +59,7 @@ class SunmiDockerPlugin(
                 "sunmi.docker.enableReversePower",
                 "Enable reverse power (power from tablet to dock).",
                 "sunmi.docker",
+                superRequired = true,
                 exampleParameters = "{}",
                 exampleOutput = """{"status": "ok"}"""
             ),
@@ -66,6 +67,7 @@ class SunmiDockerPlugin(
                 "sunmi.docker.disableReversePower",
                 "Disable reverse power.",
                 "sunmi.docker",
+                superRequired = true,
                 exampleParameters = "{}",
                 exampleOutput = """{"status": "ok"}"""
             ),

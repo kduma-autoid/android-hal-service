@@ -45,6 +45,10 @@
         </activity>
 
         <activity
+            android:name=".service.PluginDetailActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".auth.GrantPermissionActivity"
             android:theme="@style/Theme.HALService.Transparent"
             android:excludeFromRecents="true"

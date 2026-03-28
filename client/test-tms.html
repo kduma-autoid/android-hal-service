@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TMS Control</title>
+    <style>
+        * { box-sizing: border-box; font-family: -apple-system, sans-serif; }
+        body { margin: 0; padding: 20px; background: #1a1a2e; color: #eee; min-height: 100vh; }
+        h1 { margin: 0 0 20px; font-size: 22px; color: #fff; }
+        .card { background: #16213e; padding: 16px; margin-bottom: 16px; border-radius: 10px; }
+        .card h2 { margin: 0 0 12px; font-size: 14px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+        .card h3 { margin: 12px 0 8px; font-size: 13px; color: #aaa; border-bottom: 1px solid #1a4a8a; padding-bottom: 4px; }
+        .card h3:first-child { margin-top: 0; }
+        input { padding: 8px 12px; border: 1px solid #333; border-radius: 6px; font-size: 14px; background: #0f3460; color: #eee; width: 260px; }
+        input::placeholder { color: #555; }
+        button { padding: 8px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; transition: opacity 0.15s, transform 0.1s; }
+        button:hover { opacity: 0.85; }
+        button:active { transform: scale(0.97); }
+        .row { margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+        .row label { width: 80px; font-size: 13px; color: #888; flex-shrink: 0; }
+        .btn-connect { background: #34a853; color: #fff; }
+        .btn-get { background: #1e88e5; color: #fff; }
+        .btn-set { background: #7c4dff; color: #fff; }
+        .btn-toggle-on { background: #34a853; color: #fff; }
+        .btn-toggle-off { background: #ea4335; color: #fff; }
+        .status { font-size: 12px; color: #888; margin-left: 8px; }
+        .status.ok { color: #34a853; }
+        .status.err { color: #ea4335; }
+
+        .method-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+        .method-row .method-name { font-family: monospace; font-size: 12px; color: #8ab4f8; min-width: 200px; }
+        .method-row .method-desc { font-size: 11px; color: #666; flex: 1; }
+        .method-row input { width: auto; font-size: 12px; padding: 4px 8px; }
+        .method-row input[type="number"] { width: 80px; }
+        .method-row button { padding: 5px 10px; font-size: 12px; }
+
+        .super-badge { display: inline-block; font-size: 9px; font-weight: 700; color: #ff9800; border: 1px solid #ff9800; border-radius: 3px; padding: 1px 4px; margin-left: 4px; vertical-align: middle; letter-spacing: 0.5px; }
+
+        .card-response { font-family: monospace; font-size: 12px; padding: 8px 10px; margin-top: 10px; background: #0a0a1a; border-radius: 6px; max-height: 200px; overflow: auto; color: #7f7; white-space: pre-wrap; word-break: break-all; display: none; }
+        .card-response.visible { display: block; }
+        .card-response.err { color: #f77; }
+        #events { font-family: monospace; font-size: 12px; padding: 10px; background: #0a0a1a; border-radius: 6px; min-height: 40px; max-height: 150px; overflow: auto; color: #fc6; white-space: pre-wrap; word-break: break-all; }
+    </style>
+</head>
+<body>
+    <h1>TMS Control</h1>
+
+    <div class="card">
+        <h2>Connection</h2>
+        <div class="row">
+            <label>URL</label>
+            <input id="baseUrl" value="http://localhost:8400" />
+        </div>
+        <div class="row">
+            <label>Client ID</label>
+            <input id="clientId" value="tms-client" />
+        </div>
+        <div class="row">
+            <label>Token</label>
+            <input id="token" placeholder="Auto-filled" />
+        </div>
+        <div class="row" style="margin-top:4px">
+            <button class="btn-connect" onclick="doConnect()">Connect</button>
+            <span id="connStatus" class="status"></span>
+        </div>
+    </div>
+
+    <!-- DEVICE INFO -->
+    <div class="card">
+        <h2>Device Info</h2>
+
+        <h3>Identity</h3>
+        <div id="info-identity"></div>
+
+        <h3>System</h3>
+        <div id="info-system"></div>
+
+        <h3>Hardware</h3>
+        <div id="info-hardware"></div>
+
+        <h3>Network</h3>
+        <div id="info-net"></div>
+
+        <h3>SIM</h3>
+        <div id="info-sim"></div>
+
+        <button class="btn-get" onclick="loadAllInfo()" style="margin-top:8px">Refresh All Info</button>
+        <div class="card-response" id="resp-info"></div>
+    </div>
+
+    <!-- RUNTIME -->
+    <div class="card">
+        <h2>Runtime</h2>
+        <div id="runtime-info"></div>
+        <button class="btn-get" onclick="loadRuntime()" style="margin-top:8px">Refresh Runtime</button>
+        <div class="card-response" id="resp-runtime"></div>
+    </div>
+
+    <!-- DEVICE SETTINGS (safe) -->
+    <div class="card">
+        <h2>Device Settings</h2>
+
+        <h3>Display</h3>
+        <div class="method-row">
+            <button class="btn-get" onclick="get('sunmi.tms.device.device_manager.getScreenBrightness','settings')">Get Brightness</button>
+            <input type="number" id="brightness" value="128" min="0" max="255" style="width:70px" />
+            <button class="btn-set" onclick="exec('sunmi.tms.device.device_manager.setScreenBrightness',{value:intVal('brightness')},'settings')">Set</button>
+        </div>
+        <div class="method-row">
+            <button class="btn-get" onclick="get('sunmi.tms.device.device_manager.getMinimumScreenBrightnessSetting','settings')">Get Min</button>
+            <button class="btn-get" onclick="get('sunmi.tms.device.device_manager.getMaximumScreenBrightnessSetting','settings')">Get Max</button>
+        </div>
+        <div class="method-row">
+            <span class="method-name">setBrightnessMode</span>
+            <button class="btn-set" onclick="exec('sunmi.tms.device.device_manager.setBrightnessMode',{mode:0},'settings')">Manual</button>
+            <button class="btn-set" onclick="exec('sunmi.tms.device.device_manager.setBrightnessMode',{mode:1},'settings')">Auto</button>
+        </div>
+        <div class="method-row">
+            <span class="method-name">setScreenTimeout</span>
+            <input type="number" id="screenTimeout" value="30000" min="5000" step="5000" style="width:90px" /> ms
+            <button class="btn-set" onclick="exec('sunmi.tms.device.device_manager.setScreenTimeout',{timeout:intVal('screenTimeout')},'settings')">Set</button>
+        </div>
+
+        <h3>Bluetooth</h3>
+        <div class="method-row">
+            <span class="method-name">enableBluetooth</span>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.device.device_manager.enableBluetooth',{enable:true},'settings')">Enable</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.device.device_manager.enableBluetooth',{enable:false},'settings')">Disable</button>
+        </div>
+        <div class="method-row">
+            <button class="btn-get" onclick="get('sunmi.tms.device.device_manager.isBTModuleEnabled','settings')">isBTModuleEnabled</button>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.device.device_manager.switchBTModuleEnable',{enable:true},'settings')">Show in Settings</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.device.device_manager.switchBTModuleEnable',{enable:false},'settings')">Hide</button>
+        </div>
+
+        <h3>Power Button</h3>
+        <div class="method-row">
+            <button class="btn-get" onclick="get('sunmi.tms.device.device_manager.isPowerButtonEnabled','settings')">isPowerButtonEnabled</button>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.device.device_manager.setPowerButtonEnabled',{enabled:true},'settings')">Enable</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.device.device_manager.setPowerButtonEnabled',{enabled:false},'settings')">Disable</button>
+            <span class="super-badge">SUPER</span>
+        </div>
+
+        <h3>Time</h3>
+        <div class="method-row">
+            <span class="method-name">enableAutoTime</span>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.device.device_manager.enableAutoTime',{enable:true},'settings')">Enable</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.device.device_manager.enableAutoTime',{enable:false},'settings')">Disable</button>
+        </div>
+        <div class="method-row">
+            <span class="method-name">enableAutoTimeZone</span>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.device.device_manager.enableAutoTimeZone',{enable:true},'settings')">Enable</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.device.device_manager.enableAutoTimeZone',{enable:false},'settings')">Disable</button>
+        </div>
+        <div class="method-row">
+            <span class="method-name">set24Hour</span>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.device.device_manager.set24Hour',{is24Hour:true},'settings')">24h</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.device.device_manager.set24Hour',{is24Hour:false},'settings')">12h</button>
+        </div>
+
+        <h3>Radios</h3>
+        <div class="method-row">
+            <span class="method-name">enableWIFI</span>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.device.device_manager.enableWIFI',{isEnable:true},'settings')">On</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.device.device_manager.enableWIFI',{isEnable:false},'settings')">Off</button>
+        </div>
+        <div class="method-row">
+            <span class="method-name">enableGPS</span>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.device.device_manager.enableGPS',{isEnable:true},'settings')">On</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.device.device_manager.enableGPS',{isEnable:false},'settings')">Off</button>
+        </div>
+        <div class="method-row">
+            <span class="method-name">enableNFC</span>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.device.device_manager.enableNFC',{enable:true},'settings')">On</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.device.device_manager.enableNFC',{enable:false},'settings')">Off</button>
+        </div>
+        <div class="method-row">
+            <span class="method-name">enableLocation</span>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.device.device_manager.enableLocation',{enable:true},'settings')">On</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.device.device_manager.enableLocation',{enable:false},'settings')">Off</button>
+        </div>
+        <div class="method-row">
+            <span class="method-name">setAirplaneMode</span>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.device.device_manager.setAirplaneMode',{open:true},'settings')">On</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.device.device_manager.setAirplaneMode',{open:false},'settings')">Off</button>
+        </div>
+
+        <h3>Sleep / Wake</h3>
+        <div class="method-row">
+            <button class="btn-set" onclick="exec('sunmi.tms.device.device_manager.toSleep',{},'settings')">Sleep</button>
+            <button class="btn-set" onclick="exec('sunmi.tms.device.device_manager.toWakeUp',{},'settings')">Wake Up</button>
+        </div>
+        <div class="card-response" id="resp-settings"></div>
+    </div>
+
+    <!-- SYSTEM UI -->
+    <div class="card">
+        <h2>System UI</h2>
+
+        <h3>Navigation Bar</h3>
+        <div class="method-row">
+            <span class="method-name">showNavigationBar</span>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.showNavigationBar',{show:true})">Show</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.showNavigationBar',{show:false})">Hide</button>
+        </div>
+        <div class="method-row">
+            <span class="method-name">clickableNavigationBar</span>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.clickableNavigationBar',{clickable:true})">Clickable</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.clickableNavigationBar',{clickable:false})">Disabled</button>
+        </div>
+        <div class="method-row">
+            <span class="method-name">Back button</span>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.showNavigationBarBackButton',{show:true})">Show</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.showNavigationBarBackButton',{show:false})">Hide</button>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.enableNavigationBarBackButton',{enable:true})">Enable</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.enableNavigationBarBackButton',{enable:false})">Disable</button>
+            <button class="btn-get" onclick="get('sunmi.tms.system.system_ui.isNavigationBarBackButtonEnabled')">Status</button>
+        </div>
+        <div class="method-row">
+            <span class="method-name">Home button</span>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.showNavigationBarHomeButton',{show:true})">Show</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.showNavigationBarHomeButton',{show:false})">Hide</button>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.enableNavigationBarHomeButton',{enable:true})">Enable</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.enableNavigationBarHomeButton',{enable:false})">Disable</button>
+            <button class="btn-get" onclick="get('sunmi.tms.system.system_ui.isNavigationBarHomeButtonEnabled')">Status</button>
+        </div>
+        <div class="method-row">
+            <span class="method-name">Recents button</span>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.showNavigationBarRecentsButton',{show:true})">Show</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.showNavigationBarRecentsButton',{show:false})">Hide</button>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.enableNavigationBarRecentsButton',{enable:true})">Enable</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.enableNavigationBarRecentsButton',{enable:false})">Disable</button>
+            <button class="btn-get" onclick="get('sunmi.tms.system.system_ui.isNavigationBarRecentsButtonEnabled')">Status</button>
+        </div>
+
+        <h3>Status Bar</h3>
+        <div class="method-row">
+            <span class="method-name">showStatusBar</span>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.showStatusBar',{show:true})">Show</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.showStatusBar',{show:false})">Hide</button>
+        </div>
+        <div class="method-row">
+            <span class="method-name">enableNotificationPanel</span>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.system_ui.enableNotificationPanel',{enable:true})">Enable</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.system_ui.enableNotificationPanel',{enable:false})">Disable</button>
+        </div>
+
+        <h3>Other</h3>
+        <div class="method-row">
+            <span class="method-name">ADB</span>
+            <button class="btn-get" onclick="get('sunmi.tms.system.isAdbEnabled')">Status</button>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.system.enableAdb',{enable:true})">Enable</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.system.enableAdb',{enable:false})">Disable</button>
+            <span class="super-badge">SUPER</span>
+        </div>
+        <div class="method-row">
+            <button class="btn-get" onclick="exec('sunmi.tms.system.doScreenshot',{})">Take Screenshot</button>
+        </div>
+    </div>
+
+    <!-- NETWORK -->
+    <div class="card">
+        <h2>Network</h2>
+
+        <h3>Wi-Fi</h3>
+        <div class="method-row">
+            <span class="method-name">enableWIFI</span>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.network.enableWIFI',{isEnable:true})">On</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.network.enableWIFI',{isEnable:false})">Off</button>
+        </div>
+        <div class="method-row">
+            <button class="btn-get" onclick="exec('sunmi.tms.network.getConfiguredNetworks',{})">Get Saved Networks</button>
+        </div>
+        <div class="method-row">
+            <span class="method-name">Hotspot</span>
+            <button class="btn-get" onclick="get('sunmi.tms.network.isWifiHotspotEnable')">Status</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.network.turnOffWifiHotspot',{})">Turn Off</button>
+        </div>
+
+        <h3>Mobile Data</h3>
+        <div class="method-row">
+            <button class="btn-get" onclick="get('sunmi.tms.network.getMobileDataStatus')">Status</button>
+            <button class="btn-get" onclick="get('sunmi.tms.network.getDefaultDataSlotIndex')">Default Slot</button>
+        </div>
+        <div class="method-row">
+            <span class="method-name">Slot 0</span>
+            <button class="btn-get" onclick="exec('sunmi.tms.network.getMobileDataStatusBySlot',{slotIndex:0})">Status</button>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.network.enableMobileNetwork',{slotIdx:0,enable:true})">On</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.network.enableMobileNetwork',{slotIdx:0,enable:false})">Off</button>
+            <button class="btn-get" onclick="exec('sunmi.tms.network.isActiveSlotIndex',{slotIndex:0})">Active?</button>
+        </div>
+
+        <h3>Ethernet</h3>
+        <div class="method-row">
+            <span class="method-name">enableEthernet</span>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.network.enableEthernet',{enable:true})">On</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.network.enableEthernet',{enable:false})">Off</button>
+        </div>
+
+        <h3>NTP</h3>
+        <div class="method-row">
+            <button class="btn-get" onclick="get('sunmi.tms.network.getCustomNtpServer')">Get NTP Server</button>
+            <input id="ntpServer" value="pool.ntp.org" style="width:180px" />
+            <button class="btn-set" onclick="exec('sunmi.tms.network.setCustomNtpServer',{server:val('ntpServer')})">Set</button>
+        </div>
+    </div>
+
+    <!-- SOFTWARE -->
+    <div class="card">
+        <h2>Software</h2>
+        <div class="method-row">
+            <button class="btn-get" onclick="exec('sunmi.tms.software.packages.getSystemAllPackageInfo',{})">Get All Packages</button>
+        </div>
+        <div class="method-row">
+            <span class="method-name">Auto-start</span>
+            <button class="btn-get" onclick="get('sunmi.tms.software.isAutoStartAppEnabled')">isEnabled</button>
+            <button class="btn-get" onclick="get('sunmi.tms.software.getAutoStartApp')">getApp</button>
+            <button class="btn-toggle-on" onclick="exec('sunmi.tms.software.enableAutoStartApp',{enable:true})">Enable</button>
+            <button class="btn-toggle-off" onclick="exec('sunmi.tms.software.enableAutoStartApp',{enable:false})">Disable</button>
+        </div>
+        <div class="method-row">
+            <span class="method-name">App lock</span>
+            <button class="btn-get" onclick="exec('sunmi.tms.software.getCommonAppLockList',{})">Get Lock List</button>
+            <button class="btn-get" onclick="get('sunmi.tms.system.isCommonAppLockEnabled')">isEnabled</button>
+        </div>
+        <div class="method-row">
+            <span class="method-name">Uninstall protection</span>
+            <button class="btn-get" onclick="exec('sunmi.tms.software.getProhibitUninstallList',{})">Get List</button>
+        </div>
+        <div class="method-row">
+            <span class="method-name">isForeground</span>
+            <input id="fgPkg" value="com.example.app" style="width:200px" />
+            <button class="btn-get" onclick="exec('sunmi.tms.software.isForeground',{packageName:val('fgPkg')})">Check</button>
+        </div>
+    </div>
+
+    <!-- KIOSK -->
+    <div class="card">
+        <h2>Kiosk</h2>
+        <div class="method-row">
+            <button class="btn-get" onclick="get('sunmi.tms.kiosk.isKioskFunctionEnabled')">isEnabled</button>
+            <button class="btn-get" onclick="get('sunmi.tms.kiosk.getKioskModeStatus')">getStatus</button>
+            <button class="btn-get" onclick="exec('sunmi.tms.kiosk.getKioskAppList',{})">App List</button>
+        </div>
+        <div class="method-row">
+            <span class="method-name">Nav bar in kiosk</span>
+            <button class="btn-get" onclick="get('sunmi.tms.kiosk.getNavigationBarStatusForKiosk')">Status</button>
+        </div>
+        <div class="method-row">
+            <span class="method-name">Status bar in kiosk</span>
+            <button class="btn-get" onclick="get('sunmi.tms.kiosk.isStatusBarHiddenForKiosk')">Status</button>
+        </div>
+        <div class="method-row">
+            <span class="method-name">Exit password type</span>
+            <button class="btn-get" onclick="get('sunmi.tms.kiosk.getSwitchKioskPwdByType')">Get</button>
+        </div>
+        <div class="method-row">
+            <span class="method-name">Certificate</span>
+            <button class="btn-get" onclick="exec('sunmi.tms.kiosk.certificate.getCertificateInfo',{})">Get Info</button>
+            <button class="btn-get" onclick="exec('sunmi.tms.kiosk.certificate.getTrustedFileCertChain',{})">Get Chain</button>
+        </div>
+    </div>
+
+    <!-- EVENTS -->
+    <div class="card">
+        <h2>Events</h2>
+        <div id="events">Waiting for connection...</div>
+    </div>
+
+    <div class="card">
+        <h2>Response</h2>
+        <div id="response">-</div>
+    </div>
+
+    <script src="hal-client.js"></script>
+    <script>
+        let client = null;
+
+        function getClient() {
+            const url = document.getElementById('baseUrl').value;
+            if (!client || client.baseUrl !== url) client = new HalClient(url);
+            const t = document.getElementById('token').value;
+            if (t) client.token = t;
+            return client;
+        }
+
+        function val(id) { return document.getElementById(id).value; }
+        function intVal(id) { return parseInt(document.getElementById(id).value); }
+
+        function showResponse(data, isError) {
+            const el = document.getElementById('response');
+            el.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+            el.className = isError ? 'err' : '';
+        }
+
+        function logEvent(event, data) {
+            const el = document.getElementById('events');
+            const ts = new Date().toLocaleTimeString();
+            el.textContent += `\n[${ts}] ${event}: ${JSON.stringify(data)}`;
+            el.scrollTop = el.scrollHeight;
+        }
+
+        async function doConnect() {
+            const status = document.getElementById('connStatus');
+            try {
+                status.textContent = 'Connecting...';
+                status.className = 'status';
+                const c = getClient();
+                const res = await c.requestToken(document.getElementById('clientId').value, null, [
+                    'sunmi.tms.device', 'sunmi.tms.device.super',
+                    'sunmi.tms.software', 'sunmi.tms.software.super',
+                    'sunmi.tms.system', 'sunmi.tms.system.super',
+                    'sunmi.tms.network', 'sunmi.tms.network.super',
+                    'sunmi.tms.kiosk', 'sunmi.tms.kiosk.super'
+                ]);
+                if (!res.token) { status.textContent = 'Token error'; status.className = 'status err'; showResponse(res, true); return; }
+                document.getElementById('token').value = res.token;
+                await c.connectWs();
+                await c.wsAuthenticate();
+                await c.wsSubscribe(['sunmi.tms.*']);
+                c.on('sunmi.tms.*', logEvent);
+                status.textContent = 'Connected (WS)';
+                status.className = 'status ok';
+                document.getElementById('events').textContent = 'Listening...';
+                showResponse(res);
+                loadAllInfo();
+                loadRuntime();
+            } catch (e) { status.textContent = 'Error'; status.className = 'status err'; showResponse(e.message, true); }
+        }
+
+        async function exec(method, params) {
+            try {
+                const res = await getClient().execute(method, params);
+                showResponse(res, !!res.error);
+                return res;
+            } catch (e) { showResponse(e.message, true); return null; }
+        }
+
+        async function get(method) {
+            return exec(method, {});
+        }
+
+        async function loadAllInfo() {
+            const identity = [
+                ['SerialNo', 'sunmi.tms.device.device_info.getSerialNo'],
+                ['Model', 'sunmi.tms.device.device_info.getModel'],
+                ['Brand', 'sunmi.tms.device.device_info.getBrand'],
+                ['Manufacture', 'sunmi.tms.device.device_info.getManufacture'],
+            ];
+            const system = [
+                ['Android', 'sunmi.tms.device.device_info.getAndroidOSVersion'],
+                ['SDK', 'sunmi.tms.device.device_info.getSDKVersion'],
+                ['Kernel', 'sunmi.tms.device.device_info.getAndroidKernelVersion'],
+                ['ROM', 'sunmi.tms.device.device_info.getROMVersion'],
+                ['Firmware', 'sunmi.tms.device.device_info.getFirmwareVersion'],
+                ['Hardware', 'sunmi.tms.device.device_info.getHardwareVersion'],
+                ['Sunmi OS', 'sunmi.tms.device.device_info.getSunmiOsVersion'],
+                ['Build ID', 'sunmi.tms.device.device_info.getSystemBuildDisplayId'],
+                ['GMS', 'sunmi.tms.device.device_info.getGmsFlag'],
+                ['Financial', 'sunmi.tms.device.device_info.isFinancialDevice'],
+                ['Scanner', 'sunmi.tms.device.device_info.isInnerScannerSupported'],
+                ['Printer', 'sunmi.tms.device.device_info.isInnerPrinterSupported'],
+            ];
+            const hardware = [
+                ['Memory used', 'sunmi.tms.device.device_info.getMemoryOccupation'],
+            ];
+            const net = [
+                ['MAC', 'sunmi.tms.device.device_info.getMac'],
+                ['BT MAC', 'sunmi.tms.device.device_info.getDeviceBluetoothMacAddress'],
+                ['IP', 'sunmi.tms.device.device_info.getIpAddresses'],
+            ];
+            const sim = [
+                ['IMEI', 'sunmi.tms.device.device_info.getIMEI'],
+                ['IMSI', 'sunmi.tms.device.device_info.getIMSI'],
+            ];
+            await fillSection('info-identity', identity);
+            await fillSection('info-system', system);
+            await fillSection('info-hardware', hardware);
+            await fillSection('info-net', net);
+            await fillSection('info-sim', sim);
+        }
+
+        async function loadRuntime() {
+            const items = [
+                ['Battery', 'sunmi.tms.device.runtime.getBatteryCapacity'],
+                ['RAM total', 'sunmi.tms.device.runtime.getRamTotalSize'],
+                ['RAM used', 'sunmi.tms.device.runtime.getRamUsedSize'],
+                ['ROM total', 'sunmi.tms.device.runtime.getRomTotalSize'],
+                ['ROM used', 'sunmi.tms.device.runtime.getRomUsedSize'],
+                ['CPU', 'sunmi.tms.device.runtime.getCpuUsage'],
+                ['Boot time', 'sunmi.tms.device.runtime.getTurnOnMills'],
+            ];
+            await fillSection('runtime-info', items);
+        }
+
+        async function fillSection(containerId, items) {
+            const el = document.getElementById(containerId);
+            el.innerHTML = items.map(([label]) =>
+                `<div class="method-row"><span class="method-name" style="min-width:120px">${label}</span><span style="color:#555">loading...</span></div>`
+            ).join('');
+            for (let i = 0; i < items.length; i++) {
+                const [label, method] = items[i];
+                try {
+                    const res = await getClient().execute(method, {});
+                    const value = res.result !== undefined ? res.result : (res.error ? `Error: ${res.error}` : JSON.stringify(res));
+                    el.children[i].innerHTML = `<span class="method-name" style="min-width:120px">${label}</span><span style="color:#ccc;font-family:monospace;font-size:12px">${esc(String(value))}</span>`;
+                } catch (e) {
+                    el.children[i].innerHTML = `<span class="method-name" style="min-width:120px">${label}</span><span style="color:#f77">Error</span>`;
+                }
+            }
+        }
+
+        function esc(str) {
+            const el = document.createElement('span');
+            el.textContent = str;
+            return el.innerHTML;
+        }
+    </script>
+</body>
+</html>

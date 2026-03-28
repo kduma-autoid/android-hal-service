@@ -82,7 +82,10 @@ class HalService : Service() {
         val testKey = RSAKeyGenerator(2048).generate()
         val verifier = DeveloperKeyVerifier(testKey.toPublicJWK())
         val serviceContext = this
-        val authManager = AuthManager(tokenManager, verifier) { callerContext, request ->
+        val superPrefs = getSharedPreferences("hal_super", MODE_PRIVATE)
+        val authManager = AuthManager(
+            tokenManager, verifier,
+            showGrantDialog = { callerContext, request ->
             Log.i(TAG, "Grant dialog requested for clientId=${request.clientId}")
             val deferred = CompletableDeferred<GrantDecision>()
 
@@ -111,7 +114,9 @@ class HalService : Service() {
             }
 
             kotlinx.coroutines.withTimeout(60_000) { deferred.await() }
-        }
+        },
+            isSuperViaDialogAllowed = { superPrefs.getBoolean("allow_super_via_dialog", false) }
+        )
 
         // 3. EventBus
         val eventBus = EventBus()

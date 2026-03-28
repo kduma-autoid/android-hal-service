@@ -1,6 +1,7 @@
 package dev.duma.android.hal.service.service
 
 import android.Manifest
+import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -19,11 +20,15 @@ import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.ItemTouchHelper
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.tabs.TabLayout
+import dev.duma.android.hal.service.plugin.PluginRegistry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -187,6 +192,25 @@ class DashboardActivity : AppCompatActivity() {
             }
         }
 
+        // Super permissions toggle
+        layout.addView(sectionHeader("Security"))
+        val superPrefs = getSharedPreferences("hal_super", MODE_PRIVATE)
+        @Suppress("UseSwitchCompatOrMaterialCode")
+        layout.addView(Switch(this).apply {
+            text = "Allow super permissions via user dialog"
+            textSize = 14f
+            isChecked = superPrefs.getBoolean("allow_super_via_dialog", false)
+            setOnCheckedChangeListener { _, isChecked ->
+                superPrefs.edit().putBoolean("allow_super_via_dialog", isChecked).apply()
+            }
+        })
+        layout.addView(TextView(this).apply {
+            text = "When disabled, super permissions can only be granted via developer key JWT."
+            textSize = 12f
+            setTextColor(Color.GRAY)
+            setPadding(0, 4, 0, 0)
+        })
+
         // Endpoint info
         layout.addView(sectionHeader("Endpoints"))
         layout.addView(TextView(this).apply {
@@ -333,57 +357,123 @@ class DashboardActivity : AppCompatActivity() {
 
         val descriptors = pluginReg.getAllDescriptors()
         val unsupportedIds = pluginReg.getUnsupportedPluginIds()
+        val supported = descriptors.filter { it.pluginId !in unsupportedIds }
+        val unsupported = descriptors.filter { it.pluginId in unsupportedIds }
 
-        if (descriptors.isEmpty()) {
+        if (supported.isEmpty() && unsupported.isEmpty()) {
             layout.addView(TextView(this).apply {
                 text = "No plugins registered"
                 textSize = 13f
                 setTextColor(Color.GRAY)
             })
         } else {
-            for (desc in descriptors) {
-                val isUnsupported = desc.pluginId in unsupportedIds
-                val block = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    setPadding(0, 8, 0, 8)
-                    if (isUnsupported) alpha = 0.5f
-                }
-
-                block.addView(TextView(this).apply {
-                    text = "${desc.name} (${desc.pluginId}) v${desc.version}"
-                    textSize = 15f
-                    setTypeface(null, Typeface.BOLD)
-                })
-
-                block.addView(TextView(this).apply {
-                    text = "Capabilities: ${desc.capabilities.joinToString(", ")}"
-                    textSize = 13f
-                })
-
-                val infoParts = mutableListOf<String>()
-                if (desc.methods.isNotEmpty()) infoParts.add("${desc.methods.size} methods")
-                if (desc.events.isNotEmpty()) infoParts.add("${desc.events.size} events")
-                if (isUnsupported) infoParts.add("UNSUPPORTED")
-
-                if (infoParts.isNotEmpty()) {
-                    block.addView(TextView(this).apply {
-                        text = infoParts.joinToString(", ")
-                        textSize = 13f
-                        if (isUnsupported) {
-                            setTypeface(null, Typeface.BOLD)
-                            setTextColor(Color.parseColor("#C62828"))
-                        } else {
-                            setTextColor(Color.DKGRAY)
-                        }
-                    })
-                }
-
-                layout.addView(block)
+            for (desc in supported) {
+                layout.addView(buildPluginBlock(desc, pluginReg, isUnsupported = false))
                 layout.addView(divider())
+            }
+
+            if (unsupported.isNotEmpty()) {
+                val unsupportedContainer = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    visibility = View.GONE
+                }
+
+                for (desc in unsupported) {
+                    unsupportedContainer.addView(buildPluginBlock(desc, pluginReg, isUnsupported = true))
+                    unsupportedContainer.addView(divider())
+                }
+
+                val toggleButton = Button(this).apply {
+                    text = "${unsupported.size} unsupported plugin${if (unsupported.size != 1) "s" else ""}"
+                    setOnClickListener {
+                        if (unsupportedContainer.visibility == View.GONE) {
+                            unsupportedContainer.visibility = View.VISIBLE
+                            text = "Hide unsupported plugins"
+                        } else {
+                            unsupportedContainer.visibility = View.GONE
+                            text = "${unsupported.size} unsupported plugin${if (unsupported.size != 1) "s" else ""}"
+                        }
+                    }
+                }
+
+                layout.addView(toggleButton)
+                layout.addView(unsupportedContainer)
             }
         }
 
         return wrapInScrollView(layout)
+    }
+
+    private fun buildPluginBlock(desc: dev.duma.android.hal.contract.PluginDescriptor, pluginReg: PluginRegistry, isUnsupported: Boolean): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, 8, 0, 8)
+            if (isUnsupported) alpha = 0.5f
+            isClickable = true
+            isFocusable = true
+            setBackgroundResource(android.R.attr.selectableItemBackground.let { attr ->
+                val ta = obtainStyledAttributes(intArrayOf(attr))
+                val resId = ta.getResourceId(0, 0)
+                ta.recycle()
+                resId
+            })
+            setOnClickListener {
+                startActivity(Intent(this@DashboardActivity, PluginDetailActivity::class.java).apply {
+                    putExtra(PluginDetailActivity.EXTRA_PLUGIN_ID, desc.pluginId)
+                })
+            }
+
+            addView(TextView(this@DashboardActivity).apply {
+                text = desc.name
+                textSize = 15f
+                setTypeface(null, Typeface.BOLD)
+            })
+
+            addView(TextView(this@DashboardActivity).apply {
+                text = desc.pluginId
+                textSize = 13f
+                setTextColor(Color.GRAY)
+            })
+
+            addView(TextView(this@DashboardActivity).apply {
+                text = "Version: ${desc.version}"
+                textSize = 13f
+            })
+
+            val info = pluginReg.getPluginInfo(desc.pluginId)
+            val sourceText = when (info?.source) {
+                PluginRegistry.PluginSource.EXTERNAL -> "External (${info.packageName})"
+                PluginRegistry.PluginSource.BUILT_IN -> "Built-in"
+                else -> "Unknown"
+            }
+            addView(TextView(this@DashboardActivity).apply {
+                text = "Source: $sourceText"
+                textSize = 13f
+            })
+
+            addView(TextView(this@DashboardActivity).apply {
+                text = "Capabilities: ${desc.capabilities.joinToString(", ")}"
+                textSize = 13f
+            })
+
+            val infoParts = mutableListOf<String>()
+            if (desc.methods.isNotEmpty()) infoParts.add("${desc.methods.size} methods")
+            if (desc.events.isNotEmpty()) infoParts.add("${desc.events.size} events")
+            if (isUnsupported) infoParts.add("UNSUPPORTED")
+
+            if (infoParts.isNotEmpty()) {
+                addView(TextView(this@DashboardActivity).apply {
+                    text = infoParts.joinToString(", ")
+                    textSize = 13f
+                    if (isUnsupported) {
+                        setTypeface(null, Typeface.BOLD)
+                        setTextColor(Color.parseColor("#C62828"))
+                    } else {
+                        setTextColor(Color.DKGRAY)
+                    }
+                })
+            }
+        }
     }
 
     // ==================== Tab 4: Tokens ====================
@@ -396,87 +486,129 @@ class DashboardActivity : AppCompatActivity() {
             return wrapInScrollView(layout)
         }
 
-        val layout = tabContent()
-        val scrollView = wrapInScrollView(layout)
-
-        val swipeRefresh = SwipeRefreshLayout(this).apply {
-            addView(scrollView)
-            setOnRefreshListener { loadTokens(layout, this) }
+        val recyclerView = RecyclerView(this).apply {
+            layoutManager = LinearLayoutManager(this@DashboardActivity)
+            setPadding(32, 16, 32, 32)
+            clipToPadding = false
         }
 
-        loadTokens(layout, swipeRefresh)
+        val swipeRefresh = SwipeRefreshLayout(this).apply {
+            addView(recyclerView)
+        }
+
+        val adapter = TokenAdapter()
+        recyclerView.adapter = adapter
+
+        val touchHelper = ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
+            override fun onMove(rv: RecyclerView, vh: RecyclerView.ViewHolder, target: RecyclerView.ViewHolder) = false
+            override fun onSwiped(vh: RecyclerView.ViewHolder, direction: Int) {
+                val position = vh.adapterPosition
+                val token = adapter.tokens[position]
+                AlertDialog.Builder(this@DashboardActivity)
+                    .setTitle("Revoke token")
+                    .setMessage("Revoke token for client \"${token.clientId}\"?")
+                    .setPositiveButton("Revoke") { _, _ ->
+                        lifecycleScope.launch {
+                            withContext(Dispatchers.IO) { dao.deleteByToken(token.token) }
+                            loadTokens(adapter, swipeRefresh)
+                        }
+                    }
+                    .setNegativeButton("Cancel") { _, _ ->
+                        adapter.notifyItemChanged(position)
+                    }
+                    .setOnCancelListener {
+                        adapter.notifyItemChanged(position)
+                    }
+                    .show()
+            }
+        })
+        touchHelper.attachToRecyclerView(recyclerView)
+
+        swipeRefresh.setOnRefreshListener { loadTokens(adapter, swipeRefresh) }
+        loadTokens(adapter, swipeRefresh)
         return swipeRefresh
     }
 
-    private fun loadTokens(layout: LinearLayout, swipeRefresh: SwipeRefreshLayout) {
-        layout.removeAllViews()
-        layout.setPadding(32, 16, 32, 32)
+    private fun loadTokens(adapter: TokenAdapter, swipeRefresh: SwipeRefreshLayout) {
         swipeRefresh.isRefreshing = true
-
         val dao = HalService.tokenDao ?: return
 
         lifecycleScope.launch {
             val tokens = withContext(Dispatchers.IO) { dao.getAll() }
             swipeRefresh.isRefreshing = false
+            adapter.tokens = tokens
+            adapter.notifyDataSetChanged()
+        }
+    }
 
-            if (tokens.isEmpty()) {
-                layout.addView(TextView(this@DashboardActivity).apply {
-                    text = "No active tokens"
+    private inner class TokenAdapter : RecyclerView.Adapter<TokenAdapter.VH>() {
+        var tokens: List<dev.duma.android.hal.service.auth.TokenEntity> = emptyList()
+        private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+
+        inner class VH(val layout: LinearLayout) : RecyclerView.ViewHolder(layout)
+
+        override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int): VH {
+            val layout = LinearLayout(parent.context).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(0, 12, 0, 12)
+                layoutParams = RecyclerView.LayoutParams(MATCH_PARENT, RecyclerView.LayoutParams.WRAP_CONTENT)
+            }
+            return VH(layout)
+        }
+
+        override fun getItemCount() = tokens.size
+
+        override fun onBindViewHolder(holder: VH, position: Int) {
+            val token = tokens[position]
+            holder.layout.removeAllViews()
+
+            holder.layout.addView(TextView(this@DashboardActivity).apply {
+                text = "Client: ${token.clientId} (${token.clientType})"
+                textSize = 14f
+                setTypeface(null, Typeface.BOLD)
+            })
+
+            val permList = token.permissions.split(",")
+            val permText = "Permissions:\n" + permList.joinToString("\n") { "  \u2022 $it" }
+            holder.layout.addView(TextView(this@DashboardActivity).apply {
+                text = permText
+                textSize = 13f
+            })
+
+            val bindingParts = mutableListOf<String>()
+            token.boundPackageName?.let { bindingParts.add("App: $it") }
+            token.boundCertHash?.let { bindingParts.add("Cert: ${it.take(12)}...") }
+            token.boundOrigin?.let { bindingParts.add("Origin: $it") }
+            if (bindingParts.isNotEmpty()) {
+                holder.layout.addView(TextView(this@DashboardActivity).apply {
+                    text = bindingParts.joinToString("\n")
                     textSize = 13f
-                    setPadding(0, 16, 0, 0)
-                    setTextColor(Color.GRAY)
                 })
-                return@launch
             }
 
-            val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+            holder.layout.addView(TextView(this@DashboardActivity).apply {
+                text = "Granted by: ${token.grantedBy} at ${dateFormat.format(Date(token.grantedAt))}"
+                textSize = 13f
+            })
 
-            for (token in tokens) {
-                val block = LinearLayout(this@DashboardActivity).apply {
-                    orientation = LinearLayout.VERTICAL
-                    setPadding(0, 12, 0, 12)
-                }
+            holder.layout.addView(TextView(this@DashboardActivity).apply {
+                text = if (token.expiresAt != null) "Expires: ${dateFormat.format(Date(token.expiresAt))}" else "Expires: never"
+                textSize = 13f
+            })
 
-                block.addView(TextView(this@DashboardActivity).apply {
-                    text = "Client: ${token.clientId} (${token.clientType})"
-                    textSize = 14f
-                    setTypeface(null, Typeface.BOLD)
-                })
+            val tokenPreview = "${token.token.take(5)}...${token.token.takeLast(5)}"
+            holder.layout.addView(TextView(this@DashboardActivity).apply {
+                text = "Token: $tokenPreview"
+                textSize = 12f
+                setTextColor(Color.GRAY)
+            })
 
-                block.addView(TextView(this@DashboardActivity).apply {
-                    text = "Permissions: ${token.permissions}"
-                    textSize = 13f
-                })
-
-                block.addView(TextView(this@DashboardActivity).apply {
-                    text = "Granted by: ${token.grantedBy} at ${dateFormat.format(Date(token.grantedAt))}"
-                    textSize = 13f
-                })
-
-                block.addView(TextView(this@DashboardActivity).apply {
-                    text = if (token.expiresAt != null) "Expires: ${dateFormat.format(Date(token.expiresAt))}" else "Expires: never"
-                    textSize = 13f
-                })
-
-                block.addView(TextView(this@DashboardActivity).apply {
-                    text = "Token: ${token.token.take(8)}..."
-                    textSize = 12f
-                    setTextColor(Color.GRAY)
-                })
-
-                block.addView(Button(this@DashboardActivity).apply {
-                    text = "Revoke"
-                    setOnClickListener {
-                        lifecycleScope.launch {
-                            withContext(Dispatchers.IO) { dao.deleteByToken(token.token) }
-                            loadTokens(layout, swipeRefresh)
-                        }
-                    }
-                })
-
-                layout.addView(block)
-                layout.addView(divider())
-            }
+            holder.layout.addView(TextView(this@DashboardActivity).apply {
+                text = "Swipe to revoke"
+                textSize = 11f
+                setTextColor(Color.GRAY)
+                setPadding(0, 4, 0, 0)
+            })
         }
     }
 
