@@ -7,10 +7,10 @@
       </SelectionState>
       <SelectionState runConfigName="service.hal-service">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2026-03-27T17:53:08.388402Z">
+        <DropdownSelection timestamp="2026-03-28T00:30:03.800734Z">
           <Target type="DEFAULT_BOOT">
             <handle>
-              <DeviceId pluginId="PhysicalDevice" identifier="serial=LD23255V00495" />
+              <DeviceId pluginId="PhysicalDevice" identifier="serial=VA11253T41199" />
             </handle>
           </Target>
         </DropdownSelection>

@@ -59,11 +59,16 @@ class PluginRegistry {
                 override fun onServiceConnected(name: ComponentName, service: IBinder) {
                     val binder = IHardwarePlugin.Stub.asInterface(service)
                     val adapter = AidlPluginAdapter(binder)
-                    plugins[pluginId] = adapter
-                    adapter.getCapabilities().forEach { capability ->
-                        capabilityToPlugin[capability] = adapter
+                    if (adapter.isSupported()) {
+                        plugins[pluginId] = adapter
+                        adapter.getCapabilities().forEach { capability ->
+                            capabilityToPlugin[capability] = adapter
+                        }
+                        Log.i(TAG, "Connected external plugin: $pluginId from ${name.packageName}")
+                    } else {
+                        unsupportedPlugins[pluginId] = adapter
+                        Log.i(TAG, "External plugin not supported on this device: $pluginId from ${name.packageName}")
                     }
-                    Log.i(TAG, "Connected external plugin: $pluginId from ${name.packageName}")
                 }
 
                 override fun onServiceDisconnected(name: ComponentName) {
