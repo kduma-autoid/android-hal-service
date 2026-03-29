@@ -22,6 +22,9 @@
       <SelectionState runConfigName="plugins.sunmi.tms.plugin-sunmi-tms-bundle">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
+      <SelectionState runConfigName="plugins.printerx.plugin-sunmi-printerx-bundle">
+        <option name="selectionMode" value="DROPDOWN" />
+      </SelectionState>
     </selectionStates>
   </component>
 </project>

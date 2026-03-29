@@ -49,4 +49,8 @@ dependencies {
     implementation(project(":plugins:sunmi:tms:plugin-sunmi-system-lib"))
     implementation(project(":plugins:sunmi:tms:plugin-sunmi-network-lib"))
     implementation(project(":plugins:sunmi:tms:plugin-sunmi-kiosk-lib"))
+    implementation(project(":plugins:printerx:plugin-sunmi-manager-lib"))
+    implementation(project(":plugins:printerx:plugin-sunmi-printer-lib"))
+    implementation(project(":plugins:printerx:plugin-sunmi-drawer-lib"))
+    implementation(project(":plugins:printerx:plugin-sunmi-lcd-lib"))
 }

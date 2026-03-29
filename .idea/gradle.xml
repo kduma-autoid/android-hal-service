@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="GradleMigrationSettings" migrationVersion="1" />
   <component name="GradleSettings">
     <option name="linkedExternalProjectsSettings">
       <GradleProjectSettings>
@@ -11,6 +12,13 @@
             <option value="$PROJECT_DIR$/plugins" />
             <option value="$PROJECT_DIR$/plugins/generic" />
             <option value="$PROJECT_DIR$/plugins/generic/plugin-generic-lib" />
+            <option value="$PROJECT_DIR$/plugins/printerx" />
+            <option value="$PROJECT_DIR$/plugins/printerx/plugin-sunmi-drawer-lib" />
+            <option value="$PROJECT_DIR$/plugins/printerx/plugin-sunmi-lcd-lib" />
+            <option value="$PROJECT_DIR$/plugins/printerx/plugin-sunmi-manager-lib" />
+            <option value="$PROJECT_DIR$/plugins/printerx/plugin-sunmi-printer-lib" />
+            <option value="$PROJECT_DIR$/plugins/printerx/plugin-sunmi-printerx-bundle" />
+            <option value="$PROJECT_DIR$/plugins/printerx/plugin-sunmi-printerx-sdk" />
             <option value="$PROJECT_DIR$/plugins/sunmi" />
             <option value="$PROJECT_DIR$/plugins/sunmi/plugin-sunmi-bundle" />
             <option value="$PROJECT_DIR$/plugins/sunmi/plugin-sunmi-printer-lib" />

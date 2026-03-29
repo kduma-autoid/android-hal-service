@@ -128,6 +128,46 @@
             <meta-data android:name="plugin.label" android:value="Sunmi TMS Kiosk" />
         </service>
 
+        <service
+            android:name=".SunmiPrinterXManagerService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="dev.duma.android.hal.HARDWARE_PLUGIN" />
+            </intent-filter>
+            <meta-data android:name="plugin.id" android:value="sunmi.printerx.manager" />
+            <meta-data android:name="plugin.label" android:value="Sunmi PrinterX Manager" />
+        </service>
+
+        <service
+            android:name=".SunmiPrinterXPrinterService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="dev.duma.android.hal.HARDWARE_PLUGIN" />
+            </intent-filter>
+            <meta-data android:name="plugin.id" android:value="sunmi.printerx.printer" />
+            <meta-data android:name="plugin.label" android:value="Sunmi PrinterX Printer" />
+        </service>
+
+        <service
+            android:name=".SunmiPrinterXDrawerService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="dev.duma.android.hal.HARDWARE_PLUGIN" />
+            </intent-filter>
+            <meta-data android:name="plugin.id" android:value="sunmi.printerx.drawer" />
+            <meta-data android:name="plugin.label" android:value="Sunmi PrinterX Cash Drawer" />
+        </service>
+
+        <service
+            android:name=".SunmiPrinterXLcdService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="dev.duma.android.hal.HARDWARE_PLUGIN" />
+            </intent-filter>
+            <meta-data android:name="plugin.id" android:value="sunmi.printerx.lcd" />
+            <meta-data android:name="plugin.label" android:value="Sunmi PrinterX LCD" />
+        </service>
+
     </application>
 
 </manifest>

@@ -137,6 +137,10 @@ class HalService : Service() {
         tryRegisterPlugin("dev.duma.android.hal.plugins.sunmi.tms.system.SunmiTmsSystemPlugin")
         tryRegisterPlugin("dev.duma.android.hal.plugins.sunmi.tms.network.SunmiTmsNetworkPlugin")
         tryRegisterPlugin("dev.duma.android.hal.plugins.sunmi.tms.kiosk.SunmiTmsKioskPlugin")
+        tryRegisterPlugin("dev.duma.android.hal.plugins.sunmi.printerx.manager.SunmiPrinterXManagerPlugin")
+        tryRegisterPlugin("dev.duma.android.hal.plugins.sunmi.printerx.printer.SunmiPrinterXPrinterPlugin")
+        tryRegisterPlugin("dev.duma.android.hal.plugins.sunmi.printerx.drawer.SunmiPrinterXDrawerPlugin")
+        tryRegisterPlugin("dev.duma.android.hal.plugins.sunmi.printerx.lcd.SunmiPrinterXLcdPlugin")
 
         // 6. Discover external plugins (standalone bundle APKs)
         pluginRegistry.discoverExternal(this)
