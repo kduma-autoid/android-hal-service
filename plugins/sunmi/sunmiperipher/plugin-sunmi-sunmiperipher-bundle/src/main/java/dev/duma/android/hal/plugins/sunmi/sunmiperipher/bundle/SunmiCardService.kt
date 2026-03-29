@@ -11,6 +11,6 @@ import dev.duma.android.hal.plugins.sunmi.card.SunmiCardPlugin
  */
 class SunmiCardService : Service() {
     override fun onBind(intent: Intent): IBinder {
-        return PluginServiceWrapper(SunmiCardPlugin(applicationContext))
+        return PluginServiceWrapper(SunmiCardPlugin(applicationContext), applicationContext)
     }
 }

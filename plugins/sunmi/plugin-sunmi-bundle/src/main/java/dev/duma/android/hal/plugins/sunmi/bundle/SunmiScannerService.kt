@@ -13,6 +13,6 @@ import dev.duma.android.hal.plugins.sunmi.scanner.SunmiScannerPlugin
  */
 class SunmiScannerService : Service() {
     override fun onBind(intent: Intent): IBinder {
-        return PluginServiceWrapper(SunmiScannerPlugin(applicationContext))
+        return PluginServiceWrapper(SunmiScannerPlugin(applicationContext), applicationContext)
     }
 }

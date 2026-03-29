@@ -1,6 +1,7 @@
 package dev.duma.android.hal.contract
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 
@@ -29,7 +30,22 @@ class AidlPluginAdapter(
     }
 
     override fun initialize(context: PluginContext) {
-        // Out-of-process plugins do not receive PluginContext — no-op
+        val pluginContextBinder = object : IPluginContext.Stub() {
+            override fun execute(method: String, jsonParams: String): String {
+                return runBlocking(Dispatchers.IO) {
+                    context.execute(method, jsonParams)
+                }
+            }
+
+            override fun getAvailableCapabilities(): List<String> {
+                return context.getAvailableCapabilities()
+            }
+
+            override fun hasCapability(capability: String): Boolean {
+                return context.hasCapability(capability)
+            }
+        }
+        binder.initialize(pluginContextBinder)
     }
 
     override suspend fun execute(method: String, params: String): String {

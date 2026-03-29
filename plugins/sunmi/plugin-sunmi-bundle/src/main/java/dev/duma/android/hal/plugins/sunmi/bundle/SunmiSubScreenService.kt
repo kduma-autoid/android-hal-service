@@ -12,6 +12,6 @@ import dev.duma.android.hal.plugins.sunmi.subscreen.SunmiSubScreenPlugin
  */
 class SunmiSubScreenService : Service() {
     override fun onBind(intent: Intent): IBinder {
-        return PluginServiceWrapper(SunmiSubScreenPlugin(applicationContext))
+        return PluginServiceWrapper(SunmiSubScreenPlugin(applicationContext), applicationContext)
     }
 }

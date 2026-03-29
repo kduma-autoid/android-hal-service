@@ -12,6 +12,6 @@ import dev.duma.android.hal.plugins.sunmi.statuslight.SunmiStatusLightPlugin
  */
 class SunmiStatusLightService : Service() {
     override fun onBind(intent: Intent): IBinder {
-        return PluginServiceWrapper(SunmiStatusLightPlugin(applicationContext))
+        return PluginServiceWrapper(SunmiStatusLightPlugin(applicationContext), applicationContext)
     }
 }

@@ -1,6 +1,7 @@
 package dev.duma.android.hal.contract;
 
 import dev.duma.android.hal.contract.IPluginEventCallback;
+import dev.duma.android.hal.contract.IPluginContext;
 
 interface IHardwarePlugin {
     String getPluginId();
@@ -11,4 +12,5 @@ interface IHardwarePlugin {
     String getDescriptorJson();
     void registerEventCallback(IPluginEventCallback callback);
     void unregisterEventCallback(IPluginEventCallback callback);
+    void initialize(IPluginContext context);
 }

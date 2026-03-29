@@ -12,6 +12,6 @@ import dev.duma.android.hal.plugins.sunmi.nfc.SunmiNfcPlugin
  */
 class SunmiNfcService : Service() {
     override fun onBind(intent: Intent): IBinder {
-        return PluginServiceWrapper(SunmiNfcPlugin(applicationContext))
+        return PluginServiceWrapper(SunmiNfcPlugin(applicationContext), applicationContext)
     }
 }

@@ -1,5 +1,8 @@
 package dev.duma.android.hal.contract
 
+import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.os.RemoteCallbackList
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -11,7 +14,8 @@ import kotlinx.serialization.json.Json
  * to manage event callbacks.
  */
 class PluginServiceWrapper(
-    private val plugin: HalPlugin
+    private val plugin: HalPlugin,
+    private val applicationContext: Context? = null
 ) : IHardwarePlugin.Stub() {
 
     private val callbackList = RemoteCallbackList<IPluginEventCallback>()
@@ -50,6 +54,14 @@ class PluginServiceWrapper(
 
     override fun unregisterEventCallback(callback: IPluginEventCallback) {
         callbackList.unregister(callback)
+    }
+
+    override fun initialize(pluginContext: IPluginContext) {
+        val appCtx = applicationContext ?: return
+        val remoteContext = RemotePluginContext(pluginContext, appCtx)
+        Handler(Looper.getMainLooper()).post {
+            plugin.initialize(remoteContext)
+        }
     }
 
     private fun broadcastEvent(eventName: String, jsonData: String) {

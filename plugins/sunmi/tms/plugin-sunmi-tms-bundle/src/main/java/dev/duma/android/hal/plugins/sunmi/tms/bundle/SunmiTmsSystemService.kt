@@ -8,5 +8,5 @@ import dev.duma.android.hal.plugins.sunmi.tms.system.SunmiTmsSystemPlugin
 
 class SunmiTmsSystemService : Service() {
     override fun onBind(intent: Intent): IBinder =
-        PluginServiceWrapper(SunmiTmsSystemPlugin(applicationContext))
+        PluginServiceWrapper(SunmiTmsSystemPlugin(applicationContext), applicationContext)
 }

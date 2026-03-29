@@ -8,5 +8,5 @@ import dev.duma.android.hal.plugins.sunmi.tms.kiosk.SunmiTmsKioskPlugin
 
 class SunmiTmsKioskService : Service() {
     override fun onBind(intent: Intent): IBinder =
-        PluginServiceWrapper(SunmiTmsKioskPlugin(applicationContext))
+        PluginServiceWrapper(SunmiTmsKioskPlugin(applicationContext), applicationContext)
 }

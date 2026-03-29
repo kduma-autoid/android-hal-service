@@ -8,5 +8,5 @@ import dev.duma.android.hal.plugins.sunmi.tms.network.SunmiTmsNetworkPlugin
 
 class SunmiTmsNetworkService : Service() {
     override fun onBind(intent: Intent): IBinder =
-        PluginServiceWrapper(SunmiTmsNetworkPlugin(applicationContext))
+        PluginServiceWrapper(SunmiTmsNetworkPlugin(applicationContext), applicationContext)
 }

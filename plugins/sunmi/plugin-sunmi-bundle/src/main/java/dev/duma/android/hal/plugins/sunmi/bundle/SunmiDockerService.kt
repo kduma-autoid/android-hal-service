@@ -12,6 +12,6 @@ import dev.duma.android.hal.plugins.sunmi.docker.SunmiDockerPlugin
  */
 class SunmiDockerService : Service() {
     override fun onBind(intent: Intent): IBinder {
-        return PluginServiceWrapper(SunmiDockerPlugin(applicationContext))
+        return PluginServiceWrapper(SunmiDockerPlugin(applicationContext), applicationContext)
     }
 }
