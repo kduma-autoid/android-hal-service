@@ -168,6 +168,16 @@
             <meta-data android:name="plugin.label" android:value="Sunmi PrinterX LCD" />
         </service>
 
+        <service
+            android:name=".SunmiRfidService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="dev.duma.android.hal.HARDWARE_PLUGIN" />
+            </intent-filter>
+            <meta-data android:name="plugin.id" android:value="sunmi.rfid" />
+            <meta-data android:name="plugin.label" android:value="Sunmi RFID" />
+        </service>
+
     </application>
 
 </manifest>

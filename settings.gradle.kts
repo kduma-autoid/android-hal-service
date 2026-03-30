@@ -25,6 +25,9 @@ dependencyResolutionManagement {
         flatDir {
             dirs("plugins/sunmi/tms/plugin-sunmi-tms-sdk/src/main/libs")
         }
+        flatDir {
+            dirs("plugins/sunmi/sunmiscannersdk/plugin-sunmi-sunmiscannersdk-sdk/src/main/libs")
+        }
     }
 }
 
@@ -62,6 +65,10 @@ include(":plugins:sunmi:tms:plugin-sunmi-system-lib")
 include(":plugins:sunmi:tms:plugin-sunmi-network-lib")
 include(":plugins:sunmi:tms:plugin-sunmi-kiosk-lib")
 include(":plugins:sunmi:tms:plugin-sunmi-tms-bundle")
+
+include(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-sunmiscannersdk-sdk")
+include(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-rfid-lib")
+include(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-sunmiscannersdk-bundle")
 
 include(":plugins:printerx:plugin-sunmi-printerx-sdk")
 include(":plugins:printerx:plugin-sunmi-manager-lib")

@@ -53,4 +53,5 @@ dependencies {
     implementation(project(":plugins:printerx:plugin-sunmi-printer-lib"))
     implementation(project(":plugins:printerx:plugin-sunmi-drawer-lib"))
     implementation(project(":plugins:printerx:plugin-sunmi-lcd-lib"))
+    implementation(project(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-rfid-lib"))
 }

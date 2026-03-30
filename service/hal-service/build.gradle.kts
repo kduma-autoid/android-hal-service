@@ -90,6 +90,7 @@ dependencies {
     "sunmiImplementation"(project(":plugins:sunmi:tms:plugin-sunmi-system-lib"))
     "sunmiImplementation"(project(":plugins:sunmi:tms:plugin-sunmi-network-lib"))
     "sunmiImplementation"(project(":plugins:sunmi:tms:plugin-sunmi-kiosk-lib"))
+    "sunmiImplementation"(project(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-rfid-lib"))
     "sunmiImplementation"(project(":plugins:printerx:plugin-sunmi-manager-lib"))
     "sunmiImplementation"(project(":plugins:printerx:plugin-sunmi-printer-lib"))
     "sunmiImplementation"(project(":plugins:printerx:plugin-sunmi-drawer-lib"))
