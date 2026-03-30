@@ -1,6 +1,7 @@
 package dev.duma.android.hal.plugins.sunmi.printerx.sdk
 
 import android.content.Context
+import android.content.Intent
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.PluginContext
@@ -22,7 +23,12 @@ abstract class BasePrinterXPlugin(
     private var _eventCallback: HalPluginEventCallback? = null
     protected val mutex = Mutex()
 
-    override fun isSupported(): Boolean = true
+    override fun isSupported(): Boolean {
+        val ctx = context ?: return false
+        val intent = Intent("woyou.aidlservice.jiuiv5.IWoyouService")
+            .setPackage("woyou.aidlservice.jiuiv5")
+        return ctx.packageManager.resolveService(intent, 0) != null
+    }
 
     override fun initialize(pluginContext: PluginContext) {
         this.context?.let { SharedPrinterManager.acquire(it) }
