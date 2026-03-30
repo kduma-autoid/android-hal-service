@@ -5,7 +5,7 @@ import type {
   TokenResult,
   ILogger,
 } from '@kduma-autoid/hal-client-common';
-import { HalError } from '@kduma-autoid/hal-client-common';
+import { HalError, isHalErrorResponse } from '@kduma-autoid/hal-client-common';
 import type { WsConnection } from './ws-connection.js';
 
 export class WsCommandTransport implements ICommandTransport, IAuthTransport {
@@ -58,6 +58,10 @@ export class WsCommandTransport implements ICommandTransport, IAuthTransport {
       throw new HalError('parse_error', `Unexpected message type: ${response.type}`);
     }
 
+    if (isHalErrorResponse(response.result)) {
+      throw new HalError(response.result.error, response.result.message);
+    }
+
     const result = response.result as Record<string, unknown>;
 
     const tokenResult: TokenResult = {
@@ -94,6 +98,10 @@ export class WsCommandTransport implements ICommandTransport, IAuthTransport {
 
     if (response.type !== 'response') {
       throw new HalError('parse_error', `Unexpected message type: ${response.type}`);
+    }
+
+    if (isHalErrorResponse(response.result)) {
+      throw new HalError(response.result.error, response.result.message);
     }
 
     this.logger?.debug('Method executed successfully', { method });
