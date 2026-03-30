@@ -9,6 +9,7 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   publish-npm:
@@ -45,7 +46,7 @@ jobs:
         working-directory: clients/ts
 
       - name: Publish packages to GitHub Packages
-        if: github.event_name != 'pull_request'
+        if: startsWith(github.ref, 'refs/tags/')
         id: publish
         run: pnpm -r --filter './packages/*' publish --no-git-checks --access public
         working-directory: clients/ts
@@ -132,7 +133,13 @@ jobs:
 
       - name: Publish Android packages to GitHub Packages
         if: github.event_name != 'pull_request'
+        id: publish-android
         run: ./gradlew publish
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
+
+      - name: Report publish result
+        if: steps.publish-android.outcome == 'failure'
+        run: echo "::warning::Android package publish step failed (the version may already exist in GitHub Packages)."

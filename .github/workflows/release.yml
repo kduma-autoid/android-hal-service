@@ -18,12 +18,13 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -93,6 +94,7 @@ jobs:
         run: |
           NEW_VERSION="${{ steps.version.outputs.version }}"
           NEW_CODE="${{ steps.version.outputs.code }}"
+          sed -i "s/^projectVersion=.*/projectVersion=$NEW_VERSION/" gradle.properties
           while IFS= read -r FILE; do
             sed -i "s/versionCode = [0-9]*/versionCode = $NEW_CODE/" "$FILE"
             sed -i "s/versionName = \"[^\"]*\"/versionName = \"$NEW_VERSION\"/" "$FILE"
@@ -109,3 +111,8 @@ jobs:
           git tag "v$NEW_VERSION"
           git push origin HEAD
           git push origin "v$NEW_VERSION"
+
+      - name: Trigger Build workflow
+        run: gh workflow run build.yml --ref "v${{ steps.version.outputs.version }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

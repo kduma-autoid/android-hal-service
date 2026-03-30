@@ -2,7 +2,6 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
-    id("maven-publish")
 }
 
 android {
@@ -137,33 +136,4 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
-}
-
-afterEvaluate {
-    publishing {
-        publications {
-            listOf("generic", "sunmi").forEach { flavor ->
-                create<MavenPublication>("${flavor}Release") {
-                    groupId = "dev.duma.android.hal"
-                    artifactId = project.name
-                    version = android.defaultConfig.versionName!!
-                    artifact(layout.buildDirectory.file("outputs/apk/${flavor}/release/${project.name}-${flavor}-release.apk").get()) {
-                        extension = "apk"
-                        classifier = flavor
-                        builtBy(tasks.named("assemble${flavor.replaceFirstChar { it.uppercase() }}Release"))
-                    }
-                }
-            }
-        }
-        repositories {
-            maven {
-                name = "GitHubPackages"
-                url = uri("https://maven.pkg.github.com/kduma-autoid/android-hal-service")
-                credentials {
-                    username = System.getenv("GITHUB_ACTOR") ?: ""
-                    password = System.getenv("GITHUB_TOKEN") ?: ""
-                }
-            }
-        }
-    }
 }
