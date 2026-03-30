@@ -16,7 +16,7 @@ android {
         applicationId = "dev.duma.android.hal.service"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
+        versionCode = 2
         versionName = "0.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
