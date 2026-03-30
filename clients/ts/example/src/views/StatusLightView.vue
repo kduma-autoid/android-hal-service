@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { useHalClient } from '../composables/useHalClient';
+import { useToast } from '../composables/useToast';
 import {
   SunmiStatusLightClient,
   STATUS_LIGHT_COLORS,
@@ -8,6 +9,7 @@ import {
 } from '@kduma-autoid/hal-client-plugin-sunmi-statuslight';
 
 const { client, isConnected } = useHalClient();
+const toast = useToast();
 
 const light = computed(() =>
   client.value ? new SunmiStatusLightClient(client.value) : null,
@@ -18,21 +20,14 @@ const flashOnMs = ref(500);
 const flashOffMs = ref(500);
 const rainbowOnMs = ref(400);
 const rainbowOffMs = ref(100);
-const response = ref<string>('-');
-const isError = ref(false);
-
-function showResponse(data: unknown, error = false) {
-  response.value = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
-  isError.value = error;
-}
 
 async function exec(fn: () => Promise<unknown>) {
   if (!light.value) return;
   try {
-    const result = await fn();
-    showResponse(result);
+    await fn();
+    toast.success('Success');
   } catch (e) {
-    showResponse(e instanceof Error ? e.message : String(e), true);
+    toast.error(e instanceof Error ? e.message : String(e));
   }
 }
 
@@ -102,7 +97,7 @@ function textColor(color: StatusLightColor): string {
 
     <div class="card">
       <h3>Turn Off</h3>
-      <button class="btn off-btn" @click="turnOff">Turn Off Light</button>
+      <button class="off-btn" @click="turnOff">Turn Off Light</button>
     </div>
 
     <div class="card">
@@ -130,10 +125,6 @@ function textColor(color: StatusLightColor): string {
       </div>
     </div>
 
-    <div class="card">
-      <h3>Response</h3>
-      <pre class="response" :class="{ err: isError }">{{ response }}</pre>
-    </div>
   </template>
 </template>
 
@@ -210,21 +201,6 @@ h3 { margin: 0 0 12px; font-size: 14px; color: #444; text-transform: uppercase; 
 .btn-flash:hover { background: #651fff; }
 .btn-rainbow { background: #e8710a; }
 .btn-rainbow:hover { background: #d46208; }
-
-.response {
-  font-family: monospace;
-  font-size: 12px;
-  padding: 10px;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  min-height: 32px;
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-all;
-  color: #166534;
-}
-.response.err { color: #dc2626; }
 
 .not-connected {
   padding: 24px;

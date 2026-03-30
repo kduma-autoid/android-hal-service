@@ -1,6 +1,7 @@
 import { ref, reactive } from 'vue';
 import type { HalClient } from '@kduma-autoid/hal-client';
 import { LocalStorageTokenStore } from '@kduma-autoid/hal-client-token-store-browser';
+import { useToast } from './useToast';
 
 const SETTINGS_KEY = 'hal_example_settings';
 
@@ -40,6 +41,7 @@ function saveSettings(newSettings: AppSettings): void {
 }
 
 async function connect(): Promise<void> {
+  const toast = useToast();
   error.value = null;
 
   if (client.value) {
@@ -71,19 +73,24 @@ async function connect(): Promise<void> {
     await newClient.requestToken();
     client.value = newClient;
     isConnected.value = true;
+    toast.success(`Connected via ${settings.transport.toUpperCase()}`);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e);
+    const msg = e instanceof Error ? e.message : String(e);
+    error.value = msg;
     isConnected.value = false;
+    toast.error(`Connection failed: ${msg}`);
   }
 }
 
 function disconnect(): void {
+  const toast = useToast();
   if (client.value) {
     client.value.dispose();
     client.value = null;
   }
   isConnected.value = false;
   error.value = null;
+  toast.info('Disconnected');
 }
 
 // Load settings on first import
