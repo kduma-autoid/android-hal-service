@@ -1,0 +1,117 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'New version (e.g. 1.2.3). If not provided, patch version is incremented by 1.'
+        required: false
+        type: string
+      build:
+        description: 'New build number (versionCode). If not provided, it is incremented by 1.'
+        required: false
+        type: string
+
+jobs:
+  release:
+    name: Bump version and create release tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Determine new version and build number
+        id: version
+        run: |
+          CURRENT_VERSION=$(node -p "require('./clients/ts/packages/common/package.json').version" 2>/dev/null || true)
+          if [ -z "$CURRENT_VERSION" ] || ! echo "$CURRENT_VERSION" | grep -qP '^\d+\.\d+\.\d+$'; then
+            echo "ERROR: Could not read a valid semver version from clients/ts/packages/common/package.json"
+            exit 1
+          fi
+
+          CURRENT_CODE=$(grep -m 1 'versionCode = ' service/hal-service/build.gradle.kts | grep -oP '\d+' || true)
+          if [ -z "$CURRENT_CODE" ]; then
+            echo "ERROR: Could not read versionCode from service/hal-service/build.gradle.kts"
+            exit 1
+          fi
+
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            NEW_VERSION="${{ github.event.inputs.version }}"
+            if ! echo "$NEW_VERSION" | grep -qP '^\d+\.\d+\.\d+$'; then
+              echo "ERROR: Provided version '$NEW_VERSION' is not a valid semantic version (expected X.Y.Z)"
+              exit 1
+            fi
+          else
+            MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
+            MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
+            PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
+            NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
+          fi
+
+          if [ -n "${{ github.event.inputs.build }}" ]; then
+            NEW_CODE="${{ github.event.inputs.build }}"
+            if ! echo "$NEW_CODE" | grep -qP '^\d+$' || [ "$NEW_CODE" -lt 1 ]; then
+              echo "ERROR: Provided build number '$NEW_CODE' is not a positive integer"
+              exit 1
+            fi
+          else
+            NEW_CODE=$((CURRENT_CODE + 1))
+          fi
+
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "code=$NEW_CODE" >> $GITHUB_OUTPUT
+          echo "New version: $NEW_VERSION ($NEW_CODE)"
+
+      - name: Update NPM package versions
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.version }}"
+          for PKG in clients/ts/packages/*/package.json; do
+            node -e "
+              const fs = require('fs');
+              const pkg = JSON.parse(fs.readFileSync(process.argv[1]));
+              pkg.version = process.argv[2];
+              fs.writeFileSync(process.argv[1], JSON.stringify(pkg, null, 2) + '\n');
+            " "$PKG" "$NEW_VERSION"
+          done
+
+      - name: Update Android versionCode and versionName
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.version }}"
+          NEW_CODE="${{ steps.version.outputs.code }}"
+          for FILE in \
+            service/hal-service/build.gradle.kts \
+            plugins/sunmi/plugin-sunmi-bundle/build.gradle.kts \
+            plugins/sunmi/sunmiperipher/plugin-sunmi-sunmiperipher-bundle/build.gradle.kts \
+            plugins/sunmi/tms/plugin-sunmi-tms-bundle/build.gradle.kts \
+            plugins/sunmi/sunmiscannersdk/plugin-sunmi-sunmiscannersdk-bundle/build.gradle.kts \
+            plugins/sunmi/printerx/plugin-sunmi-printerx-bundle/build.gradle.kts; do
+            sed -i "s/versionCode = [0-9]*/versionCode = $NEW_CODE/" "$FILE"
+            sed -i "s/versionName = \"[^\"]*\"/versionName = \"$NEW_VERSION\"/" "$FILE"
+          done
+
+      - name: Commit, tag and push
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.version }}"
+          NEW_CODE="${{ steps.version.outputs.code }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Bumped version to v$NEW_VERSION ($NEW_CODE)"
+          git tag "v$NEW_VERSION"
+          git push origin HEAD
+          git push origin "v$NEW_VERSION"

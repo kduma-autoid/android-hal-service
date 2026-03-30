@@ -1,0 +1,104 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - 'v*'
+
+jobs:
+  publish-npm:
+    name: Build and publish NPM packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@kduma-autoid'
+          cache: 'pnpm'
+          cache-dependency-path: 'clients/ts/pnpm-lock.yaml'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: clients/ts
+
+      - name: Build packages
+        run: pnpm build
+        working-directory: clients/ts
+
+      - name: Publish packages to GitHub Packages
+        id: publish
+        run: pnpm -r --filter './packages/*' publish --no-git-checks --access public
+        working-directory: clients/ts
+        continue-on-error: true
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Report publish result
+        if: steps.publish.outcome == 'failure'
+        run: echo "::warning::Package publish step failed (the version may already exist in GitHub Packages)."
+
+  publish-pages:
+    name: Build and publish example to GitHub Pages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: 'clients/ts/pnpm-lock.yaml'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: clients/ts
+
+      - name: Build example app
+        run: |
+          REPO_NAME="${GITHUB_REPOSITORY#*/}"
+          pnpm exec vue-tsc --noEmit
+          pnpm exec vite build --base="/${REPO_NAME}/"
+        working-directory: clients/ts/example
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: clients/ts/example/dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
