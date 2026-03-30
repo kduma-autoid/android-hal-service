@@ -1,9 +1,9 @@
 plugins {
-    alias(libs.plugins.android.library)
+    alias(libs.plugins.android.application)
 }
 
 android {
-    namespace = "dev.duma.android.hal.plugins.sunmi.printerx.printer"
+    namespace = "dev.duma.android.hal.plugins.sunmi.printerx.bundle"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -11,10 +11,13 @@ android {
     }
 
     defaultConfig {
+        applicationId = "dev.duma.android.hal.plugins.sunmi.printerx"
         minSdk = 24
+        targetSdk = 36
+        versionCode = 1
+        versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        consumerProguardFiles("consumer-rules.pro")
     }
 
     buildTypes {
@@ -33,8 +36,9 @@ android {
 }
 
 dependencies {
-    api(project(":plugins:printerx:plugin-sunmi-printerx-sdk"))
     implementation(project(":service:hal-contract"))
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.kotlinx.coroutines.core)
+    implementation(project(":plugins:sunmi:printerx:plugin-sunmi-manager-lib"))
+    implementation(project(":plugins:sunmi:printerx:plugin-sunmi-printer-lib"))
+    implementation(project(":plugins:sunmi:printerx:plugin-sunmi-drawer-lib"))
+    implementation(project(":plugins:sunmi:printerx:plugin-sunmi-lcd-lib"))
 }

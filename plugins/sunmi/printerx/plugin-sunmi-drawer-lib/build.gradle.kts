@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace = "dev.duma.android.hal.plugins.sunmi.printerx.lcd"
+    namespace = "dev.duma.android.hal.plugins.sunmi.printerx.drawer"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -33,7 +33,7 @@ android {
 }
 
 dependencies {
-    api(project(":plugins:printerx:plugin-sunmi-printerx-sdk"))
+    api(project(":plugins:sunmi:printerx:plugin-sunmi-printerx-sdk"))
     implementation(project(":service:hal-contract"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.core)

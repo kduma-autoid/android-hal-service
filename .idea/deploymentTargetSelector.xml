@@ -25,6 +25,9 @@
       <SelectionState runConfigName="plugins.printerx.plugin-sunmi-printerx-bundle">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
+      <SelectionState runConfigName="plugins.sunmi.sunmiscannersdk.plugin-sunmi-sunmiscannersdk-bundle">
+        <option name="selectionMode" value="DROPDOWN" />
+      </SelectionState>
     </selectionStates>
   </component>
 </project>
