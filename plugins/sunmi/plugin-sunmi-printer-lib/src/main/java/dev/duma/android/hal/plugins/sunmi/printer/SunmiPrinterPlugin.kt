@@ -30,8 +30,20 @@ class SunmiPrinterPlugin(private val appContext: Context? = null) : HalPlugin {
         version = version,
         capabilities = getCapabilities(),
         methods = listOf(
-            MethodDescriptor("sunmi.printer.print", "Print receipt using Sunmi printer", "sunmi.printer"),
-            MethodDescriptor("sunmi.printer.status", "Get Sunmi printer status", "sunmi.printer")
+            MethodDescriptor(
+                "sunmi.printer.print",
+                "Print receipt using Sunmi printer",
+                "sunmi.printer",
+                exampleParameters = """{"text":"Hello World"}""",
+                exampleOutput = """{"status":"ok"}"""
+            ),
+            MethodDescriptor(
+                "sunmi.printer.status",
+                "Get Sunmi printer status",
+                "sunmi.printer",
+                exampleParameters = "{}",
+                exampleOutput = """{"status":"ok","printerStatus":"ready"}"""
+            )
         ),
         events = emptyList()
     )

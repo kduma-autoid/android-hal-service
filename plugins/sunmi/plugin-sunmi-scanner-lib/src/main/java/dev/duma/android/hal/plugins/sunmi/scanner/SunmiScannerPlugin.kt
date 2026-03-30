@@ -34,11 +34,28 @@ class SunmiScannerPlugin(private val appContext: Context? = null) : HalPlugin {
         version = version,
         capabilities = getCapabilities(),
         methods = listOf(
-            MethodDescriptor("sunmi.scanner.trigger", "Trigger barcode scan", "sunmi.scanner"),
-            MethodDescriptor("sunmi.scanner.stop", "Stop scanning", "sunmi.scanner")
+            MethodDescriptor(
+                "sunmi.scanner.trigger",
+                "Trigger barcode scan",
+                "sunmi.scanner",
+                exampleParameters = "{}",
+                exampleOutput = """{"status":"scanning"}"""
+            ),
+            MethodDescriptor(
+                "sunmi.scanner.stop",
+                "Stop scanning",
+                "sunmi.scanner",
+                exampleParameters = "{}",
+                exampleOutput = """{"status":"ok"}"""
+            )
         ),
         events = listOf(
-            EventDescriptor("sunmi.scanner.barcode", "Barcode scanned by Sunmi scanner", "sunmi.scanner")
+            EventDescriptor(
+                "sunmi.scanner.barcode",
+                "Barcode scanned by Sunmi scanner",
+                "sunmi.scanner",
+                exampleEvent = """{"data":"5901234123457","format":"EAN13"}"""
+            )
         )
     )
 

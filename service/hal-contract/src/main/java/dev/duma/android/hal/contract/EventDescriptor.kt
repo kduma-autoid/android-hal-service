@@ -11,5 +11,5 @@ data class EventDescriptor(
     val name: String,
     val description: String,
     val requiredPermission: String,
-    val exampleEvent: String? = null
+    val exampleEvent: String
 )

@@ -173,10 +173,10 @@ class PluginDetailActivity : AppCompatActivity() {
                     textSize = 12f
                     setTextColor(Color.GRAY)
                 })
-                method.exampleParameters?.let { params ->
+                method.exampleParameters.takeIf { it.isNotEmpty() }?.let { params ->
                     layout.addView(codeBlock("Parameters", params))
                 }
-                method.exampleOutput?.let { output ->
+                method.exampleOutput.takeIf { it.isNotEmpty() }?.let { output ->
                     layout.addView(codeBlock("Output", output))
                 }
             }
@@ -205,7 +205,7 @@ class PluginDetailActivity : AppCompatActivity() {
                     textSize = 12f
                     setTextColor(Color.GRAY)
                 })
-                event.exampleEvent?.let { example ->
+                event.exampleEvent.takeIf { it.isNotEmpty() }?.let { example ->
                     layout.addView(codeBlock("Example", example))
                 }
             }

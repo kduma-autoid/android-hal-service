@@ -33,6 +33,10 @@
             <option value="$PROJECT_DIR$/plugins/sunmi/sunmiperipher/plugin-sunmi-sunmiperipher-sdk" />
             <option value="$PROJECT_DIR$/plugins/sunmi/sunmiscannersdk" />
             <option value="$PROJECT_DIR$/plugins/sunmi/sunmiscannersdk/plugin-sunmi-rfid-lib" />
+            <option value="$PROJECT_DIR$/plugins/sunmi/sunmiscannersdk/plugin-sunmi-scanner-camera-lib" />
+            <option value="$PROJECT_DIR$/plugins/sunmi/sunmiscannersdk/plugin-sunmi-scanner-common-lib" />
+            <option value="$PROJECT_DIR$/plugins/sunmi/sunmiscannersdk/plugin-sunmi-scanner-external-lib" />
+            <option value="$PROJECT_DIR$/plugins/sunmi/sunmiscannersdk/plugin-sunmi-scanner-inner-lib" />
             <option value="$PROJECT_DIR$/plugins/sunmi/sunmiscannersdk/plugin-sunmi-sunmiscannersdk-bundle" />
             <option value="$PROJECT_DIR$/plugins/sunmi/sunmiscannersdk/plugin-sunmi-sunmiscannersdk-sdk" />
             <option value="$PROJECT_DIR$/plugins/sunmi/tms" />

@@ -31,7 +31,7 @@ class SunmiPrinterXDrawerPlugin(context: Context? = null) : BasePrinterXPlugin(c
             ),
             MethodDescriptor(
                 "sunmi.printerx.drawer.isOpen",
-                "Gets cash drawer open/close status. Params: {\"printerId\":\"opt\"}",
+                "Gets cash drawer open/close status.",
                 "sunmi.printerx.drawer",
                 exampleParameters = """{"printerId":""}""",
                 exampleOutput = """{"status":"ok","result":false}"""

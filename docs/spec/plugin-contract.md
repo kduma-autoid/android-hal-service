@@ -36,13 +36,17 @@ data class PluginDescriptor(
 data class MethodDescriptor(
     val name: String,                // "sunmi.printer.print"
     val description: String,         // "Print a receipt"
-    val requiredPermission: String   // "sunmi.printer"
+    val requiredPermission: String,  // "sunmi.printer"
+    val superRequired: Boolean = false,
+    val exampleParameters: String,   // """{"text":"Hello"}"""
+    val exampleOutput: String        // """{"status":"ok"}"""
 )
 
 data class EventDescriptor(
     val name: String,                // "sunmi.scanner.barcode"
     val description: String,         // "Barcode scanned"
-    val requiredPermission: String   // "sunmi.scanner"
+    val requiredPermission: String,  // "sunmi.scanner"
+    val exampleEvent: String         // """{"data":"123","format":"EAN13"}"""
 )
 ```
 

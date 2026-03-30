@@ -12,6 +12,6 @@ data class MethodDescriptor(
     val description: String,
     val requiredPermission: String,
     val superRequired: Boolean = false,
-    val exampleParameters: String? = null,
-    val exampleOutput: String? = null
+    val exampleParameters: String,
+    val exampleOutput: String
 )

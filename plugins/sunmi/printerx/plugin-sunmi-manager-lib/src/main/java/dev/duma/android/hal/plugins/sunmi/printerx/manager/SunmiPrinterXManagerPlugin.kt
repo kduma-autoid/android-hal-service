@@ -50,8 +50,18 @@ class SunmiPrinterXManagerPlugin(context: Context? = null) : BasePrinterXPlugin(
             )
         ),
         events = listOf(
-            EventDescriptor("sunmi.printerx.manager.defaultPrinterChanged", "Default printer updated.", "sunmi.printerx.manager"),
-            EventDescriptor("sunmi.printerx.manager.printersUpdated", "Printer list updated.", "sunmi.printerx.manager")
+            EventDescriptor(
+                "sunmi.printerx.manager.defaultPrinterChanged",
+                "Default printer updated.",
+                "sunmi.printerx.manager",
+                exampleEvent = """{"printerId":"printer1"}"""
+            ),
+            EventDescriptor(
+                "sunmi.printerx.manager.printersUpdated",
+                "Printer list updated.",
+                "sunmi.printerx.manager",
+                exampleEvent = """{"printers":["printer1","printer2"]}"""
+            )
         )
     )
 

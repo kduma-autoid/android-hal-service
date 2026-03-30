@@ -24,35 +24,35 @@ class SunmiPrinterXLcdPlugin(context: Context? = null) : BasePrinterXPlugin(cont
         methods = listOf(
             MethodDescriptor(
                 "sunmi.printerx.lcd.config",
-                "Controls LCD state. Params: {\"printerId\":\"opt\",\"command\":\"INIT|WAKE|SLEEP|CLEAR\"}",
+                "Controls LCD state.",
                 "sunmi.printerx.lcd",
                 exampleParameters = """{"command":"WAKE"}""",
                 exampleOutput = """{"status":"ok"}"""
             ),
             MethodDescriptor(
                 "sunmi.printerx.lcd.showText",
-                "Shows text on 128x40 LCD. Call config(WAKE) first. Params: {\"printerId\":\"opt\",\"text\":\"...\",\"size\":32,\"fill\":false}",
+                "Shows text on 128x40 LCD. Call config(WAKE) first.",
                 "sunmi.printerx.lcd",
                 exampleParameters = """{"text":"Hello","size":32,"fill":false}""",
                 exampleOutput = """{"status":"ok"}"""
             ),
             MethodDescriptor(
                 "sunmi.printerx.lcd.showTexts",
-                "Shows multiline text on 128x40 LCD. Params: {\"printerId\":\"opt\",\"texts\":[\"line1\",\"line2\"],\"align\":[1,2]}",
+                "Shows multiline text on 128x40 LCD.",
                 "sunmi.printerx.lcd",
                 exampleParameters = """{"texts":["Total","12.99"],"align":[1,2]}""",
                 exampleOutput = """{"status":"ok"}"""
             ),
             MethodDescriptor(
                 "sunmi.printerx.lcd.showBitmap",
-                "Shows bitmap on 128x40 LCD. Params: {\"printerId\":\"opt\",\"bitmap\":\"<base64>\"}",
+                "Shows bitmap on 128x40 LCD.",
                 "sunmi.printerx.lcd",
                 exampleParameters = """{"bitmap":"iVBOR..."}""",
                 exampleOutput = """{"status":"ok"}"""
             ),
             MethodDescriptor(
                 "sunmi.printerx.lcd.showDigital",
-                "Shows price on segment LCD (D3 MINI/D3 PRO). Max 7 chars. Params: {\"printerId\":\"opt\",\"digital\":\"12.99\"}",
+                "Shows price on segment LCD (D3 MINI/D3 PRO). Max 7 chars.",
                 "sunmi.printerx.lcd",
                 exampleParameters = """{"digital":"12.99"}""",
                 exampleOutput = """{"status":"ok"}"""

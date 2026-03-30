@@ -62,54 +62,204 @@ class SunmiPrinterXPrinterPlugin(context: Context? = null) : BasePrinterXPlugin(
 
     private fun buildMethodList() = listOf(
         // Query API
-        MethodDescriptor("sunmi.printerx.printer.query.getStatus", "Gets real-time printer status. Blocking — runs on IO thread. Params: {\"printerId\":\"opt\"}", "sunmi.printerx.printer"),
-        MethodDescriptor("sunmi.printerx.printer.query.getInfo", "Gets printer info. Params: {\"printerId\":\"opt\",\"info\":\"ID|NAME|VERSION|DISTANCE|CUTTER|HOT|DENSITY|TYPE|PAPER|GRAY\"}", "sunmi.printerx.printer"),
-        MethodDescriptor("sunmi.printerx.printer.query.getParam", "Gets printer runtime parameter. Params: {\"printerId\":\"opt\",\"param\":\"RUNTIME_ADC|HIGH_ADC|LOW_ADC|PWM|PWM_ADC|GPIO_PIN|GPIO_STATE\"}", "sunmi.printerx.printer"),
+        MethodDescriptor(
+            "sunmi.printerx.printer.query.getStatus",
+            "Gets real-time printer status. Blocking — runs on IO thread.",
+            "sunmi.printerx.printer",
+            exampleParameters = """{"printerId":""}""",
+            exampleOutput = """{"status":"ok","result":"NORMAL"}"""
+        ),
+        MethodDescriptor(
+            "sunmi.printerx.printer.query.getInfo",
+            "Gets printer info.",
+            "sunmi.printerx.printer",
+            exampleParameters = """{"info":"NAME"}""",
+            exampleOutput = """{"status":"ok","result":"Sunmi T2"}"""
+        ),
+        MethodDescriptor(
+            "sunmi.printerx.printer.query.getParam",
+            "Gets printer runtime parameter.",
+            "sunmi.printerx.printer",
+            exampleParameters = """{"param":"RUNTIME_ADC"}""",
+            exampleOutput = """{"status":"ok","result":"1024"}"""
+        ),
         // getAccessoryInfo not available in printerx:1.0.17 classes.jar
         // Command API
-        MethodDescriptor("sunmi.printerx.printer.command.sendEscCommand", "Sends raw ESC/POS bytes (base64). Params: {\"printerId\":\"opt\",\"data\":\"<base64>\"}", "sunmi.printerx.printer"),
-        MethodDescriptor("sunmi.printerx.printer.command.sendTsplCommand", "Sends raw TSPL bytes (base64). Params: {\"printerId\":\"opt\",\"data\":\"<base64>\"}", "sunmi.printerx.printer"),
+        MethodDescriptor(
+            "sunmi.printerx.printer.command.sendEscCommand",
+            "Sends raw ESC/POS bytes (base64).",
+            "sunmi.printerx.printer",
+            exampleParameters = """{"data":"G0A="}""",
+            exampleOutput = """{"status":"ok"}"""
+        ),
+        MethodDescriptor(
+            "sunmi.printerx.printer.command.sendTsplCommand",
+            "Sends raw TSPL bytes (base64).",
+            "sunmi.printerx.printer",
+            exampleParameters = """{"data":"U0laRSA0LDM="}""",
+            exampleOutput = """{"status":"ok"}"""
+        ),
         // Line API
-        MethodDescriptor("sunmi.printerx.printer.line.initLine", "Initializes line style. Params: {\"printerId\":\"opt\",\"align\":\"LEFT|CENTER|RIGHT\",\"width\":0,\"height\":30,\"posX\":0}", "sunmi.printerx.printer"),
-        MethodDescriptor("sunmi.printerx.printer.line.addText", "Adds text to buffer (no immediate print). Params: {\"printerId\":\"opt\",\"text\":\"...\",\"style\":{...}}", "sunmi.printerx.printer"),
-        MethodDescriptor("sunmi.printerx.printer.line.printText", "Prints text immediately. Params: {\"printerId\":\"opt\",\"text\":\"...\",\"style\":{...}}", "sunmi.printerx.printer"),
-        MethodDescriptor("sunmi.printerx.printer.line.printTexts", "Prints columnar text. Params: {\"printerId\":\"opt\",\"texts\":[\"col1\",\"col2\"],\"colsWidth\":[1,2],\"styles\":[{...},...]}", "sunmi.printerx.printer"),
-        MethodDescriptor("sunmi.printerx.printer.line.printBarCode", "Prints barcode. Params: {\"printerId\":\"opt\",\"code\":\"123\",\"style\":{\"symbology\":\"CODE128\",...}}", "sunmi.printerx.printer"),
-        MethodDescriptor("sunmi.printerx.printer.line.printQrCode", "Prints QR code. Params: {\"printerId\":\"opt\",\"code\":\"...\",\"style\":{\"dot\":4,\"errorLevel\":\"L\",...}}", "sunmi.printerx.printer"),
-        MethodDescriptor("sunmi.printerx.printer.line.printBitmap", "Prints image. Params: {\"printerId\":\"opt\",\"bitmap\":\"<base64>\",\"style\":{\"algorithm\":\"BINARIZATION\",\"value\":200,...}}", "sunmi.printerx.printer"),
-        MethodDescriptor("sunmi.printerx.printer.line.printDividingLine", "Prints dividing line. Params: {\"printerId\":\"opt\",\"style\":\"EMPTY|SOLID|DOTTED\",\"offset\":30}", "sunmi.printerx.printer"),
-        MethodDescriptor("sunmi.printerx.printer.line.autoOut", "Feeds paper and cuts (if cutter present). Params: {\"printerId\":\"opt\"}", "sunmi.printerx.printer"),
-        MethodDescriptor("sunmi.printerx.printer.line.enableTransMode", "Enables/disables transaction mode. Params: {\"printerId\":\"opt\",\"enable\":true}", "sunmi.printerx.printer"),
-        MethodDescriptor("sunmi.printerx.printer.line.printTrans", "Submits and prints transaction. Synchronous — waits for print result. Params: {\"printerId\":\"opt\"}", "sunmi.printerx.printer"),
+        MethodDescriptor(
+            "sunmi.printerx.printer.line.initLine",
+            "Initializes line style.",
+            "sunmi.printerx.printer",
+            exampleParameters = """{"align":"CENTER","width":0,"height":30,"posX":0}""",
+            exampleOutput = """{"status":"ok"}"""
+        ),
+        MethodDescriptor(
+            "sunmi.printerx.printer.line.addText",
+            "Adds text to buffer (no immediate print).",
+            "sunmi.printerx.printer",
+            exampleParameters = """{"text":"Hello World","style":{"textSize":24,"bold":true}}""",
+            exampleOutput = """{"status":"ok"}"""
+        ),
+        MethodDescriptor(
+            "sunmi.printerx.printer.line.printText",
+            "Prints text immediately.",
+            "sunmi.printerx.printer",
+            exampleParameters = """{"text":"Hello World","style":{"textSize":24}}""",
+            exampleOutput = """{"status":"ok"}"""
+        ),
+        MethodDescriptor(
+            "sunmi.printerx.printer.line.printTexts",
+            "Prints columnar text.",
+            "sunmi.printerx.printer",
+            exampleParameters = """{"texts":["Item","12.99"],"colsWidth":[1,1],"styles":[{},{}]}""",
+            exampleOutput = """{"status":"ok"}"""
+        ),
+        MethodDescriptor(
+            "sunmi.printerx.printer.line.printBarCode",
+            "Prints barcode.",
+            "sunmi.printerx.printer",
+            exampleParameters = """{"code":"1234567890","style":{"symbology":"CODE128"}}""",
+            exampleOutput = """{"status":"ok"}"""
+        ),
+        MethodDescriptor(
+            "sunmi.printerx.printer.line.printQrCode",
+            "Prints QR code.",
+            "sunmi.printerx.printer",
+            exampleParameters = """{"code":"https://example.com","style":{"dot":4,"errorLevel":"L"}}""",
+            exampleOutput = """{"status":"ok"}"""
+        ),
+        MethodDescriptor(
+            "sunmi.printerx.printer.line.printBitmap",
+            "Prints image.",
+            "sunmi.printerx.printer",
+            exampleParameters = """{"bitmap":"iVBOR...","style":{"algorithm":"BINARIZATION","value":200}}""",
+            exampleOutput = """{"status":"ok"}"""
+        ),
+        MethodDescriptor(
+            "sunmi.printerx.printer.line.printDividingLine",
+            "Prints dividing line.",
+            "sunmi.printerx.printer",
+            exampleParameters = """{"style":"SOLID","offset":30}""",
+            exampleOutput = """{"status":"ok"}"""
+        ),
+        MethodDescriptor(
+            "sunmi.printerx.printer.line.autoOut",
+            "Feeds paper and cuts (if cutter present).",
+            "sunmi.printerx.printer",
+            exampleParameters = """{}""",
+            exampleOutput = """{"status":"ok"}"""
+        ),
+        MethodDescriptor(
+            "sunmi.printerx.printer.line.enableTransMode",
+            "Enables/disables transaction mode.",
+            "sunmi.printerx.printer",
+            exampleParameters = """{"enable":true}""",
+            exampleOutput = """{"status":"ok"}"""
+        ),
+        MethodDescriptor(
+            "sunmi.printerx.printer.line.printTrans",
+            "Submits and prints transaction. Synchronous — waits for print result.",
+            "sunmi.printerx.printer",
+            exampleParameters = """{}""",
+            exampleOutput = """{"status":"ok","resultCode":0,"message":""}"""
+        ),
         // Canvas API
-        MethodDescriptor("sunmi.printerx.printer.canvas.initCanvas", "Initializes canvas. Params: {\"printerId\":\"opt\",\"width\":330,\"height\":330,\"posX\":0,\"posY\":0,\"label\":false}", "sunmi.printerx.printer"),
-        MethodDescriptor("sunmi.printerx.printer.canvas.renderText", "Draws text on canvas. Params: {\"printerId\":\"opt\",\"text\":\"...\",\"style\":{\"posX\":0,\"posY\":0,\"textSize\":24,...}}", "sunmi.printerx.printer"),
-        MethodDescriptor("sunmi.printerx.printer.canvas.renderBarCode", "Draws barcode on canvas. Params: {\"printerId\":\"opt\",\"code\":\"123\",\"style\":{\"posX\":0,\"posY\":0,...}}", "sunmi.printerx.printer"),
-        MethodDescriptor("sunmi.printerx.printer.canvas.renderQrCode", "Draws QR code on canvas. Params: {\"printerId\":\"opt\",\"code\":\"...\",\"style\":{\"posX\":0,\"posY\":0,\"dot\":4,...}}", "sunmi.printerx.printer"),
-        MethodDescriptor("sunmi.printerx.printer.canvas.renderBitmap", "Draws image on canvas. Params: {\"printerId\":\"opt\",\"bitmap\":\"<base64>\",\"style\":{\"posX\":0,\"posY\":0,...}}", "sunmi.printerx.printer"),
-        MethodDescriptor("sunmi.printerx.printer.canvas.renderArea", "Draws shape on canvas. Params: {\"printerId\":\"opt\",\"style\":{\"shape\":\"BOX|RECT_FILL|...\",\"posX\":0,\"posY\":0,\"width\":50,\"height\":50,\"thick\":1}}", "sunmi.printerx.printer"),
-        MethodDescriptor("sunmi.printerx.printer.canvas.printCanvas", "Prints canvas content. Synchronous — waits for print result. Params: {\"printerId\":\"opt\",\"count\":1}", "sunmi.printerx.printer"),
+        MethodDescriptor(
+            "sunmi.printerx.printer.canvas.initCanvas",
+            "Initializes canvas.",
+            "sunmi.printerx.printer",
+            exampleParameters = """{"width":330,"height":330,"posX":0,"posY":0,"label":false}""",
+            exampleOutput = """{"status":"ok"}"""
+        ),
+        MethodDescriptor(
+            "sunmi.printerx.printer.canvas.renderText",
+            "Draws text on canvas.",
+            "sunmi.printerx.printer",
+            exampleParameters = """{"text":"Hello","style":{"posX":0,"posY":0,"textSize":24}}""",
+            exampleOutput = """{"status":"ok"}"""
+        ),
+        MethodDescriptor(
+            "sunmi.printerx.printer.canvas.renderBarCode",
+            "Draws barcode on canvas.",
+            "sunmi.printerx.printer",
+            exampleParameters = """{"code":"1234567890","style":{"posX":0,"posY":0,"symbology":"CODE128"}}""",
+            exampleOutput = """{"status":"ok"}"""
+        ),
+        MethodDescriptor(
+            "sunmi.printerx.printer.canvas.renderQrCode",
+            "Draws QR code on canvas.",
+            "sunmi.printerx.printer",
+            exampleParameters = """{"code":"https://example.com","style":{"posX":0,"posY":0,"dot":4}}""",
+            exampleOutput = """{"status":"ok"}"""
+        ),
+        MethodDescriptor(
+            "sunmi.printerx.printer.canvas.renderBitmap",
+            "Draws image on canvas.",
+            "sunmi.printerx.printer",
+            exampleParameters = """{"bitmap":"iVBOR...","style":{"posX":0,"posY":0}}""",
+            exampleOutput = """{"status":"ok"}"""
+        ),
+        MethodDescriptor(
+            "sunmi.printerx.printer.canvas.renderArea",
+            "Draws shape on canvas.",
+            "sunmi.printerx.printer",
+            exampleParameters = """{"style":{"shape":"BOX","posX":0,"posY":0,"width":50,"height":50,"thick":1}}""",
+            exampleOutput = """{"status":"ok"}"""
+        ),
+        MethodDescriptor(
+            "sunmi.printerx.printer.canvas.printCanvas",
+            "Prints canvas content. Synchronous — waits for print result.",
+            "sunmi.printerx.printer",
+            exampleParameters = """{"count":1}""",
+            exampleOutput = """{"status":"ok","resultCode":0,"message":""}"""
+        ),
         // File API
-        MethodDescriptor("sunmi.printerx.printer.file.printFile", "Prints file with style options. Synchronous. Params: {\"printerId\":\"opt\",\"path\":\"/sdcard/file.pdf\",\"copies\":1,\"duplex\":\"SINGLE\",\"rotate\":\"ROTATE_0\",\"collate\":true,\"pageStart\":0,\"pageEnd\":0}", "sunmi.printerx.printer"),
-        MethodDescriptor("sunmi.printerx.printer.file.printFileSimple", "Prints file without style options. Synchronous. Params: {\"printerId\":\"opt\",\"path\":\"/sdcard/file.pdf\"}", "sunmi.printerx.printer"),
+        MethodDescriptor(
+            "sunmi.printerx.printer.file.printFile",
+            "Prints file with style options. Synchronous.",
+            "sunmi.printerx.printer",
+            exampleParameters = """{"path":"/sdcard/file.pdf","copies":1,"duplex":"SINGLE","rotate":"ROTATE_0","collate":true,"pageStart":0,"pageEnd":0}""",
+            exampleOutput = """{"status":"ok","resultCode":0,"message":""}"""
+        ),
+        MethodDescriptor(
+            "sunmi.printerx.printer.file.printFileSimple",
+            "Prints file without style options. Synchronous.",
+            "sunmi.printerx.printer",
+            exampleParameters = """{"path":"/sdcard/file.pdf"}""",
+            exampleOutput = """{"status":"ok","resultCode":0,"message":""}"""
+        ),
     )
 
     private fun buildEventList() = listOf(
         // Printer status broadcasts
-        EventDescriptor("sunmi.printerx.printer.status.ready",               "Printer ready.", "sunmi.printerx.printer"),
-        EventDescriptor("sunmi.printerx.printer.status.outOfPaper",          "Printer out of paper.", "sunmi.printerx.printer"),
-        EventDescriptor("sunmi.printerx.printer.status.paperJam",            "Printer paper jam.", "sunmi.printerx.printer"),
-        EventDescriptor("sunmi.printerx.printer.status.overheating",         "Printhead overheated.", "sunmi.printerx.printer"),
-        EventDescriptor("sunmi.printerx.printer.status.motorOverheating",    "Motor overheated.", "sunmi.printerx.printer"),
-        EventDescriptor("sunmi.printerx.printer.status.coverOpen",           "Paper bin cover open.", "sunmi.printerx.printer"),
-        EventDescriptor("sunmi.printerx.printer.status.coverIncomplete",     "Paper bin cover not fully closed.", "sunmi.printerx.printer"),
-        EventDescriptor("sunmi.printerx.printer.status.cutterError",         "Cutter error.", "sunmi.printerx.printer"),
-        EventDescriptor("sunmi.printerx.printer.status.cutterRepaired",      "Cutter repaired.", "sunmi.printerx.printer"),
-        EventDescriptor("sunmi.printerx.printer.status.blackLabelNotDetected","Black mark paper not detected.", "sunmi.printerx.printer"),
-        EventDescriptor("sunmi.printerx.printer.status.labelNotDetected",    "Label paper not detected.", "sunmi.printerx.printer"),
-        EventDescriptor("sunmi.printerx.printer.status.unknownError",        "Unknown printer error.", "sunmi.printerx.printer"),
-        EventDescriptor("sunmi.printerx.printer.status.paperNotRemoved",     "Printed paper not removed.", "sunmi.printerx.printer"),
-        EventDescriptor("sunmi.printerx.printer.status.paperLow",            "Paper running low.", "sunmi.printerx.printer"),
-        EventDescriptor("sunmi.printerx.printer.status.printerNotDetected",  "Printer not detected.", "sunmi.printerx.printer"),
+        EventDescriptor("sunmi.printerx.printer.status.ready", "Printer ready.", "sunmi.printerx.printer", exampleEvent = """{}"""),
+        EventDescriptor("sunmi.printerx.printer.status.outOfPaper", "Printer out of paper.", "sunmi.printerx.printer", exampleEvent = """{}"""),
+        EventDescriptor("sunmi.printerx.printer.status.paperJam", "Printer paper jam.", "sunmi.printerx.printer", exampleEvent = """{}"""),
+        EventDescriptor("sunmi.printerx.printer.status.overheating", "Printhead overheated.", "sunmi.printerx.printer", exampleEvent = """{}"""),
+        EventDescriptor("sunmi.printerx.printer.status.motorOverheating", "Motor overheated.", "sunmi.printerx.printer", exampleEvent = """{}"""),
+        EventDescriptor("sunmi.printerx.printer.status.coverOpen", "Paper bin cover open.", "sunmi.printerx.printer", exampleEvent = """{}"""),
+        EventDescriptor("sunmi.printerx.printer.status.coverIncomplete", "Paper bin cover not fully closed.", "sunmi.printerx.printer", exampleEvent = """{}"""),
+        EventDescriptor("sunmi.printerx.printer.status.cutterError", "Cutter error.", "sunmi.printerx.printer", exampleEvent = """{}"""),
+        EventDescriptor("sunmi.printerx.printer.status.cutterRepaired", "Cutter repaired.", "sunmi.printerx.printer", exampleEvent = """{}"""),
+        EventDescriptor("sunmi.printerx.printer.status.blackLabelNotDetected", "Black mark paper not detected.", "sunmi.printerx.printer", exampleEvent = """{}"""),
+        EventDescriptor("sunmi.printerx.printer.status.labelNotDetected", "Label paper not detected.", "sunmi.printerx.printer", exampleEvent = """{}"""),
+        EventDescriptor("sunmi.printerx.printer.status.unknownError", "Unknown printer error.", "sunmi.printerx.printer", exampleEvent = """{}"""),
+        EventDescriptor("sunmi.printerx.printer.status.paperNotRemoved", "Printed paper not removed.", "sunmi.printerx.printer", exampleEvent = """{}"""),
+        EventDescriptor("sunmi.printerx.printer.status.paperLow", "Paper running low.", "sunmi.printerx.printer", exampleEvent = """{}"""),
+        EventDescriptor("sunmi.printerx.printer.status.printerNotDetected", "Printer not detected.", "sunmi.printerx.printer", exampleEvent = """{}"""),
     )
 }

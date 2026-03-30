@@ -34,11 +34,28 @@ class GenericScannerPlugin : HalPlugin {
         version = version,
         capabilities = getCapabilities(),
         methods = listOf(
-            MethodDescriptor("scanner.trigger", "Trigger barcode scan", "scanner"),
-            MethodDescriptor("scanner.stop", "Stop scanning", "scanner")
+            MethodDescriptor(
+                "scanner.trigger",
+                "Trigger barcode scan",
+                "scanner",
+                exampleParameters = "{}",
+                exampleOutput = """{"status":"scanning"}"""
+            ),
+            MethodDescriptor(
+                "scanner.stop",
+                "Stop scanning",
+                "scanner",
+                exampleParameters = "{}",
+                exampleOutput = """{"status":"ok"}"""
+            )
         ),
         events = listOf(
-            EventDescriptor("scanner.barcode", "Barcode scanned (unified)", "scanner")
+            EventDescriptor(
+                "scanner.barcode",
+                "Barcode scanned (unified)",
+                "scanner",
+                exampleEvent = """{"data":"5901234123457","format":"EAN13"}"""
+            )
         )
     )
 

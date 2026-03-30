@@ -33,8 +33,20 @@ class GenericPrinterPlugin : HalPlugin {
         version = version,
         capabilities = getCapabilities(),
         methods = listOf(
-            MethodDescriptor("printer.print", "Print using available printer", "printer"),
-            MethodDescriptor("printer.status", "Get printer status", "printer")
+            MethodDescriptor(
+                "printer.print",
+                "Print using available printer",
+                "printer",
+                exampleParameters = """{"text":"Hello World"}""",
+                exampleOutput = """{"status":"ok"}"""
+            ),
+            MethodDescriptor(
+                "printer.status",
+                "Get printer status",
+                "printer",
+                exampleParameters = "{}",
+                exampleOutput = """{"status":"ok","printerStatus":"ready"}"""
+            )
         ),
         events = emptyList()
     )
