@@ -81,7 +81,7 @@ class SunmiRfidPlugin(
 
     override fun isSupported(): Boolean = true
 
-    override fun initialize(context: PluginContext) {
+    override fun initialize(pluginContext: PluginContext) {
         this.context?.let { ctx ->
             RFIDManager.getInstance().setPrintLog(false)
             RFIDManager.getInstance().connect(ctx)

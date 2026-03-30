@@ -29,20 +29,20 @@ class AidlPluginAdapter(
         return Json.decodeFromString(json)
     }
 
-    override fun initialize(context: PluginContext) {
+    override fun initialize(pluginContext: PluginContext) {
         val pluginContextBinder = object : IPluginContext.Stub() {
             override fun execute(method: String, jsonParams: String): String {
                 return runBlocking(Dispatchers.IO) {
-                    context.execute(method, jsonParams)
+                    pluginContext.execute(method, jsonParams)
                 }
             }
 
             override fun getAvailableCapabilities(): List<String> {
-                return context.getAvailableCapabilities()
+                return pluginContext.getAvailableCapabilities()
             }
 
             override fun hasCapability(capability: String): Boolean {
-                return context.hasCapability(capability)
+                return pluginContext.hasCapability(capability)
             }
         }
         binder.initialize(pluginContextBinder)

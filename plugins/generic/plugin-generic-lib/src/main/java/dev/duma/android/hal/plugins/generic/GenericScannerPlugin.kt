@@ -42,15 +42,15 @@ class GenericScannerPlugin : HalPlugin {
         )
     )
 
-    override fun initialize(context: PluginContext) {
-        this.ctx = context
+    override fun initialize(pluginContext: PluginContext) {
+        this.ctx = pluginContext
 
         // Register event listeners for vendor -> unified event transformation
         for (vendor in VENDOR_PREFIXES) {
-            context.onEvent("$vendor.scanner.*") { event, data ->
+            pluginContext.onEvent("$vendor.scanner.*") { event, data ->
                 // "sunmi.scanner.barcode" -> "scanner.barcode"
                 val unifiedEvent = event.replaceFirst("$vendor.", "")
-                context.emitEvent(unifiedEvent, data)
+                pluginContext.emitEvent(unifiedEvent, data)
             }
         }
     }

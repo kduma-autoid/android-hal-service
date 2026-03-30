@@ -36,7 +36,7 @@ class SunmiPrinterPlugin(private val appContext: Context? = null) : HalPlugin {
         events = emptyList()
     )
 
-    override fun initialize(context: PluginContext) {
+    override fun initialize(pluginContext: PluginContext) {
         // Stub — no PluginContext usage needed
     }
 

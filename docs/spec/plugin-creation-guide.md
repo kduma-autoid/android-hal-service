@@ -181,7 +181,7 @@ class {Vendor}{Device}Plugin(private val appContext: Context? = null) : HalPlugi
         events = emptyList()
     )
 
-    override fun initialize(context: PluginContext) {
+    override fun initialize(pluginContext: PluginContext) {
         // Stub -- no PluginContext usage needed
     }
 
@@ -398,8 +398,8 @@ class Generic{Device}Plugin : HalPlugin {
         events = emptyList()
     )
 
-    override fun initialize(context: PluginContext) {
-        this.ctx = context
+    override fun initialize(pluginContext: PluginContext) {
+        this.ctx = pluginContext
     }
 
     override suspend fun execute(method: String, params: String): String {
@@ -444,13 +444,13 @@ events = listOf(
 
 W `initialize()` zarejestruj listenery transformacji:
 ```kotlin
-override fun initialize(context: PluginContext) {
-    this.ctx = context
+override fun initialize(pluginContext: PluginContext) {
+    this.ctx = pluginContext
     for (vendor in VENDOR_PREFIXES) {
-        context.onEvent("$vendor.{device}.*") { event, data ->
+        pluginContext.onEvent("$vendor.{device}.*") { event, data ->
             // "{vendor}.{device}.{event}" -> "{device}.{event}"
             val unifiedEvent = event.replaceFirst("$vendor.", "")
-            context.emitEvent(unifiedEvent, data)
+            pluginContext.emitEvent(unifiedEvent, data)
         }
     }
 }

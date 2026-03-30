@@ -29,7 +29,7 @@ abstract class BaseTmsPlugin(
         }
     }
 
-    override fun initialize(context: PluginContext) {
+    override fun initialize(pluginContext: PluginContext) {
         this.context?.let { ctx ->
             tmsApi.connect(ctx, object : TMSServiceConnection {
                 override fun onServiceConnected() { connected = true }

@@ -82,7 +82,7 @@ class SunmiDockerPlugin(
         events = emptyList()
     )
 
-    override fun initialize(context: PluginContext) {
+    override fun initialize(pluginContext: PluginContext) {
         this.context?.let { ctx ->
             try {
                 val intent = Intent().apply {

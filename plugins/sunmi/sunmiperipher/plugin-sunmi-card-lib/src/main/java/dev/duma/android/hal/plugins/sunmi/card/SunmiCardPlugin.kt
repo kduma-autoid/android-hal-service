@@ -70,7 +70,7 @@ class SunmiCardPlugin(
         )
     )
 
-    override fun initialize(context: PluginContext) {
+    override fun initialize(pluginContext: PluginContext) {
         this.context?.let { ctx ->
             CardManager.init(ctx) { success ->
                 if (success) CardManager.registerDataListener(dataListener)

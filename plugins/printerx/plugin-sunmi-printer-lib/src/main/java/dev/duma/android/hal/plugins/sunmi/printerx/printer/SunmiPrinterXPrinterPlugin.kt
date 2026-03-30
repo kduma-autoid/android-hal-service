@@ -22,8 +22,8 @@ class SunmiPrinterXPrinterPlugin(context: Context? = null) : BasePrinterXPlugin(
     private val fileHandler by lazy { FileApiHandler() }
     private val broadcastReceiver by lazy { PrinterBroadcastReceiver(::emitEvent) }
 
-    override fun initialize(context: PluginContext) {
-        super.initialize(context)
+    override fun initialize(pluginContext: PluginContext) {
+        super.initialize(pluginContext)
         this.context?.let { ctx ->
             ctx.registerReceiver(broadcastReceiver, PrinterBroadcastReceiver.buildIntentFilter())
         }

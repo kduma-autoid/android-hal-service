@@ -24,7 +24,7 @@ abstract class BasePrinterXPlugin(
 
     override fun isSupported(): Boolean = true
 
-    override fun initialize(context: PluginContext) {
+    override fun initialize(pluginContext: PluginContext) {
         this.context?.let { SharedPrinterManager.acquire(it) }
     }
 

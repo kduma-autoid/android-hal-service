@@ -39,8 +39,8 @@ class GenericPrinterPlugin : HalPlugin {
         events = emptyList()
     )
 
-    override fun initialize(context: PluginContext) {
-        this.ctx = context
+    override fun initialize(pluginContext: PluginContext) {
+        this.ctx = pluginContext
     }
 
     override suspend fun execute(method: String, params: String): String {

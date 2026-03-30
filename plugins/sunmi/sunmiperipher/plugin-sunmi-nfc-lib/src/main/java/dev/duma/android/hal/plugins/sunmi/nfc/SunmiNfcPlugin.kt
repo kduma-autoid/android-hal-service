@@ -83,8 +83,8 @@ class SunmiNfcPlugin(
         )
     )
 
-    override fun initialize(context: PluginContext) {
-        this.pluginContext = context
+    override fun initialize(pluginContext: PluginContext) {
+        this.pluginContext = pluginContext
         this.context?.let { ctx ->
             NfcManager.init(ctx) { success ->
                 if (success) NfcManager.registerNfcListener(nfcListener)

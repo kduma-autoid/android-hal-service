@@ -28,8 +28,8 @@ class SunmiPrinterXManagerPlugin(context: Context? = null) : BasePrinterXPlugin(
         )
     }
 
-    override fun initialize(context: PluginContext) {
-        super.initialize(context)
+    override fun initialize(pluginContext: PluginContext) {
+        super.initialize(pluginContext)
         SharedPrinterManager.addDiscoveryListener(discoveryListener)
     }
 

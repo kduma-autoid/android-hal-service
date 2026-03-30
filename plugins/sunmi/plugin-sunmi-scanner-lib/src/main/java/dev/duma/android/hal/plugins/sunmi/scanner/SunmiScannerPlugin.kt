@@ -42,7 +42,7 @@ class SunmiScannerPlugin(private val appContext: Context? = null) : HalPlugin {
         )
     )
 
-    override fun initialize(context: PluginContext) {
+    override fun initialize(pluginContext: PluginContext) {
         // Stub — timer started by trigger, stopped by stop
     }
 

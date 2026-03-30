@@ -95,7 +95,7 @@ class SunmiSubScreenPlugin(
         )
     )
 
-    override fun initialize(context: PluginContext) {
+    override fun initialize(pluginContext: PluginContext) {
         this.context?.let { ctx ->
             SubScreenManager.init(ctx) { success ->
                 if (success) {

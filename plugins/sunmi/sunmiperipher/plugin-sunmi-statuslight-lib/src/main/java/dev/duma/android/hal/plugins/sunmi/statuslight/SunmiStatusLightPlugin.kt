@@ -81,7 +81,7 @@ class SunmiStatusLightPlugin(
         events = emptyList()
     )
 
-    override fun initialize(context: PluginContext) {
+    override fun initialize(pluginContext: PluginContext) {
         this.context?.let { ctx ->
             StatusLightManager.init(ctx) { success ->
                 if (success) StatusLightManager.openDevice()
