@@ -14,8 +14,8 @@ android {
         applicationId = "dev.duma.android.hal.plugins.sunmi.printerx"
         minSdk = 24
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.0"
+        versionCode = (project.properties["projectVersionCode"] as String? ?: "1").toInt()
+        versionName = project.properties["projectVersion"] as String? ?: "0.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

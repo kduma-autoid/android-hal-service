@@ -45,9 +45,9 @@ jobs:
             exit 1
           fi
 
-          CURRENT_CODE=$(grep -m 1 'versionCode = ' service/hal-service/build.gradle.kts | grep -oP '\d+' || true)
+          CURRENT_CODE=$(grep -m 1 '^projectVersionCode=' gradle.properties | cut -d= -f2 || true)
           if [ -z "$CURRENT_CODE" ]; then
-            echo "ERROR: Could not read versionCode from service/hal-service/build.gradle.kts"
+            echo "ERROR: Could not read projectVersionCode from gradle.properties"
             exit 1
           fi
 
@@ -95,10 +95,7 @@ jobs:
           NEW_VERSION="${{ steps.version.outputs.version }}"
           NEW_CODE="${{ steps.version.outputs.code }}"
           sed -i "s/^projectVersion=.*/projectVersion=$NEW_VERSION/" gradle.properties
-          while IFS= read -r FILE; do
-            sed -i "s/versionCode = [0-9]*/versionCode = $NEW_CODE/" "$FILE"
-            sed -i "s/versionName = \"[^\"]*\"/versionName = \"$NEW_VERSION\"/" "$FILE"
-          done < <(grep -rl "applicationId = " --include="*.kts" service/ plugins/)
+          sed -i "s/^projectVersionCode=.*/projectVersionCode=$NEW_CODE/" gradle.properties
 
       - name: Commit, tag and push
         run: |
