@@ -1,6 +1,7 @@
 package dev.duma.android.hal.plugins.sunmi.rfid
 
 import android.content.Context
+import android.content.Intent
 import com.sunmi.rfid.RFIDManager
 import com.sunmi.rfid.ReaderCall
 import com.sunmi.rfid.constant.CMD
@@ -81,7 +82,12 @@ class SunmiRfidPlugin(
 
     // --- Lifecycle ---
 
-    override fun isSupported(): Boolean = true
+    override fun isSupported(): Boolean {
+        val ctx = context ?: return false
+        val intent = Intent("com.sunmi.scanner.IScanRFIDInterface")
+            .setPackage("com.sunmi.scanner")
+        return ctx.packageManager.resolveService(intent, 0) != null
+    }
 
     override fun initialize(pluginContext: PluginContext) {
         this.context?.let { ctx ->
