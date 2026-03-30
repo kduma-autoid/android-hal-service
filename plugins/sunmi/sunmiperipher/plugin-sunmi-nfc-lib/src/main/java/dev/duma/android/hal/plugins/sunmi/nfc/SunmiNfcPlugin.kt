@@ -54,7 +54,7 @@ class SunmiNfcPlugin(
 
     override fun getDescriptor(): PluginDescriptor = PluginDescriptor(
         pluginId = pluginId,
-        name = "Sunmi NFC Controller",
+        name = "Sunmi: NFC",
         version = version,
         capabilities = getCapabilities(),
         methods = listOf(

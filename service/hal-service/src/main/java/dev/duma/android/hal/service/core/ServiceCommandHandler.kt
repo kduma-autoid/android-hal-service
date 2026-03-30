@@ -5,6 +5,7 @@ import dev.duma.android.hal.service.auth.TokenEntity
 import dev.duma.android.hal.service.auth.TokenManager
 import dev.duma.android.hal.service.auth.TokenRequest
 import dev.duma.android.hal.service.auth.TokenResponse
+import dev.duma.android.hal.service.config.ExperimentalConfig
 import dev.duma.android.hal.service.plugin.PluginRegistry
 import dev.duma.android.hal.transport.core.CallerContext
 import dev.duma.android.hal.transport.core.CommandHandler
@@ -31,6 +32,7 @@ class ServiceCommandHandler(
     private val tokenManager: TokenManager,
     private val pluginRegistry: PluginRegistry,
     private val transportRegistry: TransportRegistry,
+    private val experimentalConfig: ExperimentalConfig,
     private val startTimeMillis: Long = System.currentTimeMillis()
 ) : CommandHandler {
 
@@ -75,7 +77,7 @@ class ServiceCommandHandler(
             "system.describe" -> {
                 val tokenEntity = requireToken(token, callerContext)
                     ?: return errorJson("unauthorized", "Invalid token")
-                handleDescribe(tokenEntity)
+                handleDescribe(tokenEntity, params)
             }
             else -> {
                 val tokenEntity = requireToken(token, callerContext)
@@ -100,6 +102,24 @@ class ServiceCommandHandler(
                     }
                 }
 
+                // Experimental method check
+                val pluginForMethod = pluginRegistry.findForMethod(method)
+                val pluginDescriptor = pluginForMethod?.getDescriptor()
+                val isExperimental = methodDescriptor?.experimental == true || pluginDescriptor?.experimental == true
+                if (isExperimental) {
+                    val hasExperimentalAccess = permissions.any { perm ->
+                        perm == "experimental" ||                          // global experimental
+                        perm == "$methodCapability.experimental" ||        // capability-level
+                        perm == "$method.experimental"                     // method-level
+                    }
+                    val isEnabledViaPrefs = pluginDescriptor?.pluginId?.let {
+                        experimentalConfig.isPluginEnabled(it)
+                    } ?: false
+                    if (!hasExperimentalAccess && !isEnabledViaPrefs) {
+                        return errorJson("experimental_method_disabled", "Experimental method not enabled: $method")
+                    }
+                }
+
                 pluginRegistry.executeOnPlugin(method, params)
             }
         }
@@ -120,7 +140,16 @@ class ServiceCommandHandler(
     override fun getStatus(): String = handleStatus()
 
     override fun describeApi(): String {
-        return Json.encodeToString(Json.encodeToJsonElement(pluginRegistry.getSupportedDescriptors()))
+        val descriptors = pluginRegistry.getSupportedDescriptors().mapNotNull { desc ->
+            if (experimentalConfig.isPluginEnabled(desc.pluginId)) {
+                desc
+            } else if (desc.experimental) {
+                null
+            } else {
+                desc.copy(methods = desc.methods.filter { !it.experimental })
+            }
+        }
+        return Json.encodeToString(Json.encodeToJsonElement(descriptors))
     }
 
     private fun handlePing(): String {
@@ -163,10 +192,15 @@ class ServiceCommandHandler(
         }.toString()
     }
 
-    private fun handleDescribe(tokenEntity: TokenEntity): String {
+    private fun handleDescribe(tokenEntity: TokenEntity, params: String): String {
+        val json = try { Json.parseToJsonElement(params) as? JsonObject } catch (_: Exception) { null }
+        val withSuper = json?.get("withSuper")?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
+        val withExperimental = json?.get("withExperimental")?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
+
         val permissions = tokenEntity.permissions.split(",")
         val allDescriptors = pluginRegistry.getSupportedDescriptors()
 
+        // Step 1: Filter by token permissions
         val filtered = if ("*" in permissions) {
             allDescriptors
         } else {
@@ -182,13 +216,84 @@ class ServiceCommandHandler(
             }.filter { it.methods.isNotEmpty() || it.events.isNotEmpty() }
         }
 
-        return Json.encodeToString(buildJsonObject {
+        // Step 2: Filter super methods unless withSuper=true
+        val afterSuperFilter = if (withSuper) {
+            filtered
+        } else {
+            filtered.map { desc ->
+                desc.copy(methods = desc.methods.filter { !it.superRequired })
+            }.filter { it.methods.isNotEmpty() || it.events.isNotEmpty() }
+        }
+
+        // Step 3: Filter experimental methods/plugins unless withExperimental=true
+        val afterExperimentalFilter = if (withExperimental) {
+            afterSuperFilter
+        } else {
+            afterSuperFilter.mapNotNull { desc ->
+                val hasExperimentalViaToken = permissions.any { perm ->
+                    perm == "experimental" ||
+                    desc.capabilities.any { cap -> perm == "$cap.experimental" }
+                }
+                val isEnabledViaPrefs = experimentalConfig.isPluginEnabled(desc.pluginId)
+
+                if (hasExperimentalViaToken || isEnabledViaPrefs) {
+                    desc
+                } else if (desc.experimental) {
+                    null
+                } else {
+                    desc.copy(methods = desc.methods.filter { !it.experimental })
+                }
+            }.filter { it.methods.isNotEmpty() || it.events.isNotEmpty() }
+        }
+
+        // Step 4: Build response with extra metadata
+        return buildJsonObject {
             putJsonArray("plugins") {
-                filtered.forEach { desc ->
-                    add(Json.encodeToJsonElement<PluginDescriptor>(desc))
+                afterExperimentalFilter.forEach { desc ->
+                    val isExpEnabledViaPrefs = experimentalConfig.isPluginEnabled(desc.pluginId)
+                    val hasExpViaToken = permissions.any { perm ->
+                        perm == "experimental" ||
+                        desc.capabilities.any { cap -> perm == "$cap.experimental" }
+                    }
+                    add(buildJsonObject {
+                        put("pluginId", desc.pluginId)
+                        put("name", desc.name)
+                        put("version", desc.version)
+                        if (desc.experimental) {
+                            put("experimental", true)
+                            put("experimentalActive", isExpEnabledViaPrefs || hasExpViaToken)
+                        }
+                        putJsonArray("capabilities") { desc.capabilities.forEach { add(JsonPrimitive(it)) } }
+                        putJsonArray("methods") {
+                            desc.methods.forEach { m ->
+                                add(buildJsonObject {
+                                    put("name", m.name)
+                                    put("description", m.description)
+                                    put("requiredPermission", m.requiredPermission)
+                                    if (m.superRequired) put("superRequired", true)
+                                    if (m.experimental || desc.experimental) {
+                                        put("experimental", true)
+                                        put("experimentalActive", isExpEnabledViaPrefs || hasExpViaToken)
+                                    }
+                                    put("exampleParameters", m.exampleParameters)
+                                    put("exampleOutput", m.exampleOutput)
+                                })
+                            }
+                        }
+                        putJsonArray("events") {
+                            desc.events.forEach { e ->
+                                add(buildJsonObject {
+                                    put("name", e.name)
+                                    put("description", e.description)
+                                    put("requiredPermission", e.requiredPermission)
+                                    put("exampleEvent", e.exampleEvent)
+                                })
+                            }
+                        }
+                    })
                 }
             }
-        })
+        }.toString()
     }
 
     private suspend fun requireToken(token: String, callerContext: CallerContext): TokenEntity? {

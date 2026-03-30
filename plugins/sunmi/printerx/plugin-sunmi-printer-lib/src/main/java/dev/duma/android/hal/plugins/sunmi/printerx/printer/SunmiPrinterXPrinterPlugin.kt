@@ -25,7 +25,7 @@ class SunmiPrinterXPrinterPlugin(context: Context? = null) : BasePrinterXPlugin(
     override fun initialize(pluginContext: PluginContext) {
         super.initialize(pluginContext)
         this.context?.let { ctx ->
-            ctx.registerReceiver(broadcastReceiver, PrinterBroadcastReceiver.buildIntentFilter())
+            ctx.registerReceiver(broadcastReceiver, PrinterBroadcastReceiver.buildIntentFilter(), android.content.Context.RECEIVER_NOT_EXPORTED)
         }
     }
 
@@ -33,7 +33,7 @@ class SunmiPrinterXPrinterPlugin(context: Context? = null) : BasePrinterXPlugin(
 
     override fun getDescriptor() = PluginDescriptor(
         pluginId = pluginId,
-        name = "Sunmi PrinterX Printer",
+        name = "Sunmi: Printer",
         version = version,
         capabilities = getCapabilities(),
         methods = buildMethodList(),
@@ -232,6 +232,7 @@ class SunmiPrinterXPrinterPlugin(context: Context? = null) : BasePrinterXPlugin(
             "sunmi.printerx.printer.file.printFile",
             "Prints file with style options. Synchronous.",
             "sunmi.printerx.printer",
+            experimental = true,
             exampleParameters = """{"path":"/sdcard/file.pdf","copies":1,"duplex":"SINGLE","rotate":"ROTATE_0","collate":true,"pageStart":0,"pageEnd":0}""",
             exampleOutput = """{"status":"ok","resultCode":0,"message":""}"""
         ),
@@ -239,6 +240,7 @@ class SunmiPrinterXPrinterPlugin(context: Context? = null) : BasePrinterXPlugin(
             "sunmi.printerx.printer.file.printFileSimple",
             "Prints file without style options. Synchronous.",
             "sunmi.printerx.printer",
+            experimental = true,
             exampleParameters = """{"path":"/sdcard/file.pdf"}""",
             exampleOutput = """{"status":"ok","resultCode":0,"message":""}"""
         ),

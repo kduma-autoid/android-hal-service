@@ -37,9 +37,23 @@ class DeveloperKeyVerifier(private val publicKey: RSAKey) {
         }
 
         // Extract fields
-        val permissions = claims.getStringListClaim("permissions") ?: emptyList()
+        val basePermissions = claims.getStringListClaim("permissions") ?: emptyList()
         val clientType = claims.getStringClaim("client_type") ?: "unrestricted"
         val restrictions = claims.getJSONObjectClaim("restrictions")
+
+        // Parse experimental claim → add to permissions (like super)
+        val experimentalPerms: List<String> = try {
+            val boolVal = claims.getBooleanClaim("experimental")
+            if (boolVal == true) listOf("experimental") else emptyList()
+        } catch (_: Exception) {
+            try {
+                val caps = claims.getStringListClaim("experimental")
+                caps?.map { "$it.experimental" } ?: emptyList()
+            } catch (_: Exception) {
+                emptyList()
+            }
+        }
+        val permissions = basePermissions + experimentalPerms
 
         val packageName = restrictions?.get("package_name") as? String
         val certHash = restrictions?.get("cert_sha256") as? String

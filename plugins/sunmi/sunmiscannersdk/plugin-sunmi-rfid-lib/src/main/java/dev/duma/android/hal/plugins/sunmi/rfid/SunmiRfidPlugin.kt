@@ -109,7 +109,7 @@ class SunmiRfidPlugin(
             RFIDManager.getInstance().addServiceConnectStatus(connectStatus)
 
             RFIDManager.getInstance().connect(ctx)
-            ctx.registerReceiver(broadcastReceiver, RfidBroadcastReceiver.buildIntentFilter())
+            ctx.registerReceiver(broadcastReceiver, RfidBroadcastReceiver.buildIntentFilter(), android.content.Context.RECEIVER_NOT_EXPORTED)
         }
     }
 
@@ -121,7 +121,7 @@ class SunmiRfidPlugin(
 
     override fun getDescriptor() = PluginDescriptor(
         pluginId = pluginId,
-        name = "Sunmi RFID UHF",
+        name = "Sunmi: UHF RFID",
         version = version,
         capabilities = getCapabilities(),
         methods = buildMethodList(),

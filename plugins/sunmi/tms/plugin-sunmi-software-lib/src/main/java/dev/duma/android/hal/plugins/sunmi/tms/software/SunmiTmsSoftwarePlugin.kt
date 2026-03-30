@@ -19,8 +19,9 @@ class SunmiTmsSoftwarePlugin(context: Context? = null) : BaseTmsPlugin(context) 
 
     override fun getDescriptor() = PluginDescriptor(
         pluginId = pluginId,
-        name = "Sunmi TMS (Software)",
+        name = "Sunmi: TMS (Software)",
         version = version,
+        experimental = true,
         capabilities = getCapabilities(),
         methods = buildMethodList(),
         events = listOf(

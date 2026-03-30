@@ -12,6 +12,7 @@ data class PluginDescriptor(
     val pluginId: String,
     val name: String,
     val version: Int,
+    val experimental: Boolean = false,
     val capabilities: List<String>,
     val methods: List<MethodDescriptor>,
     val events: List<EventDescriptor>

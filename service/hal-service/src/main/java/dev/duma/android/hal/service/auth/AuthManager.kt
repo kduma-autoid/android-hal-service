@@ -68,10 +68,14 @@ class AuthManager(
     private suspend fun handleUserGrant(request: TokenRequest, callerContext: CallerContext): TokenResponse {
         val requestedPerms = request.requestedPermissions ?: listOf("*")
         // Filter out super permissions unless explicitly allowed in Dashboard
-        val grantedPermissions = if (isSuperViaDialogAllowed()) {
+        val afterSuperFilter = if (isSuperViaDialogAllowed()) {
             requestedPerms
         } else {
             requestedPerms.filter { !it.endsWith(".super") && it != "super" }
+        }
+        // Experimental permissions are never granted via user dialog — only via developer key JWT
+        val grantedPermissions = afterSuperFilter.filter {
+            !it.endsWith(".experimental") && it != "experimental"
         }
 
         val existing = tokenManager.findExistingToken(

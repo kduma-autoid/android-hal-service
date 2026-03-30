@@ -111,8 +111,9 @@ class SunmiExternalScannerPlugin(
 
     override fun getDescriptor() = PluginDescriptor(
         pluginId = pluginId,
-        name = "Sunmi External Scanner",
+        name = "Sunmi: Scanner (External)",
         version = version,
+        experimental = true,
         capabilities = getCapabilities(),
         methods = listOf(
             MethodDescriptor(

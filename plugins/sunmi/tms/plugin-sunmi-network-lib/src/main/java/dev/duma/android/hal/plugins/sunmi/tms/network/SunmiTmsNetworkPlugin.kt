@@ -17,8 +17,9 @@ class SunmiTmsNetworkPlugin(context: Context? = null) : BaseTmsPlugin(context) {
 
     override fun getDescriptor() = PluginDescriptor(
         pluginId = pluginId,
-        name = "Sunmi TMS (Network)",
+        name = "Sunmi: TMS (Network)",
         version = version,
+        experimental = true,
         capabilities = getCapabilities(),
         methods = buildMethodList(),
         events = emptyList()

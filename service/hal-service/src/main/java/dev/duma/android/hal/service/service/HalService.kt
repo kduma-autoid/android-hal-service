@@ -21,6 +21,7 @@ import dev.duma.android.hal.service.auth.TokenDatabase
 import dev.duma.android.hal.service.auth.TokenDao
 import dev.duma.android.hal.service.auth.TokenManager
 import dev.duma.android.hal.service.config.BroadcastConfig
+import dev.duma.android.hal.service.config.ExperimentalConfig
 import dev.duma.android.hal.service.core.ServiceCommandHandler
 import dev.duma.android.hal.service.core.TransportBootstrap
 import dev.duma.android.hal.service.plugin.PluginRegistry
@@ -59,6 +60,8 @@ class HalService : Service() {
         var tokenDao: TokenDao? = null
             private set
         var broadcastConfig: BroadcastConfig? = null
+            private set
+        var experimentalConfig: ExperimentalConfig? = null
             private set
     }
 
@@ -159,7 +162,8 @@ class HalService : Service() {
         // 9. KtorServerManager
         ktorServerManager = KtorServerManager()
 
-        // 10. TransportConfig
+        // 10. ExperimentalConfig + TransportConfig
+        val experimentalConfig = ExperimentalConfig(applicationContext)
         val broadcastConfig = BroadcastConfig(applicationContext)
         val config = TransportConfig(
             port = PORT,
@@ -179,7 +183,8 @@ class HalService : Service() {
             authManager = authManager,
             tokenManager = tokenManager,
             pluginRegistry = pluginRegistry,
-            transportRegistry = transportRegistry
+            transportRegistry = transportRegistry,
+            experimentalConfig = experimentalConfig
         )
 
         // 13. Start all transports — each registers modules in KtorServerManager
@@ -224,6 +229,7 @@ class HalService : Service() {
         Companion.pluginRegistry = pluginRegistry
         Companion.tokenDao = db.tokenDao()
         Companion.broadcastConfig = broadcastConfig
+        Companion.experimentalConfig = experimentalConfig
         Companion.isServiceRunning = true
 
         // 19. Foreground notification
@@ -247,6 +253,7 @@ class HalService : Service() {
         Companion.pluginRegistry = null
         Companion.tokenDao = null
         Companion.broadcastConfig = null
+        Companion.experimentalConfig = null
         transportRegistry.stopAll()
         ktorServerManager.stop()
         pluginRegistry.disconnectAll(this)

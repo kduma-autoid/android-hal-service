@@ -45,6 +45,7 @@ class SunmiScannerPlugin(private val appContext: Context? = null) : HalPlugin {
                 "sunmi.scanner.stop",
                 "Stop scanning",
                 "sunmi.scanner",
+                experimental = true,
                 exampleParameters = "{}",
                 exampleOutput = """{"status":"ok"}"""
             )

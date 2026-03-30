@@ -18,7 +18,7 @@ class SunmiPrinterXDrawerPlugin(context: Context? = null) : BasePrinterXPlugin(c
 
     override fun getDescriptor() = PluginDescriptor(
         pluginId = pluginId,
-        name = "Sunmi PrinterX Cash Drawer",
+        name = "Sunmi: Cash Drawer",
         version = version,
         capabilities = getCapabilities(),
         methods = listOf(

@@ -48,14 +48,16 @@ class SunmiCardPlugin(
 
     override fun getDescriptor(): PluginDescriptor = PluginDescriptor(
         pluginId = pluginId,
-        name = "Sunmi FLEX 3 Magnetic Card Reader",
+        name = "Sunmi: Magnetic Card Reader (FLEX 3)",
         version = version,
+        experimental = true,
         capabilities = getCapabilities(),
         methods = listOf(
             MethodDescriptor(
                 "sunmi.card.getInfo",
                 "Get card reader info (name, version, serial number, connection status).",
                 "sunmi.card",
+                experimental = true,
                 exampleParameters = "{}",
                 exampleOutput = """{"name": "MSR Reader", "version": "1.0", "sn": "MSR-001", "connected": true}"""
             )

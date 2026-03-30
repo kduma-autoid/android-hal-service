@@ -18,7 +18,7 @@ class SunmiPrinterXLcdPlugin(context: Context? = null) : BasePrinterXPlugin(cont
 
     override fun getDescriptor() = PluginDescriptor(
         pluginId = pluginId,
-        name = "Sunmi PrinterX LCD",
+        name = "Sunmi: LCD",
         version = version,
         capabilities = getCapabilities(),
         methods = listOf(
@@ -54,6 +54,7 @@ class SunmiPrinterXLcdPlugin(context: Context? = null) : BasePrinterXPlugin(cont
                 "sunmi.printerx.lcd.showDigital",
                 "Shows price on segment LCD (D3 MINI/D3 PRO). Max 7 chars.",
                 "sunmi.printerx.lcd",
+                experimental = true,
                 exampleParameters = """{"digital":"12.99"}""",
                 exampleOutput = """{"status":"ok"}"""
             )

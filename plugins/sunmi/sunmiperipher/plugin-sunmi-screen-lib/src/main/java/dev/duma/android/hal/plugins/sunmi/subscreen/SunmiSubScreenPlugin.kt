@@ -52,7 +52,7 @@ class SunmiSubScreenPlugin(
 
     override fun getDescriptor(): PluginDescriptor = PluginDescriptor(
         pluginId = pluginId,
-        name = "Sunmi Customer Screen Controller",
+        name = "Sunmi: Customer Screen",
         version = version,
         capabilities = getCapabilities(),
         methods = listOf(

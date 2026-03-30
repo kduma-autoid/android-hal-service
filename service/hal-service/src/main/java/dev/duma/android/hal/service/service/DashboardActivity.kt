@@ -374,58 +374,72 @@ class DashboardActivity : AppCompatActivity() {
 
         val descriptors = pluginReg.getAllDescriptors()
         val unsupportedIds = pluginReg.getUnsupportedPluginIds()
-        val supported = descriptors.filter { it.pluginId !in unsupportedIds }
-        val unsupported = descriptors.filter { it.pluginId in unsupportedIds }
+        val experimentalIds = pluginReg.getExperimentalPluginIds()
 
-        if (supported.isEmpty() && unsupported.isEmpty()) {
+        val normal = descriptors.filter { it.pluginId !in unsupportedIds && it.pluginId !in experimentalIds }.sortedBy { it.name }
+        val experimental = descriptors.filter { it.pluginId in experimentalIds && it.pluginId !in unsupportedIds }.sortedBy { it.name }
+        val unsupported = descriptors.filter { it.pluginId in unsupportedIds }.sortedBy { it.name }
+        val hidden = experimental + unsupported
+
+        if (normal.isEmpty() && hidden.isEmpty()) {
             layout.addView(TextView(this).apply {
                 text = "No plugins registered"
                 textSize = 13f
                 setTextColor(Color.GRAY)
             })
         } else {
-            for (desc in supported) {
-                layout.addView(buildPluginBlock(desc, pluginReg, isUnsupported = false))
+            for (desc in normal) {
+                layout.addView(buildPluginBlock(desc, pluginReg, isUnsupported = false, isExperimental = false))
                 layout.addView(divider())
             }
 
-            if (unsupported.isNotEmpty()) {
-                val unsupportedContainer = LinearLayout(this).apply {
+            if (hidden.isNotEmpty()) {
+                val hiddenContainer = LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
                     visibility = View.GONE
                 }
 
+                for (desc in experimental) {
+                    hiddenContainer.addView(buildPluginBlock(desc, pluginReg, isUnsupported = false, isExperimental = true))
+                    hiddenContainer.addView(divider())
+                }
                 for (desc in unsupported) {
-                    unsupportedContainer.addView(buildPluginBlock(desc, pluginReg, isUnsupported = true))
-                    unsupportedContainer.addView(divider())
+                    hiddenContainer.addView(buildPluginBlock(desc, pluginReg, isUnsupported = true, isExperimental = desc.pluginId in experimentalIds))
+                    hiddenContainer.addView(divider())
                 }
 
+                val parts = mutableListOf<String>()
+                if (experimental.isNotEmpty()) parts.add("${experimental.size} experimental")
+                if (unsupported.isNotEmpty()) parts.add("${unsupported.size} unsupported")
+                val collapsedLabel = parts.joinToString(" + ") + " plugin${if (hidden.size != 1) "s" else ""}"
+
                 val toggleButton = Button(this).apply {
-                    text = "${unsupported.size} unsupported plugin${if (unsupported.size != 1) "s" else ""}"
+                    text = collapsedLabel
                     setOnClickListener {
-                        if (unsupportedContainer.visibility == View.GONE) {
-                            unsupportedContainer.visibility = View.VISIBLE
-                            text = "Hide unsupported plugins"
+                        if (hiddenContainer.visibility == View.GONE) {
+                            hiddenContainer.visibility = View.VISIBLE
+                            text = "Hide hidden plugins"
                         } else {
-                            unsupportedContainer.visibility = View.GONE
-                            text = "${unsupported.size} unsupported plugin${if (unsupported.size != 1) "s" else ""}"
+                            hiddenContainer.visibility = View.GONE
+                            text = collapsedLabel
                         }
                     }
                 }
 
                 layout.addView(toggleButton)
-                layout.addView(unsupportedContainer)
+                layout.addView(hiddenContainer)
             }
         }
 
         return wrapInScrollView(layout)
     }
 
-    private fun buildPluginBlock(desc: dev.duma.android.hal.contract.PluginDescriptor, pluginReg: PluginRegistry, isUnsupported: Boolean): LinearLayout {
+    private fun buildPluginBlock(desc: dev.duma.android.hal.contract.PluginDescriptor, pluginReg: PluginRegistry, isUnsupported: Boolean, isExperimental: Boolean): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(0, 8, 0, 8)
-            if (isUnsupported) alpha = 0.5f
+            val isExperimentalEnabled = isExperimental && HalService.experimentalConfig?.isPluginEnabled(desc.pluginId) == true
+            if (isUnsupported || (isExperimental && !isExperimentalEnabled)) alpha = 0.5f
             isClickable = true
             isFocusable = true
             setBackgroundResource(android.R.attr.selectableItemBackground.let { attr ->
@@ -477,16 +491,22 @@ class DashboardActivity : AppCompatActivity() {
             if (desc.methods.isNotEmpty()) infoParts.add("${desc.methods.size} methods")
             if (desc.events.isNotEmpty()) infoParts.add("${desc.events.size} events")
             if (isUnsupported) infoParts.add("UNSUPPORTED")
+            if (isExperimental) infoParts.add("EXPERIMENTAL")
 
             if (infoParts.isNotEmpty()) {
                 addView(TextView(this@DashboardActivity).apply {
                     text = infoParts.joinToString(", ")
                     textSize = 13f
-                    if (isUnsupported) {
-                        setTypeface(null, Typeface.BOLD)
-                        setTextColor(Color.parseColor("#C62828"))
-                    } else {
-                        setTextColor(Color.DKGRAY)
+                    when {
+                        isUnsupported -> {
+                            setTypeface(null, Typeface.BOLD)
+                            setTextColor(Color.parseColor("#C62828"))
+                        }
+                        isExperimental -> {
+                            setTypeface(null, Typeface.BOLD)
+                            setTextColor(Color.parseColor("#E65100"))
+                        }
+                        else -> setTextColor(Color.DKGRAY)
                     }
                 })
             }

@@ -37,7 +37,7 @@ class SunmiPrinterXManagerPlugin(context: Context? = null) : BasePrinterXPlugin(
 
     override fun getDescriptor() = PluginDescriptor(
         pluginId = pluginId,
-        name = "Sunmi PrinterX Manager",
+        name = "Sunmi: Printer Manager",
         version = version,
         capabilities = getCapabilities(),
         methods = listOf(

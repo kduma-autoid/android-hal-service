@@ -215,6 +215,13 @@ class PluginRegistry {
         return unsupportedPlugins.keys.toSet()
     }
 
+    fun getExperimentalPluginIds(): Set<String> {
+        return (plugins.values + unsupportedPlugins.values)
+            .filter { it.getDescriptor().experimental }
+            .map { it.pluginId }
+            .toSet()
+    }
+
     fun disconnectAll(context: Context) {
         serviceConnections.forEach { connection ->
             try {

@@ -29,6 +29,7 @@ class SunmiPrinterPlugin(private val appContext: Context? = null) : HalPlugin {
         name = "[DEMO] Sunmi Printer",
         version = version,
         capabilities = getCapabilities(),
+        experimental = true,
         methods = listOf(
             MethodDescriptor(
                 "sunmi.printer.print",

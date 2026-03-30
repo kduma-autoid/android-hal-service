@@ -8,6 +8,8 @@ import android.os.Bundle
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import android.widget.Button
+import android.widget.CheckBox
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -137,49 +139,67 @@ class PluginDetailActivity : AppCompatActivity() {
             })
         }
 
-        // Methods
-        layout.addView(sectionHeader("Methods (${desc.methods.size})"))
-        if (desc.methods.isEmpty()) {
+        val isExperimental = desc.experimental || desc.methods.any { it.experimental }
+        if (isExperimental) {
+            layout.addView(TextView(this).apply {
+                text = "EXPERIMENTAL PLUGIN"
+                textSize = 14f
+                setTypeface(null, Typeface.BOLD)
+                setTextColor(Color.parseColor("#E65100"))
+                setPadding(0, 8, 0, 8)
+            })
+
+            val expConfig = HalService.experimentalConfig
+            if (expConfig != null) {
+                layout.addView(CheckBox(this).apply {
+                    text = "Enable experimental methods for this plugin"
+                    textSize = 14f
+                    isChecked = expConfig.isPluginEnabled(pluginId)
+                    setOnCheckedChangeListener { _, isChecked ->
+                        if (isChecked) expConfig.enablePlugin(pluginId)
+                        else expConfig.disablePlugin(pluginId)
+                    }
+                })
+            }
+        }
+
+        // Methods — split into regular and experimental
+        val regularMethods = if (desc.experimental) emptyList() else desc.methods.filter { !it.experimental }
+        val experimentalMethods = if (desc.experimental) desc.methods else desc.methods.filter { it.experimental }
+
+        layout.addView(sectionHeader("Methods (${regularMethods.size})"))
+        if (regularMethods.isEmpty()) {
             layout.addView(emptyText("No methods"))
         } else {
-            for (method in desc.methods) {
-                layout.addView(divider())
-                layout.addView(TextView(this).apply {
-                    text = method.name
-                    textSize = 14f
-                    setTypeface(null, Typeface.BOLD)
-                    setPadding(0, 8, 0, 0)
-                })
-                if (method.superRequired) {
-                    layout.addView(LinearLayout(this).apply {
-                        setPadding(0, 4, 0, 4)
-                        addView(TextView(this@PluginDetailActivity).apply {
-                            text = "SUPER REQUIRED"
-                            textSize = 11f
-                            setTypeface(null, Typeface.BOLD)
-                            setTextColor(Color.WHITE)
-                            setBackgroundColor(Color.parseColor("#E65100"))
-                            setPadding(12, 4, 12, 4)
-                        })
-                    })
-                }
-                layout.addView(TextView(this).apply {
-                    text = method.description
-                    textSize = 13f
-                    setPadding(0, 0, 0, 2)
-                })
-                layout.addView(TextView(this).apply {
-                    text = "Permission: ${method.requiredPermission}"
-                    textSize = 12f
-                    setTextColor(Color.GRAY)
-                })
-                method.exampleParameters.takeIf { it.isNotEmpty() }?.let { params ->
-                    layout.addView(codeBlock("Parameters", params))
-                }
-                method.exampleOutput.takeIf { it.isNotEmpty() }?.let { output ->
-                    layout.addView(codeBlock("Output", output))
+            for (method in regularMethods) {
+                layout.addView(buildMethodBlock(method, isExperimental = false))
+            }
+        }
+
+        if (experimentalMethods.isNotEmpty()) {
+            val expContainer = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                visibility = View.GONE
+            }
+            for (method in experimentalMethods) {
+                expContainer.addView(buildMethodBlock(method, isExperimental = true))
+            }
+
+            val expLabel = "${experimentalMethods.size} experimental method${if (experimentalMethods.size != 1) "s" else ""}"
+            val toggleBtn = Button(this).apply {
+                text = expLabel
+                setOnClickListener {
+                    if (expContainer.visibility == View.GONE) {
+                        expContainer.visibility = View.VISIBLE
+                        text = "Hide experimental methods"
+                    } else {
+                        expContainer.visibility = View.GONE
+                        text = expLabel
+                    }
                 }
             }
+            layout.addView(toggleBtn)
+            layout.addView(expContainer)
         }
 
         // Events
@@ -220,6 +240,69 @@ class PluginDetailActivity : AppCompatActivity() {
             return true
         }
         return super.onOptionsItemSelected(item)
+    }
+
+    private fun buildMethodBlock(method: dev.duma.android.hal.contract.MethodDescriptor, isExperimental: Boolean): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+
+            addView(divider())
+            addView(TextView(this@PluginDetailActivity).apply {
+                text = method.name
+                textSize = 14f
+                setTypeface(null, Typeface.BOLD)
+                setPadding(0, 8, 0, 0)
+            })
+
+            val hasBadges = method.superRequired || isExperimental || method.experimental
+            if (hasBadges) {
+                addView(LinearLayout(this@PluginDetailActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    setPadding(0, 4, 0, 4)
+
+                    if (method.superRequired) {
+                        addView(TextView(this@PluginDetailActivity).apply {
+                            text = "SUPER REQUIRED"
+                            textSize = 11f
+                            setTypeface(null, Typeface.BOLD)
+                            setTextColor(Color.WHITE)
+                            setBackgroundColor(Color.parseColor("#E65100"))
+                            setPadding(12, 4, 12, 4)
+                        })
+                    }
+                    if (isExperimental || method.experimental) {
+                        addView(TextView(this@PluginDetailActivity).apply {
+                            text = "EXPERIMENTAL"
+                            textSize = 11f
+                            setTypeface(null, Typeface.BOLD)
+                            setTextColor(Color.WHITE)
+                            setBackgroundColor(Color.parseColor("#F57F17"))
+                            setPadding(12, 4, 12, 4)
+                            if (method.superRequired) {
+                                (layoutParams as? LinearLayout.LayoutParams)?.marginStart = 8
+                            }
+                        })
+                    }
+                })
+            }
+
+            addView(TextView(this@PluginDetailActivity).apply {
+                text = method.description
+                textSize = 13f
+                setPadding(0, 0, 0, 2)
+            })
+            addView(TextView(this@PluginDetailActivity).apply {
+                text = "Permission: ${method.requiredPermission}"
+                textSize = 12f
+                setTextColor(Color.GRAY)
+            })
+            method.exampleParameters.takeIf { it.isNotEmpty() }?.let { params ->
+                addView(codeBlock("Parameters", params))
+            }
+            method.exampleOutput.takeIf { it.isNotEmpty() }?.let { output ->
+                addView(codeBlock("Output", output))
+            }
+        }
     }
 
     private fun sectionHeader(title: String): TextView = TextView(this).apply {

@@ -78,8 +78,9 @@ class SunmiCameraScannerPlugin(
 
     override fun getDescriptor() = PluginDescriptor(
         pluginId = pluginId,
-        name = "Sunmi Camera Scanner",
+        name = "Sunmi: Scanner (Camera)",
         version = version,
+        experimental = true,
         capabilities = getCapabilities(),
         methods = listOf(
             MethodDescriptor(
