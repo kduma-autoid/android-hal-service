@@ -1,9 +1,9 @@
 plugins {
-    alias(libs.plugins.android.application)
+    alias(libs.plugins.android.library)
 }
 
 android {
-    namespace = "dev.duma.android.hal.plugins.sunmi.sunmiscannersdk.bundle"
+    namespace = "dev.duma.android.hal.plugins.sunmi.scanner.camera"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -11,13 +11,9 @@ android {
     }
 
     defaultConfig {
-        applicationId = "dev.duma.android.hal.plugins.sunmi.sunmiscannersdk"
         minSdk = 24
-        targetSdk = 36
-        versionCode = 1
-        versionName = "0.0.0"
-
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        consumerProguardFiles("consumer-rules.pro")
     }
 
     buildTypes {
@@ -37,8 +33,8 @@ android {
 
 dependencies {
     implementation(project(":service:hal-contract"))
-    implementation(project(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-rfid-lib"))
-    implementation(project(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-scanner-inner-lib"))
-    implementation(project(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-scanner-camera-lib"))
-    implementation(project(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-scanner-external-lib"))
+    implementation(project(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-sunmiscannersdk-sdk"))
+    implementation(project(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-scanner-common-lib"))
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.kotlinx.coroutines.core)
 }

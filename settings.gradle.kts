@@ -68,6 +68,10 @@ include(":plugins:sunmi:tms:plugin-sunmi-tms-bundle")
 
 include(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-sunmiscannersdk-sdk")
 include(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-rfid-lib")
+include(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-scanner-common-lib")
+include(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-scanner-inner-lib")
+include(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-scanner-camera-lib")
+include(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-scanner-external-lib")
 include(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-sunmiscannersdk-bundle")
 
 include(":plugins:sunmi:printerx:plugin-sunmi-printerx-sdk")
