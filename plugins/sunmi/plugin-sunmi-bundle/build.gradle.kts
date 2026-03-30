@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
+    id("maven-publish")
 }
 
 android {
@@ -57,4 +58,30 @@ dependencies {
     implementation(project(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-scanner-inner-lib"))
     implementation(project(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-scanner-camera-lib"))
     implementation(project(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-scanner-external-lib"))
+}
+
+afterEvaluate {
+    publishing {
+        publications {
+            create<MavenPublication>("release") {
+                groupId = "dev.duma.android.hal"
+                artifactId = project.name
+                version = android.defaultConfig.versionName!!
+                artifact(layout.buildDirectory.file("outputs/apk/release/${project.name}-release.apk").get()) {
+                    extension = "apk"
+                    builtBy(tasks.named("assembleRelease"))
+                }
+            }
+        }
+        repositories {
+            maven {
+                name = "GitHubPackages"
+                url = uri("https://maven.pkg.github.com/kduma-autoid/android-hal-service")
+                credentials {
+                    username = System.getenv("GITHUB_ACTOR") ?: ""
+                    password = System.getenv("GITHUB_TOKEN") ?: ""
+                }
+            }
+        }
+    }
 }

@@ -23,7 +23,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -93,16 +93,10 @@ jobs:
         run: |
           NEW_VERSION="${{ steps.version.outputs.version }}"
           NEW_CODE="${{ steps.version.outputs.code }}"
-          for FILE in \
-            service/hal-service/build.gradle.kts \
-            plugins/sunmi/plugin-sunmi-bundle/build.gradle.kts \
-            plugins/sunmi/sunmiperipher/plugin-sunmi-sunmiperipher-bundle/build.gradle.kts \
-            plugins/sunmi/tms/plugin-sunmi-tms-bundle/build.gradle.kts \
-            plugins/sunmi/sunmiscannersdk/plugin-sunmi-sunmiscannersdk-bundle/build.gradle.kts \
-            plugins/sunmi/printerx/plugin-sunmi-printerx-bundle/build.gradle.kts; do
+          while IFS= read -r FILE; do
             sed -i "s/versionCode = [0-9]*/versionCode = $NEW_CODE/" "$FILE"
             sed -i "s/versionName = \"[^\"]*\"/versionName = \"$NEW_VERSION\"/" "$FILE"
-          done
+          done < <(grep -rl "applicationId = " --include="*.kts" service/ plugins/)
 
       - name: Commit, tag and push
         run: |
