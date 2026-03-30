@@ -1,0 +1,97 @@
+package dev.duma.android.hal.plugins.sunmi.scanner.common.compat;
+
+public final class CodeConstants {
+    public static final String AIM_128 = "Aim 128";
+    public static final String AUSTRALIN_POSTAL = "Australin Postal";
+    public static final String AZTEC = "Aztec";
+    public static final String CANADIAN_POST = "Canadian Post";
+    public static final String CHINA_POST = "China Post";
+    public static final String CHINA_TRAVEL_PERMIT_OCR = "China Travel Permit OCR";
+    public static final String CHINESE_2OF5 = "Chinese 2 of 5";
+    public static final String CHINESE_ID_CARD_OCR = "Chinese ID Card OCR";
+    public static final String CODABAR = "Codabar";
+    public static final String CODABLOCK = "Codablock";
+    public static final String CODE_11 = "Code 11";
+    public static final String CODE_128 = "Code 128";
+    public static final String CODE_16K = "Code 16K";
+    public static final String CODE_32 = "Code 32";
+    public static final String CODE_39 = "Code 39";
+    public static final String CODE_49 = "Code 49";
+    public static final String CODE_93 = "Code 93";
+    public static final String CODE_ONE = "Code One";
+    public static final String COMPOSITE_AB = "Composite A/B";
+    public static final String COMPOSITE_C = "Composite C";
+    public static final String COMPOSITE_UCC = "UCC-Composite";
+    public static final String COMPOSITE_UPC = "UPC-Composite";
+    public static final String COOP_2OF5 = "Coop 2 of 5";
+    public static final String COUPON_CODE = "Coupon Code";
+    public static final String C_1D_BARCODE = "1D Barcode";
+    public static final String DATA_MATRIX = "Data Matrix";
+    public static final String DEUTSCHE_POST_IDENTCODE = "Deutsche Post Identcode";
+    public static final String DEUTSCHE_POST_LEITCODE = "Deutsche Post Leitcode";
+    public static final String DISCRETE_2OF5 = "Discrete 2 of 5";
+    public static final String DOT_CODE = "DotCode";
+    public static final String EAN_13 = "EAN 13";
+    public static final String EAN_8 = "EAN 8";
+    private static final String FJ_FP1825_NLS1365 = "Fp1825Nls1365Config.json";
+    private static final String FJ_FP1825_NLS1365_DEF = "Fp1825Nls1365DefaultConfig.json";
+    private static final String FJ_HONEYWELL = "HoneywellConfig.json";
+    private static final String FJ_HONEYWELL_DEF = "HoneywellDefaultConfig.json";
+    private static final String FJ_NLS = "NewlandConfig.json";
+    private static final String FJ_NLS2096 = "Newland2096Config.json";
+    private static final String FJ_NLS2096_DEF = "Newland2096DefaultConfig.json";
+    private static final String FJ_NLS2596 = "Newland2596Config.json";
+    private static final String FJ_NLS2596_DEF = "Newland2596DefaultConfig.json";
+    private static final String FJ_NLS3108 = "Newland3108Config.json";
+    private static final String FJ_NLS3108_DEF = "Newland3108DefaultConfig.json";
+    private static final String FJ_NLS_DEF = "NewlandDefaultConfig.json";
+    private static final String FJ_SM = "SmConfig.json";
+    private static final String FJ_SM_DEF = "SmDefaultConfig.json";
+    private static final String FJ_ZEBRA = "ZebraConfig.json";
+    private static final String FJ_ZEBRA1350 = "Zebra1350Config.json";
+    private static final String FJ_ZEBRA1350_DEF = "Zebra1350DefaultConfig.json";
+    private static final String FJ_ZEBRA_DEF = "ZebraDefaultConfig.json";
+    public static final String GRID_MATRIX = "Grid Matrix";
+    public static final String GS1_DATABAR = "GS1-Databar";
+    public static final String HAN_XIN_CODE = "HanXin Code";
+    public static final String INDUSTRIAL_2OF5 = "Industrial 2 of 5";
+    public static final String INTERLEAVED_2OF5 = "Interleaved 2 of 5";
+    public static final String ISBN = "ISBN";
+    public static final String ISBT_128 = "ISBT 128";
+    public static final String ISSN_EAN = "ISSN-EAN";
+    public static final String JAPAN_POSTAL = "Japan Postal";
+    public static final String KIX_POST = "KIX Post";
+    public static final String KOREAN_3OF5 = "Korean 3 of 5";
+    public static final String KOREA_POST = "Korea Post";
+    public static final String MATRIX_2OF5 = "Matrix 2 of 5";
+    public static final String MAXI_CODE = "Maxi Code";
+    public static final String MICRO_PDF417 = "Micro PDF417";
+    public static final String MICRO_QR_CODE = "Micro QR Code";
+    public static final String MSI_PLESSEY = "MSI-Plessey";
+    public static final String PASSPORT_OCR = "Passport OCR";
+    public static final String PDF417 = "PDF417";
+    public static final String PLESSEY = "Plessey";
+    public static final String QR_CODE = "QR Code";
+    public static final String ROYAL_MAIL_CUSTOMER = "Royal Mail Customer";
+    public static final String SPECIFIC_OCR_B = "Specific OCR-B";
+    public static final String STANDARD_2OF5 = "Standard 2 of 5";
+    public static final String TELEPEN = "Telepen";
+    public static final String TLC_39 = "TLC Code 39";
+    public static final String UCC_EAN_128 = "UCC/EAN 128";
+    public static final String UK_POSTAL = "UK Postal";
+    public static final String UPC_A = "UPC-A";
+    public static final String UPC_E = "UPC-E";
+    public static final String UPC_E1 = "UPC-E1";
+    public static final String USPS_INTELLIGENT_MAIL = "USPS Intelligent Mail";
+    public static final String US_PLANET = "US Planet";
+    public static final String US_POSTNET = "US Postnet";
+    private static final String[] codeArr = {CODE_128, UCC_EAN_128, ISBT_128, EAN_8, EAN_13, UPC_E, UPC_E1, UPC_A, INTERLEAVED_2OF5, MATRIX_2OF5, CODE_39, CODE_93, CODABAR, GS1_DATABAR, COMPOSITE_UCC, COMPOSITE_UPC, CODE_11, "ISBN", INDUSTRIAL_2OF5, STANDARD_2OF5, DISCRETE_2OF5, CHINESE_2OF5, KOREAN_3OF5, PLESSEY, MSI_PLESSEY, COMPOSITE_AB, COMPOSITE_C, ISSN_EAN, "PDF417", QR_CODE, AZTEC, DATA_MATRIX, HAN_XIN_CODE, MAXI_CODE, AUSTRALIN_POSTAL, US_POSTNET, US_PLANET, UK_POSTAL, JAPAN_POSTAL, CODE_32, CODABLOCK, CANADIAN_POST, KIX_POST, KOREA_POST, CHINA_POST, TELEPEN, GRID_MATRIX, COUPON_CODE, TLC_39, DOT_CODE, C_1D_BARCODE, AIM_128, CODE_16K, CODE_49, COOP_2OF5, DEUTSCHE_POST_IDENTCODE, DEUTSCHE_POST_LEITCODE, USPS_INTELLIGENT_MAIL, ROYAL_MAIL_CUSTOMER, MICRO_PDF417, MICRO_QR_CODE, CODE_ONE, SPECIFIC_OCR_B, CHINESE_ID_CARD_OCR, PASSPORT_OCR, CHINA_TRAVEL_PERMIT_OCR};
+
+    public static String getCodeName(int i) {
+        if (i < 0) {
+            return "";
+        }
+        String[] strArr = codeArr;
+        return i > strArr.length ? "" : strArr[i];
+    }
+}
