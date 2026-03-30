@@ -1,0 +1,187 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  publish-npm:
+    name: Build and publish NPM packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@kduma-autoid'
+          cache: 'pnpm'
+          cache-dependency-path: 'clients/ts/pnpm-lock.yaml'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: clients/ts
+
+      - name: Build packages
+        run: pnpm build
+        working-directory: clients/ts
+
+      - name: Publish packages to GitHub Packages
+        if: startsWith(github.ref, 'refs/tags/')
+        id: publish
+        run: pnpm -r --filter './packages/*' publish --no-git-checks --access public
+        working-directory: clients/ts
+        continue-on-error: true
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Report publish result
+        if: steps.publish.outcome == 'failure'
+        run: echo "::warning::Package publish step failed (the version may already exist in GitHub Packages)."
+
+  publish-pages:
+    name: Build and publish example to GitHub Pages
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: 'clients/ts/pnpm-lock.yaml'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: clients/ts
+
+      - name: Build example app
+        run: |
+          pnpm exec vue-tsc --noEmit
+          pnpm exec vite build --base="/"
+        working-directory: clients/ts/example
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: clients/ts/example/dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  publish-android:
+    name: Build and publish Android packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build Android packages
+        run: ./gradlew assembleRelease
+
+      - name: Collect APKs
+        run: |
+          mkdir -p /tmp/apks
+          find . -name '*-release.apk' -path '*/build/outputs/apk/*' -exec cp {} /tmp/apks/ \;
+
+      - name: Collect AARs
+        run: |
+          mkdir -p /tmp/aars
+          find . -name '*-release.aar' -path '*/build/outputs/aar/*' -exec cp {} /tmp/aars/ \;
+
+      - name: Upload APKs as workflow artifact
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        uses: actions/upload-artifact@v4
+        with:
+          name: apks
+          path: /tmp/apks/*.apk
+
+      - name: Upload AARs as workflow artifact
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        uses: actions/upload-artifact@v4
+        with:
+          name: aars
+          path: /tmp/aars/*.aar
+
+      - name: Upload APKs to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          gh release view "${{ github.ref_name }}" \
+            || gh release create "${{ github.ref_name }}" --title "${{ github.ref_name }}" --generate-notes
+          gh release upload "${{ github.ref_name }}" /tmp/apks/*.apk --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload AARs to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          gh release view "${{ github.ref_name }}" \
+            || gh release create "${{ github.ref_name }}" --title "${{ github.ref_name }}" --generate-notes
+          gh release upload "${{ github.ref_name }}" /tmp/aars/*.aar --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish Android packages to GitHub Packages
+        if: github.event_name != 'pull_request'
+        id: publish-android
+        run: ./gradlew publish
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+
+      - name: Report publish result
+        if: steps.publish-android.outcome == 'failure'
+        run: echo "::warning::Android package publish step failed (the version may already exist in GitHub Packages)."
