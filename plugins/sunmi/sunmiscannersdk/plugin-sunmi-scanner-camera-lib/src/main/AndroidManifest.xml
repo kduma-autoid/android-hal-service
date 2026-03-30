@@ -5,7 +5,9 @@
         <activity
             android:name="dev.duma.android.hal.plugins.sunmi.scanner.camera.CameraScannerProxyActivity"
             android:theme="@android:style/Theme.Translucent.NoTitleBar"
-            android:exported="false" />
+            android:exported="false"
+            android:taskAffinity=""
+            android:excludeFromRecents="true" />
     </application>
 
 </manifest>
