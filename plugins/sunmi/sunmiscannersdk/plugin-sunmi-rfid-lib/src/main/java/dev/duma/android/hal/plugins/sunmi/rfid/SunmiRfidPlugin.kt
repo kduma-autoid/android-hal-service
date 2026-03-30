@@ -4,6 +4,7 @@ import android.content.Context
 import com.sunmi.rfid.RFIDManager
 import com.sunmi.rfid.ReaderCall
 import com.sunmi.rfid.constant.CMD
+import com.sunmi.sdk.ServiceConnectStatus
 import com.sunmi.rfid.constant.ParamCts
 import com.sunmi.rfid.entity.DataParameter
 import dev.duma.android.hal.contract.EventDescriptor
@@ -39,6 +40,7 @@ class SunmiRfidPlugin(
     private var eventCallback: HalPluginEventCallback? = null
     private val mutex = Mutex()
     private val pendingOps = ConcurrentHashMap<Byte, CompletableDeferred<String>>()
+    private var serviceConnectStatus: ServiceConnectStatus? = null
 
     private val broadcastReceiver by lazy {
         RfidBroadcastReceiver(::emitEvent)
@@ -84,8 +86,23 @@ class SunmiRfidPlugin(
     override fun initialize(pluginContext: PluginContext) {
         this.context?.let { ctx ->
             RFIDManager.getInstance().setPrintLog(false)
+
+            val connectStatus = object : ServiceConnectStatus {
+                override fun onServiceConnected() {
+                    RFIDManager.getInstance().getHelper()?.registerReaderCall(readerCall)
+                }
+                override fun onServiceDisconnected() {
+                    try {
+                        RFIDManager.getInstance().getHelper()?.unregisterReaderCall()
+                    } catch (_: Exception) {
+                        // Service already gone
+                    }
+                }
+            }
+            serviceConnectStatus = connectStatus
+            RFIDManager.getInstance().addServiceConnectStatus(connectStatus)
+
             RFIDManager.getInstance().connect(ctx)
-            RFIDManager.getInstance().getHelper()?.registerReaderCall(readerCall)
             ctx.registerReceiver(broadcastReceiver, RfidBroadcastReceiver.buildIntentFilter())
         }
     }
