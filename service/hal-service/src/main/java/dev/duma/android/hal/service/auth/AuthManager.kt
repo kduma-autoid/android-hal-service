@@ -21,15 +21,16 @@ class AuthManager(
     }
 
     private suspend fun handleDeveloperKey(request: TokenRequest, callerContext: CallerContext): TokenResponse {
-        val result = developerKeyVerifier.verify(request.developerKey!!, callerContext)
+        val result = developerKeyVerifier.verify(request.developerKey!!, callerContext, request.clientId)
 
         return when (result) {
             is VerificationResult.Success -> {
                 val claims = result.claims
                 val effectivePermissions = filterPermissions(claims.permissions, request.requestedPermissions)
-                val boundPackageName = if (claims.clientType == "android") callerContext.packageName else null
-                val boundCertHash = if (claims.clientType == "android") callerContext.certHash else null
-                val boundOrigin = if (claims.clientType == "web") callerContext.origin else null
+                val isUnrestricted = "unrestricted" in claims.clientTypes
+                val boundPackageName = if (!isUnrestricted) callerContext.packageName else null
+                val boundCertHash = if (!isUnrestricted) callerContext.certHash else null
+                val boundOrigin = if (!isUnrestricted) callerContext.origin else null
 
                 val existing = tokenManager.findExistingToken(
                     clientId = request.clientId,

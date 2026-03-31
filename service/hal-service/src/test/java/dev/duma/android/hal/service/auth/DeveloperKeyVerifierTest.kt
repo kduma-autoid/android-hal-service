@@ -26,17 +26,26 @@ class DeveloperKeyVerifierTest {
 
     private fun createTestJwt(
         permissions: List<String> = listOf("printer"),
-        clientType: String = "unrestricted",
+        clientType: Any = "unrestricted",
+        clientId: String? = null,
         packageName: String? = null,
         certHash: String? = null,
         origins: List<String>? = null,
         exp: Date? = Date(System.currentTimeMillis() + 3600_000),
-        signingKey: RSAKey = keyPair
+        signingKey: RSAKey = keyPair,
+        extraClaims: Map<String, Any> = emptyMap()
     ): String {
         val restrictions = mutableMapOf<String, Any?>()
-        packageName?.let { restrictions["package_name"] = it }
-        certHash?.let { restrictions["cert_sha256"] = it }
-        origins?.let { restrictions["origins"] = it }
+        clientId?.let { restrictions["client_id"] = it }
+        if (packageName != null || certHash != null) {
+            val android = mutableMapOf<String, Any?>()
+            packageName?.let { android["package_name"] = it }
+            certHash?.let { android["cert_sha256"] = it }
+            restrictions["android"] = android
+        }
+        if (origins != null) {
+            restrictions["web"] = mapOf("origins" to origins)
+        }
 
         val claimsBuilder = JWTClaimsSet.Builder()
             .issuer("hal-developer-portal")
@@ -45,6 +54,7 @@ class DeveloperKeyVerifierTest {
             .claim("permissions", permissions)
             .claim("client_type", clientType)
             .claim("restrictions", restrictions)
+        extraClaims.forEach { (key, value) -> claimsBuilder.claim(key, value) }
 
         if (exp != null) {
             claimsBuilder.expirationTime(exp)
@@ -67,7 +77,7 @@ class DeveloperKeyVerifierTest {
         )
         val result = verifier.verify(jwt, CallerContext(
             transport = "aidl", packageName = "com.test.app"
-        ))
+        ), "test-client")
         assertIs<VerificationResult.Success>(result)
         assertEquals(listOf("printer", "scanner"), result.claims.permissions)
     }
@@ -75,7 +85,7 @@ class DeveloperKeyVerifierTest {
     @Test
     fun `expired JWT returns error`() {
         val jwt = createTestJwt(exp = Date(System.currentTimeMillis() - 10_000))
-        val result = verifier.verify(jwt, CallerContext(transport = "aidl"))
+        val result = verifier.verify(jwt, CallerContext(transport = "aidl"), "test-client")
         assertIs<VerificationResult.Error>(result)
         assertEquals(DeveloperKeyError.EXPIRED, result.error)
     }
@@ -83,7 +93,7 @@ class DeveloperKeyVerifierTest {
     @Test
     fun `wrong signature returns error`() {
         val jwt = createTestJwt(signingKey = wrongKeyPair)
-        val result = verifier.verify(jwt, CallerContext(transport = "aidl"))
+        val result = verifier.verify(jwt, CallerContext(transport = "aidl"), "test-client")
         assertIs<VerificationResult.Error>(result)
         assertEquals(DeveloperKeyError.INVALID_SIGNATURE, result.error)
     }
@@ -96,7 +106,7 @@ class DeveloperKeyVerifierTest {
         )
         val result = verifier.verify(jwt, CallerContext(
             transport = "aidl", packageName = "com.wrong.app"
-        ))
+        ), "test-client")
         assertIs<VerificationResult.Error>(result)
         assertEquals(DeveloperKeyError.RESTRICTION_MISMATCH, result.error)
     }
@@ -106,9 +116,21 @@ class DeveloperKeyVerifierTest {
         val jwt = createTestJwt(clientType = "unrestricted")
         val result = verifier.verify(jwt, CallerContext(
             transport = "ws", origin = "https://anything.com"
-        ))
+        ), "test-client")
         assertIs<VerificationResult.Success>(result)
         assertNotNull(result.claims)
+    }
+
+    @Test
+    fun `client_id restriction is validated against request clientId`() {
+        val jwt = createTestJwt(clientId = "expected-client")
+
+        val validResult = verifier.verify(jwt, CallerContext(transport = "aidl"), "expected-client")
+        assertIs<VerificationResult.Success>(validResult)
+
+        val invalidResult = verifier.verify(jwt, CallerContext(transport = "aidl"), "other-client")
+        assertIs<VerificationResult.Error>(invalidResult)
+        assertEquals(DeveloperKeyError.RESTRICTION_MISMATCH, invalidResult.error)
     }
 
     @Test
@@ -120,13 +142,127 @@ class DeveloperKeyVerifierTest {
 
         val validResult = verifier.verify(jwt, CallerContext(
             transport = "http", origin = "https://myapp.com"
-        ))
+        ), "test-client")
         assertIs<VerificationResult.Success>(validResult)
 
         val invalidResult = verifier.verify(jwt, CallerContext(
             transport = "http", origin = "https://evil.com"
-        ))
+        ), "test-client")
         assertIs<VerificationResult.Error>(invalidResult)
         assertEquals(DeveloperKeyError.RESTRICTION_MISMATCH, invalidResult.error)
+    }
+
+    @Test
+    fun `super permissions in permissions claim are stripped`() {
+        val jwt = createTestJwt(
+            permissions = listOf("printer", "super", "scanner.super", "scanner")
+        )
+        val result = verifier.verify(jwt, CallerContext(transport = "aidl"), "test-client")
+        assertIs<VerificationResult.Success>(result)
+        assertEquals(listOf("printer", "scanner"), result.claims.permissions)
+    }
+
+    @Test
+    fun `super true claim grants super permission`() {
+        val jwt = createTestJwt(extraClaims = mapOf("super" to true))
+        val result = verifier.verify(jwt, CallerContext(transport = "aidl"), "test-client")
+        assertIs<VerificationResult.Success>(result)
+        assertEquals(listOf("printer", "super"), result.claims.permissions)
+    }
+
+    @Test
+    fun `super list claim grants scoped super permissions`() {
+        val jwt = createTestJwt(extraClaims = mapOf("super" to listOf("printer", "scanner")))
+        val result = verifier.verify(jwt, CallerContext(transport = "aidl"), "test-client")
+        assertIs<VerificationResult.Success>(result)
+        assertEquals(listOf("printer", "printer.super", "scanner.super"), result.claims.permissions)
+    }
+
+    @Test
+    fun `experimental permissions in permissions claim are stripped`() {
+        val jwt = createTestJwt(
+            permissions = listOf("printer", "experimental", "scanner.experimental", "scanner")
+        )
+        val result = verifier.verify(jwt, CallerContext(transport = "aidl"), "test-client")
+        assertIs<VerificationResult.Success>(result)
+        assertEquals(listOf("printer", "scanner"), result.claims.permissions)
+    }
+
+    @Test
+    fun `origins as string is treated as single-element list`() {
+        val restrictions = mutableMapOf<String, Any?>("web" to mapOf("origins" to "https://myapp.com"))
+        val claimsBuilder = JWTClaimsSet.Builder()
+            .issuer("hal-developer-portal")
+            .subject("test-client")
+            .issueTime(Date())
+            .expirationTime(Date(System.currentTimeMillis() + 3600_000))
+            .claim("permissions", listOf("printer"))
+            .claim("client_type", "web")
+            .claim("restrictions", restrictions)
+        val signedJwt = SignedJWT(JWSHeader(JWSAlgorithm.RS256), claimsBuilder.build())
+        signedJwt.sign(RSASSASigner(keyPair))
+        val jwt = signedJwt.serialize()
+
+        val validResult = verifier.verify(jwt, CallerContext(
+            transport = "http", origin = "https://myapp.com"
+        ), "test-client")
+        assertIs<VerificationResult.Success>(validResult)
+
+        val invalidResult = verifier.verify(jwt, CallerContext(
+            transport = "http", origin = "https://evil.com"
+        ), "test-client")
+        assertIs<VerificationResult.Error>(invalidResult)
+        assertEquals(DeveloperKeyError.RESTRICTION_MISMATCH, invalidResult.error)
+    }
+
+    @Test
+    fun `web token used from android transport returns mismatch`() {
+        val jwt = createTestJwt(clientType = "web")
+        val result = verifier.verify(jwt, CallerContext(
+            transport = "aidl", packageName = "com.test.app"
+        ), "test-client")
+        assertIs<VerificationResult.Error>(result)
+        assertEquals(DeveloperKeyError.RESTRICTION_MISMATCH, result.error)
+    }
+
+    @Test
+    fun `android token used from web transport returns mismatch`() {
+        val jwt = createTestJwt(clientType = "android")
+        val result = verifier.verify(jwt, CallerContext(
+            transport = "http", origin = "https://myapp.com"
+        ), "test-client")
+        assertIs<VerificationResult.Error>(result)
+        assertEquals(DeveloperKeyError.RESTRICTION_MISMATCH, result.error)
+    }
+
+    @Test
+    fun `client_type as array allows multiple transport types`() {
+        val jwt = createTestJwt(clientType = listOf("web", "android"))
+
+        val androidResult = verifier.verify(jwt, CallerContext(
+            transport = "aidl", packageName = "com.test.app"
+        ), "test-client")
+        assertIs<VerificationResult.Success>(androidResult)
+
+        val webResult = verifier.verify(jwt, CallerContext(
+            transport = "http", origin = "https://myapp.com"
+        ), "test-client")
+        assertIs<VerificationResult.Success>(webResult)
+    }
+
+    @Test
+    fun `client_type as single-element array works`() {
+        val jwt = createTestJwt(clientType = listOf("web"))
+
+        val webResult = verifier.verify(jwt, CallerContext(
+            transport = "ws", origin = "https://myapp.com"
+        ), "test-client")
+        assertIs<VerificationResult.Success>(webResult)
+
+        val androidResult = verifier.verify(jwt, CallerContext(
+            transport = "aidl"
+        ), "test-client")
+        assertIs<VerificationResult.Error>(androidResult)
+        assertEquals(DeveloperKeyError.RESTRICTION_MISMATCH, androidResult.error)
     }
 }

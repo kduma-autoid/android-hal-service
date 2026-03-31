@@ -46,8 +46,8 @@ class AuthManagerTest {
 
     @Test
     fun `valid devKey creates token with JWT permissions`() = runTest {
-        every { verifier.verify(any(), any()) } returns VerificationResult.Success(
-            DevKeyClaims(permissions = listOf("printer"), clientType = "android")
+        every { verifier.verify(any(), any(), any()) } returns VerificationResult.Success(
+            DevKeyClaims(permissions = listOf("printer"), clientTypes = listOf("android"))
         )
         coEvery { tokenManager.findExistingToken(any(), any(), any(), any(), any()) } returns null
         coEvery { tokenManager.createToken(any(), any(), any(), any(), any(), any(), any()) } returns testTokenEntity
@@ -64,7 +64,7 @@ class AuthManagerTest {
     @Test
     fun `invalid devKey returns error without dialog`() = runTest {
         dialogCalled = false
-        every { verifier.verify(any(), any()) } returns VerificationResult.Error(DeveloperKeyError.INVALID_SIGNATURE)
+        every { verifier.verify(any(), any(), any()) } returns VerificationResult.Error(DeveloperKeyError.INVALID_SIGNATURE)
 
         val result = authManager.requestToken(
             TokenRequest(developerKey = "bad-jwt", clientId = "app"),
@@ -109,8 +109,8 @@ class AuthManagerTest {
 
     @Test
     fun `existing token skips createToken for devKey`() = runTest {
-        every { verifier.verify(any(), any()) } returns VerificationResult.Success(
-            DevKeyClaims(permissions = listOf("printer"), clientType = "android")
+        every { verifier.verify(any(), any(), any()) } returns VerificationResult.Success(
+            DevKeyClaims(permissions = listOf("printer"), clientTypes = listOf("android"))
         )
         coEvery { tokenManager.findExistingToken(any(), any(), any(), any(), any()) } returns testTokenEntity
 
@@ -126,7 +126,7 @@ class AuthManagerTest {
 
     @Test
     fun `invalid devKey returns error even if matching token exists`() = runTest {
-        every { verifier.verify(any(), any()) } returns VerificationResult.Error(DeveloperKeyError.INVALID_SIGNATURE)
+        every { verifier.verify(any(), any(), any()) } returns VerificationResult.Error(DeveloperKeyError.INVALID_SIGNATURE)
 
         val result = authManager.requestToken(
             TokenRequest(developerKey = "bad-jwt", clientId = "app"),

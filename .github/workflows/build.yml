@@ -133,9 +133,10 @@ jobs:
               exp: now + 365 * 24 * 60 * 60,
               client_type: 'web',
               restrictions: {
-                package_name: null,
-                cert_sha256: null,
-                origins: ['https://hal.duma.dev']
+                client_id: 'hal-example',
+                web: {
+                  origins: ['https://hal.duma.dev']
+                }
               },
               permissions: ['*']
             };
