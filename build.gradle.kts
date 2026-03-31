@@ -12,8 +12,17 @@ allprojects {
 }
 
 subprojects {
-    afterEvaluate {
-        if (plugins.hasPlugin("com.android.library")) {
+    plugins.withId("com.android.library") {
+        extensions.configure<com.android.build.api.dsl.LibraryExtension> {
+            publishing {
+                singleVariant("release") {
+                    withSourcesJar()
+                    withJavadocJar()
+                }
+            }
+        }
+
+        afterEvaluate {
             apply(plugin = "maven-publish")
             extensions.configure<org.gradle.api.publish.PublishingExtension> {
                 publications {
