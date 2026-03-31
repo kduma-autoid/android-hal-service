@@ -61,7 +61,7 @@ jobs:
 
   publish-pages:
     name: Build and publish example to GitHub Pages
-    needs: publish-npm
+    # needs: publish-npm
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request'
     permissions:
@@ -95,6 +95,60 @@ jobs:
       - name: Build packages
         run: pnpm build
         working-directory: clients/ts
+
+      - name: Extract developer portal private key
+        run: |
+          keytool -importkeystore \
+            -srckeystore keys.jks \
+            -srcstoretype PKCS12 \
+            -srcstorepass "$SIGNING_STORE_PASSWORD" \
+            -srckeypass "$SIGNING_STORE_PASSWORD" \
+            -srcalias developer_portal_key \
+            -destkeystore /tmp/dev_portal.p12 \
+            -deststoretype PKCS12 \
+            -deststorepass changeit \
+            -destkeypass changeit
+          openssl pkcs12 \
+            -in /tmp/dev_portal.p12 \
+            -passin pass:changeit \
+            -nocerts \
+            -nodes \
+            -out /tmp/dev_portal_private.pem
+          rm /tmp/dev_portal.p12
+        env:
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+
+      - name: Generate developer key JWT
+        run: |
+          DEVELOPER_KEY=$(node -e "
+            const crypto = require('crypto');
+            const fs = require('fs');
+            const pem = fs.readFileSync('/tmp/dev_portal_private.pem', 'utf8');
+            const now = Math.floor(Date.now() / 1000);
+            const header = { alg: 'RS256', typ: 'JWT' };
+            const payload = {
+              iss: 'hal-developer-portal',
+              sub: 'hal-web-demo',
+              iat: now,
+              exp: now + 365 * 24 * 60 * 60,
+              client_type: 'web',
+              restrictions: {
+                package_name: null,
+                cert_sha256: null,
+                origins: ['https://hal.duma.dev']
+              },
+              permissions: ['*']
+            };
+            function b64url(obj) {
+              return Buffer.from(JSON.stringify(obj)).toString('base64url');
+            }
+            const h = b64url(header);
+            const p = b64url(payload);
+            const sig = crypto.sign('RSA-SHA256', Buffer.from(h + '.' + p), pem).toString('base64url');
+            process.stdout.write(h + '.' + p + '.' + sig);
+          ")
+          rm /tmp/dev_portal_private.pem
+          echo "VITE_DEVELOPER_KEY=${DEVELOPER_KEY}" >> "$GITHUB_ENV"
 
       - name: Build example app
         run: |

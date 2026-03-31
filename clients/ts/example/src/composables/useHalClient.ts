@@ -15,7 +15,7 @@ export interface AppSettings {
 const defaultSettings: AppSettings = {
   baseUrl: 'http://localhost:8400',
   clientId: 'hal-example',
-  developerKey: '',
+  developerKey: import.meta.env.VITE_DEVELOPER_KEY ?? '',
   transport: 'http',
 };
 
