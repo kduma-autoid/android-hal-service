@@ -1,5 +1,6 @@
 package dev.duma.android.hal.service.auth
 
+import com.nimbusds.jose.JOSEObjectType
 import com.nimbusds.jose.JWSAlgorithm
 import com.nimbusds.jose.JWSHeader
 import com.nimbusds.jose.crypto.RSASSASigner
@@ -60,8 +61,11 @@ class DeveloperKeyVerifierTest {
             claimsBuilder.expirationTime(exp)
         }
 
+        val header = JWSHeader.Builder(JWSAlgorithm.RS256)
+            .type(JOSEObjectType("hal-dev-key+jwt"))
+            .build()
         val signedJwt = SignedJWT(
-            JWSHeader(JWSAlgorithm.RS256),
+            header,
             claimsBuilder.build()
         )
         signedJwt.sign(RSASSASigner(signingKey))
@@ -88,6 +92,23 @@ class DeveloperKeyVerifierTest {
         val result = verifier.verify(jwt, CallerContext(transport = "aidl"), "test-client")
         assertIs<VerificationResult.Error>(result)
         assertEquals(DeveloperKeyError.EXPIRED, result.error)
+    }
+
+    @Test
+    fun `standard JWT type is rejected`() {
+        val claimsBuilder = JWTClaimsSet.Builder()
+            .issuer("hal-developer-portal")
+            .subject("test-client")
+            .issueTime(Date())
+            .expirationTime(Date(System.currentTimeMillis() + 3600_000))
+            .claim("permissions", listOf("printer"))
+            .claim("client_type", "unrestricted")
+            .claim("restrictions", emptyMap<String, Any?>())
+        val signedJwt = SignedJWT(JWSHeader(JWSAlgorithm.RS256), claimsBuilder.build())
+        signedJwt.sign(RSASSASigner(keyPair))
+        val result = verifier.verify(signedJwt.serialize(), CallerContext(transport = "aidl"), "test-client")
+        assertIs<VerificationResult.Error>(result)
+        assertEquals(DeveloperKeyError.INVALID_SIGNATURE, result.error)
     }
 
     @Test
@@ -199,7 +220,10 @@ class DeveloperKeyVerifierTest {
             .claim("permissions", listOf("printer"))
             .claim("client_type", "web")
             .claim("restrictions", restrictions)
-        val signedJwt = SignedJWT(JWSHeader(JWSAlgorithm.RS256), claimsBuilder.build())
+        val header = JWSHeader.Builder(JWSAlgorithm.RS256)
+            .type(JOSEObjectType("hal-dev-key+jwt"))
+            .build()
+        val signedJwt = SignedJWT(header, claimsBuilder.build())
         signedJwt.sign(RSASSASigner(keyPair))
         val jwt = signedJwt.serialize()
 

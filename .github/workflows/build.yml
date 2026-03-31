@@ -125,7 +125,7 @@ jobs:
             const fs = require('fs');
             const pem = fs.readFileSync('/tmp/dev_portal_private.pem', 'utf8');
             const now = Math.floor(Date.now() / 1000);
-            const header = { alg: 'RS256', typ: 'JWT' };
+            const header = { alg: 'RS256', typ: 'hal-dev-key+jwt' };
             const payload = {
               iss: 'hal-developer-portal',
               sub: 'hal-web-demo',

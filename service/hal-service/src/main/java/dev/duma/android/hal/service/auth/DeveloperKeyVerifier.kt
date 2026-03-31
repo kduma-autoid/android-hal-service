@@ -23,6 +23,11 @@ class DeveloperKeyVerifier(private val publicKey: RSAKey) {
             return VerificationResult.Error(DeveloperKeyError.INVALID_SIGNATURE)
         }
 
+        // Verify type
+        if (signedJwt.header.type?.type != "hal-dev-key+jwt") {
+            return VerificationResult.Error(DeveloperKeyError.INVALID_SIGNATURE)
+        }
+
         // Verify signature
         if (!signedJwt.verify(verifier)) {
             return VerificationResult.Error(DeveloperKeyError.INVALID_SIGNATURE)
