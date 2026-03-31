@@ -14,6 +14,7 @@ on:
 jobs:
   publish-npm:
     name: Build and publish NPM packages
+    needs: publish-android
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -60,6 +61,7 @@ jobs:
 
   publish-pages:
     name: Build and publish example to GitHub Pages
+    needs: publish-npm
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request'
     permissions:
@@ -181,7 +183,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish Android packages to GitHub Packages
-        if: github.event_name != 'pull_request'
+        if: startsWith(github.ref, 'refs/tags/')
         id: publish-android
         run: ./gradlew publish
         continue-on-error: true
