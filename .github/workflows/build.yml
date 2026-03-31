@@ -138,7 +138,7 @@ jobs:
       - name: Collect APKs
         run: |
           mkdir -p /tmp/apks
-          find . -name '*-release.apk' -path '*/build/outputs/apk/*' -exec cp {} /tmp/apks/ \;
+          find . -name '*-release*.apk' -path '*/build/outputs/apk/*' -exec cp {} /tmp/apks/ \;
 
       - name: Collect AARs
         run: |
