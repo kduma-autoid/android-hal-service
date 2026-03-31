@@ -41,6 +41,7 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.core.net.toUri
 
 /**
  * Main dashboard activity with TabLayout for organized display of HAL Service status,
@@ -109,9 +110,7 @@ class DashboardActivity : AppCompatActivity() {
 
             setNavigationItemSelectedListener { item ->
                 if (item.itemId == demoId) {
-                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(
-                        "https://pub-8f1277b763ab47c69fca746dc50567a2.r2.dev/test/index.html"
-                    )))
+                    startActivity(Intent(Intent.ACTION_VIEW, "https://hal.duma.dev/".toUri()))
                     drawerLayout.closeDrawers()
                 } else {
                     currentSection = item.itemId
