@@ -13,7 +13,7 @@ import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.channels.consumeEach
-import java.time.Duration
+
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArraySet
@@ -51,8 +51,8 @@ class WsTransport : CommandTransport, EventTransport {
 
         manager.addModule {
             install(WebSockets) {
-                pingPeriod = Duration.ofSeconds(15)
-                timeout = Duration.ofSeconds(30)
+                pingPeriodMillis = 15_000
+                timeoutMillis = 30_000
             }
             routing {
                 webSocket("/ws") {
