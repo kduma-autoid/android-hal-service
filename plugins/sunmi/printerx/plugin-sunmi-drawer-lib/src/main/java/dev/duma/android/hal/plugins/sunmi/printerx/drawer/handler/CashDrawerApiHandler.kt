@@ -1,14 +1,13 @@
 package dev.duma.android.hal.plugins.sunmi.printerx.drawer.handler
 
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.plugins.sunmi.printerx.sdk.awaitPrintResult
 import dev.duma.android.hal.plugins.sunmi.printerx.sdk.requirePrinter
-import dev.duma.android.hal.plugins.sunmi.printerx.sdk.success
-import dev.duma.android.hal.plugins.sunmi.printerx.sdk.unsupportedMethod
 import org.json.JSONObject
 
 internal class CashDrawerApiHandler {
 
-    suspend fun handle(method: String, json: JSONObject): String {
+    suspend fun handle(method: String, json: JSONObject): CommandResult {
         val (printer, err) = requirePrinter(json)
         if (err != null) return err
         val drawer = printer!!.cashDrawerApi()
@@ -20,9 +19,9 @@ internal class CashDrawerApiHandler {
                 }
             }
             "sunmi.printerx.drawer.isOpen" -> {
-                success(drawer.isOpen())
+                CommandResult.Success(JSONObject().put("result", drawer.isOpen()).toString())
             }
-            else -> unsupportedMethod(method)
+            else -> CommandResult.unsupportedMethod(method)
         }
     }
 }

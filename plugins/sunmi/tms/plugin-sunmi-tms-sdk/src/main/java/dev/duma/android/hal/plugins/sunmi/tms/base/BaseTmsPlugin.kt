@@ -3,12 +3,12 @@ package dev.duma.android.hal.plugins.sunmi.tms.base
 import android.content.Context
 import com.sunmi.tms.api.TMSApi
 import com.sunmi.tms.api.TMSServiceConnection
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.PluginContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import org.json.JSONObject
 
 abstract class BaseTmsPlugin(
     protected val context: Context? = null
@@ -46,21 +46,9 @@ abstract class BaseTmsPlugin(
         _eventCallback?.onEvent(event, payload)
     }
 
-    protected suspend fun guardedExecute(block: suspend () -> String): String =
+    protected suspend fun guardedExecute(block: suspend () -> CommandResult): CommandResult =
         mutex.withLock {
-            if (!connected) return@withLock error("service_disconnected", "TMSApi not connected")
-            try { block() } catch (e: Exception) { error("sdk_error", e.message ?: "Unknown error") }
+            if (!connected) return@withLock CommandResult.unavailable("TMSApi not connected")
+            try { block() } catch (e: Exception) { CommandResult.internalError(e.message ?: "Unknown error") }
         }
-
-    protected fun success(data: Any? = null): String {
-        val obj = JSONObject().put("status", "ok")
-        if (data != null) obj.put("result", data)
-        return obj.toString()
-    }
-
-    protected fun error(code: String, message: String): String =
-        JSONObject().put("error", code).put("message", message).toString()
-
-    protected fun unsupportedMethod(method: String): String =
-        error("unsupported_method", "Method not supported: $method")
 }

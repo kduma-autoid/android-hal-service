@@ -4,15 +4,13 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import com.sunmi.scanner.sdk.CameraScanner
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
-import dev.duma.android.hal.plugins.sunmi.scanner.common.ScannerResponseHelper.error
-import dev.duma.android.hal.plugins.sunmi.scanner.common.ScannerResponseHelper.started
-import dev.duma.android.hal.plugins.sunmi.scanner.common.ScannerResponseHelper.success
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -130,14 +128,14 @@ class SunmiCameraScannerPlugin(
 
     // --- Execute ---
 
-    override suspend fun execute(method: String, params: String): String {
+    override suspend fun execute(method: String, params: String): CommandResult {
         val json = if (params.isBlank() || params == "{}") JSONObject() else JSONObject(params)
 
         return try {
             when (method) {
                 "sunmi.scanner.camera.trigger" -> {
-                    val ctx = appContext ?: return error("no_context", "Application context not available")
-                    if (scanning) return error("already_scanning", "Camera scanner is already active")
+                    val ctx = appContext ?: return CommandResult.internalError("Application context not available")
+                    if (scanning) return CommandResult.Failure("already_scanning", "Camera scanner is already active")
 
                     scanning = true
                     val deferred = CompletableDeferred<Pair<String, String>?>()
@@ -166,13 +164,13 @@ class SunmiCameraScannerPlugin(
                         }
                     }
 
-                    started()
+                    CommandResult.Success("""{"status":"scanning"}""")
                 }
 
                 "sunmi.scanner.camera.stop" -> {
                     CameraScannerProxyActivity.activeInstance?.finish()
                     scanning = false
-                    success()
+                    CommandResult.Success()
                 }
 
                 "sunmi.scanner.camera.configure" -> {
@@ -180,24 +178,21 @@ class SunmiCameraScannerPlugin(
                         val value = json.get(key)
                         config[key] = value
                     }
-                    success()
+                    CommandResult.Success()
                 }
 
                 "sunmi.scanner.camera.getConfig" -> {
-                    val result = JSONObject()
-                    result.put("status", "ok")
                     val data = JSONObject()
                     for ((k, v) in config) {
                         data.put(k, v)
                     }
-                    result.put("config", data)
-                    result.toString()
+                    CommandResult.Success(JSONObject().put("config", data).toString())
                 }
 
-                else -> error("unsupported_method", "Method not supported: $method")
+                else -> CommandResult.unsupportedMethod(method)
             }
         } catch (e: Exception) {
-            error("sdk_error", e.message ?: "Unknown SDK error")
+            CommandResult.internalError(e.message ?: "Unknown SDK error")
         }
     }
 

@@ -8,6 +8,7 @@ import com.sunmi.rfid.constant.CMD
 import com.sunmi.sdk.ServiceConnectStatus
 import com.sunmi.rfid.constant.ParamCts
 import com.sunmi.rfid.entity.DataParameter
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
@@ -130,9 +131,9 @@ class SunmiRfidPlugin(
 
     // --- Execute ---
 
-    override suspend fun execute(method: String, params: String): String = mutex.withLock {
+    override suspend fun execute(method: String, params: String): CommandResult = mutex.withLock {
         val helper = RFIDManager.getInstance().getHelper()
-            ?: return@withLock error("device_not_ready", "RFID helper not available")
+            ?: return@withLock CommandResult.unavailable("RFID helper not available")
         val json = if (params.isBlank() || params == "{}") JSONObject() else JSONObject(params)
         return@withLock try {
             when (method) {
@@ -449,24 +450,24 @@ class SunmiRfidPlugin(
                     helper.setPowerDown(json.getInt("nIdleTime"), json.getInt("btUnit").toByte())
                 }
 
-                else -> error("unsupported_method", "Method not supported: $method")
+                else -> CommandResult.unsupportedMethod(method)
             }
         } catch (e: Exception) {
-            error("sdk_error", e.message ?: "Unknown SDK error")
+            CommandResult.internalError(e.message ?: "Unknown SDK error")
         }
     }
 
     // --- Sync/Async helpers ---
 
-    private suspend fun awaitResult(cmd: Byte, timeout: Long = 5000L, block: () -> Unit): String {
+    private suspend fun awaitResult(cmd: Byte, timeout: Long = 5000L, block: () -> Unit): CommandResult {
         val deferred = CompletableDeferred<String>()
         pendingOps[cmd] = deferred
         try {
             block()
-            return withTimeout(timeout) { deferred.await() }
+            return CommandResult.Success(withTimeout(timeout) { deferred.await() })
         } catch (e: TimeoutCancellationException) {
             pendingOps.remove(cmd)
-            return error("timeout", "Operation timed out after ${timeout}ms")
+            return CommandResult.timeout("Operation timed out after ${timeout}ms")
         }
     }
 
@@ -474,17 +475,14 @@ class SunmiRfidPlugin(
         eventCallback?.onEvent(event, payload)
     }
 
-    private fun success(data: Any? = null): String {
+    private fun success(data: Any? = null): CommandResult {
         val obj = JSONObject().put("status", "ok")
         if (data != null) obj.put("result", data)
-        return obj.toString()
+        return CommandResult.Success(obj.toString())
     }
 
-    private fun started(): String =
-        JSONObject().put("status", "started").toString()
-
-    private fun error(code: String, message: String): String =
-        JSONObject().put("error", code).put("message", message).toString()
+    private fun started(): CommandResult =
+        CommandResult.Success(JSONObject().put("status", "started").toString())
 
     /**
      * Converts hex string (e.g. "AABBCCDD") to ByteArray.

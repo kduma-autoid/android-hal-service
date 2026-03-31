@@ -1,16 +1,15 @@
 package dev.duma.android.hal.plugins.sunmi.printerx.printer.handler
 
 import com.sunmi.printerx.enums.DividingLine
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.plugins.sunmi.printerx.sdk.awaitPrintResult
 import dev.duma.android.hal.plugins.sunmi.printerx.sdk.base64ToBitmap
 import dev.duma.android.hal.plugins.sunmi.printerx.sdk.requirePrinter
-import dev.duma.android.hal.plugins.sunmi.printerx.sdk.success
-import dev.duma.android.hal.plugins.sunmi.printerx.sdk.unsupportedMethod
 import org.json.JSONObject
 
 internal class LineApiHandler {
 
-    suspend fun handle(method: String, json: JSONObject): String {
+    suspend fun handle(method: String, json: JSONObject): CommandResult {
         val (printer, err) = requirePrinter(json)
         if (err != null) return err
         val line = printer!!.lineApi()
@@ -20,19 +19,19 @@ internal class LineApiHandler {
             "initLine" -> {
                 val style = buildBaseStyle(json)
                 line.initLine(style)
-                success()
+                CommandResult.Success()
             }
             "addText" -> {
                 val text = json.getString("text")
                 val style = if (json.has("style")) buildTextStyle(json.getJSONObject("style")) else buildTextStyle(JSONObject())
                 line.addText(text, style)
-                success()
+                CommandResult.Success()
             }
             "printText" -> {
                 val text = json.getString("text")
                 val style = if (json.has("style")) buildTextStyle(json.getJSONObject("style")) else buildTextStyle(JSONObject())
                 line.printText(text, style)
-                success()
+                CommandResult.Success()
             }
             "printTexts" -> {
                 val textsArr = json.getJSONArray("texts")
@@ -47,39 +46,39 @@ internal class LineApiHandler {
                     Array(texts.size) { buildTextStyle(JSONObject()) }
                 }
                 line.printTexts(texts, colsWidth, styles)
-                success()
+                CommandResult.Success()
             }
             "printBarCode" -> {
                 val code = json.getString("code")
                 val style = if (json.has("style")) buildBarcodeStyle(json.getJSONObject("style")) else buildBarcodeStyle(JSONObject())
                 line.printBarCode(code, style)
-                success()
+                CommandResult.Success()
             }
             "printQrCode" -> {
                 val code = json.getString("code")
                 val style = if (json.has("style")) buildQrStyle(json.getJSONObject("style")) else buildQrStyle(JSONObject())
                 line.printQrCode(code, style)
-                success()
+                CommandResult.Success()
             }
             "printBitmap" -> {
                 val bitmap = base64ToBitmap(json.getString("bitmap"))
                 val style = if (json.has("style")) buildBitmapStyle(json.getJSONObject("style")) else buildBitmapStyle(JSONObject())
                 line.printBitmap(bitmap, style)
-                success()
+                CommandResult.Success()
             }
             "printDividingLine" -> {
                 val dividingLine = DividingLine.valueOf(json.getString("style"))
                 val offset = json.optInt("offset", 0)
                 line.printDividingLine(dividingLine, offset)
-                success()
+                CommandResult.Success()
             }
             "autoOut" -> {
                 line.autoOut()
-                success()
+                CommandResult.Success()
             }
             "enableTransMode" -> {
                 line.enableTransMode(json.getBoolean("enable"))
-                success()
+                CommandResult.Success()
             }
             "printTrans" -> {
                 // Synchronous: wait for PrintResult
@@ -87,7 +86,7 @@ internal class LineApiHandler {
                     line.printTrans(result)
                 }
             }
-            else -> unsupportedMethod(method)
+            else -> CommandResult.unsupportedMethod(method)
         }
     }
 }

@@ -2,6 +2,7 @@ package dev.duma.android.hal.transport.intent
 
 import android.app.Activity
 import android.os.Bundle
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.transport.core.CallerContext
 import kotlinx.coroutines.runBlocking
 
@@ -34,7 +35,7 @@ class IntentGatewayActivity : Activity() {
             callingUid = callingActivity?.let { 0 }
         )
 
-        val result = when (intent?.action) {
+        val commandResult = when (intent?.action) {
             ACTION_REQUEST_TOKEN -> {
                 val developerKey = intent.getStringExtra("developerKey")
                 val clientId = intent.getStringExtra("clientId") ?: "unknown"
@@ -53,11 +54,16 @@ class IntentGatewayActivity : Activity() {
                 val params = intent.getStringExtra("params") ?: "{}"
                 runBlocking { handler.execute(token, method, params, callerContext) }
             }
-            else -> """{"error":"invalid_method","message":"Unknown action"}"""
+            else -> CommandResult.badRequest("Unknown action")
+        }
+
+        val jsonResult = when (commandResult) {
+            is CommandResult.Success -> commandResult.body ?: "{}"
+            is CommandResult.Failure -> """{"error":"${commandResult.code}","message":"${commandResult.message}"}"""
         }
 
         setResult(RESULT_OK, android.content.Intent().apply {
-            putExtra("result", result)
+            putExtra("result", jsonResult)
         })
         finish()
     }

@@ -12,6 +12,6 @@ interface HalPlugin {
     fun getCapabilities(): List<String>
     fun getDescriptor(): PluginDescriptor
     fun initialize(pluginContext: PluginContext)
-    suspend fun execute(method: String, params: String): String
+    suspend fun execute(method: String, params: String): CommandResult
     fun setEventCallback(callback: HalPluginEventCallback?)
 }

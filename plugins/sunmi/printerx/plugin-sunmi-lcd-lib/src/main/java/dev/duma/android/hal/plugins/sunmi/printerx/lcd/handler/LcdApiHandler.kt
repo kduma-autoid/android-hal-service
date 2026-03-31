@@ -1,16 +1,14 @@
 package dev.duma.android.hal.plugins.sunmi.printerx.lcd.handler
 
 import com.sunmi.printerx.enums.Command
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.plugins.sunmi.printerx.sdk.base64ToBitmap
-import dev.duma.android.hal.plugins.sunmi.printerx.sdk.error
 import dev.duma.android.hal.plugins.sunmi.printerx.sdk.requirePrinter
-import dev.duma.android.hal.plugins.sunmi.printerx.sdk.success
-import dev.duma.android.hal.plugins.sunmi.printerx.sdk.unsupportedMethod
 import org.json.JSONObject
 
 internal class LcdApiHandler {
 
-    suspend fun handle(method: String, json: JSONObject): String {
+    suspend fun handle(method: String, json: JSONObject): CommandResult {
         val (printer, err) = requirePrinter(json)
         if (err != null) return err
         val lcd = printer!!.lcdApi()
@@ -20,14 +18,14 @@ internal class LcdApiHandler {
             "config" -> {
                 val command = Command.valueOf(json.getString("command"))
                 lcd.config(command)
-                success()
+                CommandResult.Success()
             }
             "showText" -> {
                 val text = json.getString("text")
                 val size = json.optInt("size", 32)
                 val fill = json.optBoolean("fill", false)
                 lcd.showText(text, size, fill)
-                success()
+                CommandResult.Success()
             }
             "showTexts" -> {
                 val textsArr = json.getJSONArray("texts")
@@ -35,19 +33,19 @@ internal class LcdApiHandler {
                 val texts = Array(textsArr.length()) { textsArr.getString(it) }
                 val align = IntArray(alignArr.length()) { alignArr.getInt(it) }
                 lcd.showTexts(texts, align)
-                success()
+                CommandResult.Success()
             }
             "showBitmap" -> {
                 val bitmap = base64ToBitmap(json.getString("bitmap"))
                 lcd.showBitmap(bitmap)
-                success()
+                CommandResult.Success()
             }
             "showDigital" -> {
                 val digital = json.getString("digital")
                 lcd.showDigital(digital)
-                success()
+                CommandResult.Success()
             }
-            else -> unsupportedMethod(method)
+            else -> CommandResult.unsupportedMethod(method)
         }
     }
 }

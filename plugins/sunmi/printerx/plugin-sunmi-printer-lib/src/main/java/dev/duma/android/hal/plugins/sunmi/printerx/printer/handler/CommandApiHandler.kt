@@ -1,14 +1,13 @@
 package dev.duma.android.hal.plugins.sunmi.printerx.printer.handler
 
 import android.util.Base64
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.plugins.sunmi.printerx.sdk.requirePrinter
-import dev.duma.android.hal.plugins.sunmi.printerx.sdk.success
-import dev.duma.android.hal.plugins.sunmi.printerx.sdk.unsupportedMethod
 import org.json.JSONObject
 
 internal class CommandApiHandler {
 
-    suspend fun handle(method: String, json: JSONObject): String {
+    suspend fun handle(method: String, json: JSONObject): CommandResult {
         val (printer, err) = requirePrinter(json)
         if (err != null) return err
         val data = Base64.decode(json.getString("data"), Base64.DEFAULT)
@@ -16,13 +15,13 @@ internal class CommandApiHandler {
         return when (method) {
             "sunmi.printerx.printer.command.sendEscCommand" -> {
                 printer!!.commandApi().sendEscCommand(data)
-                success()
+                CommandResult.Success()
             }
             "sunmi.printerx.printer.command.sendTsplCommand" -> {
                 printer!!.commandApi().sendTsplCommand(data)
-                success()
+                CommandResult.Success()
             }
-            else -> unsupportedMethod(method)
+            else -> CommandResult.unsupportedMethod(method)
         }
     }
 }

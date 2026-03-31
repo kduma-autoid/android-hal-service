@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import com.sunmi.peripheralsdk.SubScreenManager
 import com.sunmi.usbscreen.ISetCall
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
@@ -107,34 +108,34 @@ class SunmiSubScreenPlugin(
         }
     }
 
-    override suspend fun execute(method: String, params: String): String = mutex.withLock {
+    override suspend fun execute(method: String, params: String): CommandResult = mutex.withLock {
         return@withLock try {
             when (method) {
                 "sunmi.screen.getDeviceInfo" -> {
                     val info = SubScreenManager.getDeviceInfo()
                     val json = JSONObject()
                     info?.forEach { (k, v) -> json.put(k, v) }
-                    JSONObject().apply { put("info", json) }.toString()
+                    CommandResult.Success(JSONObject().apply { put("info", json) }.toString())
                 }
                 "sunmi.screen.setScreenSwitch" -> {
                     val json = JSONObject(params)
                     SubScreenManager.setScreenSwitch(json.getString("sn"), json.getBoolean("enabled"))
-                    success()
+                    CommandResult.Success()
                 }
                 "sunmi.screen.setTouchSwitch" -> {
                     val json = JSONObject(params)
                     SubScreenManager.setScreenTpSwitch(json.getString("sn"), json.getBoolean("enabled"))
-                    success()
+                    CommandResult.Success()
                 }
                 "sunmi.screen.setBrightness" -> {
                     val json = JSONObject(params)
                     SubScreenManager.setScreenBrightness(json.getString("sn"), json.getInt("brightness"))
-                    success()
+                    CommandResult.Success()
                 }
-                else -> error("unsupported_method", "Method not supported: $method")
+                else -> CommandResult.unsupportedMethod(method)
             }
         } catch (e: Exception) {
-            error("sdk_error", e.message ?: "Unknown SDK error")
+            CommandResult.internalError(e.message ?: "Unknown SDK error")
         }
     }
 
@@ -142,7 +143,4 @@ class SunmiSubScreenPlugin(
         this.callback = callback
     }
 
-    private fun success(): String = """{"status":"ok"}"""
-    private fun error(code: String, message: String): String =
-        """{"error":"$code","message":"$message"}"""
 }

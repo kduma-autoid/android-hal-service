@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import com.sunmi.peripheralsdk.Color
 import com.sunmi.peripheralsdk.StatusLightManager
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.MethodDescriptor
@@ -89,27 +90,27 @@ class SunmiStatusLightPlugin(
         }
     }
 
-    override suspend fun execute(method: String, params: String): String = mutex.withLock {
+    override suspend fun execute(method: String, params: String): CommandResult = mutex.withLock {
         return@withLock try {
             when (method) {
                 "sunmi.statuslight.setColor" -> {
                     val color = parseColor(JSONObject(params).getString("color"))
-                        ?: return@withLock error("invalid_color", "Unknown color value")
+                        ?: return@withLock CommandResult.badRequest("Unknown color value")
                     StatusLightManager.setColor(color)
-                    success()
+                    CommandResult.Success()
                 }
                 "sunmi.statuslight.turnOff" -> {
                     StatusLightManager.turnOff()
-                    success()
+                    CommandResult.Success()
                 }
                 "sunmi.statuslight.setFlashing" -> {
                     val json = JSONObject(params)
                     val color = parseColor(json.getString("color"))
-                        ?: return@withLock error("invalid_color", "Unknown color value")
+                        ?: return@withLock CommandResult.badRequest("Unknown color value")
                     val onMs = json.getInt("onMs")
                     val offMs = json.getInt("offMs")
                     StatusLightManager.setFlashing(color, onMs, offMs)
-                    success()
+                    CommandResult.Success()
                 }
                 "sunmi.statuslight.setMultiFlashing" -> {
                     val json = JSONObject(params)
@@ -117,21 +118,21 @@ class SunmiStatusLightPlugin(
                     val colors = Array(stepsArr.length()) {
                         val step = stepsArr.getJSONObject(it)
                         parseColor(step.getString("color"))
-                            ?: return@withLock error("invalid_color", "Unknown color: ${step.getString("color")}")
+                            ?: return@withLock CommandResult.badRequest("Unknown color: ${step.getString("color")}")
                     }
                     val onMs = IntArray(stepsArr.length()) { stepsArr.getJSONObject(it).getInt("onMs") }
                     val offMs = IntArray(stepsArr.length()) { stepsArr.getJSONObject(it).getInt("offMs") }
                     StatusLightManager.setMultiFlashing(colors, onMs, offMs)
-                    success()
+                    CommandResult.Success()
                 }
-                else -> error("unsupported_method", "Method not supported: $method")
+                else -> CommandResult.unsupportedMethod(method)
             }
         } catch (e: IllegalStateException) {
-            error("device_not_ready", e.message ?: "Device not initialized")
+            CommandResult.unavailable(e.message ?: "Device not initialized")
         } catch (e: IllegalArgumentException) {
-            error("invalid_params", e.message ?: "Invalid parameters")
+            CommandResult.badRequest(e.message ?: "Invalid parameters")
         } catch (e: Exception) {
-            error("sdk_error", e.message ?: "Unknown SDK error")
+            CommandResult.internalError(e.message ?: "Unknown SDK error")
         }
     }
 
@@ -150,7 +151,4 @@ class SunmiStatusLightPlugin(
         else      -> null
     }
 
-    private fun success(): String = """{"status":"ok"}"""
-    private fun error(code: String, message: String): String =
-        """{"error":"$code","message":"$message"}"""
 }

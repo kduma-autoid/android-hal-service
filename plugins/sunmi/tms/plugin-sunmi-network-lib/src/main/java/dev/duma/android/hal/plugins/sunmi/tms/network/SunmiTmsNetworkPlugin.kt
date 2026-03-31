@@ -1,6 +1,7 @@
 package dev.duma.android.hal.plugins.sunmi.tms.network
 
 import android.content.Context
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginDescriptor
 import dev.duma.android.hal.plugins.sunmi.tms.network.handler.NetworkManagerHandler
@@ -25,7 +26,7 @@ class SunmiTmsNetworkPlugin(context: Context? = null) : BaseTmsPlugin(context) {
         events = emptyList()
     )
 
-    override suspend fun execute(method: String, params: String): String = guardedExecute {
+    override suspend fun execute(method: String, params: String): CommandResult = guardedExecute {
         networkHandler.handle(method, params)
     }
 

@@ -7,6 +7,7 @@ import android.content.ServiceConnection
 import android.os.IBinder
 import android.util.Log
 import dev.duma.android.hal.contract.AidlPluginAdapter
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventBus
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
@@ -188,9 +189,9 @@ class PluginRegistry {
         return null
     }
 
-    suspend fun executeOnPlugin(method: String, params: String): String {
+    suspend fun executeOnPlugin(method: String, params: String): CommandResult {
         val plugin = findForMethod(method)
-            ?: return """{"error":"no_handler","message":"No plugin handles method: $method"}"""
+            ?: return CommandResult.notFound("No plugin handles method: $method")
         return plugin.execute(method, params)
     }
 

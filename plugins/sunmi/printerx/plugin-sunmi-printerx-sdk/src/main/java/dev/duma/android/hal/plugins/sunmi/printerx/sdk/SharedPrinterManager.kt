@@ -3,6 +3,7 @@ package dev.duma.android.hal.plugins.sunmi.printerx.sdk
 import android.content.Context
 import com.sunmi.printerx.PrinterSdk
 import com.sunmi.printerx.PrinterSdk.PrinterListen
+import dev.duma.android.hal.contract.CommandResult
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -80,15 +81,16 @@ object SharedPrinterManager {
 
     fun getAllPrinterIds(): List<String> = printers.keys.toList()
 
-    fun buildGetPrintersResponse(): String {
+    fun buildGetPrintersResponse(): CommandResult {
         val arr = JSONArray().apply {
             getAllPrinterIds().forEach { put(it) }
         }
-        return JSONObject()
-            .put("status", "ok")
-            .put("printers", arr)
-            .put("defaultPrinter", getDefaultPrinter()?.toString())
-            .toString()
+        return CommandResult.Success(
+            JSONObject()
+                .put("printers", arr)
+                .put("defaultPrinter", getDefaultPrinter()?.toString())
+                .toString()
+        )
     }
 
     private fun notifyListeners() {

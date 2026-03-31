@@ -5,15 +5,13 @@ import com.sunmi.scanner.connector.InitStatusCallback
 import com.sunmi.scanner.connector.ScanResultCallback
 import com.sunmi.scanner.manager.LittleFlashScanner
 import com.sunmi.sdk.ServiceConnectStatus
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
-import dev.duma.android.hal.plugins.sunmi.scanner.common.ScannerResponseHelper.error
-import dev.duma.android.hal.plugins.sunmi.scanner.common.ScannerResponseHelper.started
-import dev.duma.android.hal.plugins.sunmi.scanner.common.ScannerResponseHelper.success
 import dev.duma.android.hal.plugins.sunmi.scanner.common.ScannerServiceManager
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -209,64 +207,64 @@ class SunmiExternalScannerPlugin(
 
     // --- Execute ---
 
-    override suspend fun execute(method: String, params: String): String = mutex.withLock {
+    override suspend fun execute(method: String, params: String): CommandResult = mutex.withLock {
         val scanner = LittleFlashScanner.getInstance()
         val json = if (params.isBlank() || params == "{}") JSONObject() else JSONObject(params)
 
         return@withLock try {
             when (method) {
                 "sunmi.scanner.external.trigger" -> {
-                    if (!initialized) return@withLock error("not_initialized", "Scanner not initialized yet")
+                    if (!initialized) return@withLock CommandResult.Failure("not_initialized", "Scanner not initialized yet")
                     scanner.start()
-                    started()
+                    CommandResult.Success("""{"status":"scanning"}""")
                 }
 
                 "sunmi.scanner.external.stop" -> {
-                    if (!initialized) return@withLock error("not_initialized", "Scanner not initialized yet")
+                    if (!initialized) return@withLock CommandResult.Failure("not_initialized", "Scanner not initialized yet")
                     scanner.stop()
-                    success()
+                    CommandResult.Success()
                 }
 
                 "sunmi.scanner.external.setParams" -> {
-                    if (!initialized) return@withLock error("not_initialized", "Scanner not initialized yet")
+                    if (!initialized) return@withLock CommandResult.Failure("not_initialized", "Scanner not initialized yet")
                     val map = mutableMapOf<String, String>()
                     json.keys().forEach { key -> map[key] = json.getString(key) }
                     scanner.setParams(map)
-                    success()
+                    CommandResult.Success()
                 }
 
                 "sunmi.scanner.external.getVersion" -> {
-                    success("version", scanner.version() ?: "unknown")
+                    CommandResult.Success(JSONObject().put("version", scanner.version() ?: "unknown").toString())
                 }
 
                 "sunmi.scanner.external.getScanEngineVersion" -> {
                     scanner.getScanEngineVersion()
-                    success()
+                    CommandResult.Success()
                 }
 
                 "sunmi.scanner.external.sendData" -> {
-                    if (!initialized) return@withLock error("not_initialized", "Scanner not initialized yet")
+                    if (!initialized) return@withLock CommandResult.Failure("not_initialized", "Scanner not initialized yet")
                     val hex = json.getString("data")
                     val bytes = hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
                     scanner.sendData(bytes)
-                    success()
+                    CommandResult.Success()
                 }
 
                 "sunmi.scanner.external.release" -> {
                     initialized = false
                     scanner.unRegisterScanResultCallback()
                     scanner.release()
-                    success()
+                    CommandResult.Success()
                 }
 
                 "sunmi.scanner.external.isServiceConnected" -> {
-                    success("connected", ScannerServiceManager.isConnected())
+                    CommandResult.Success(JSONObject().put("connected", ScannerServiceManager.isConnected()).toString())
                 }
 
-                else -> error("unsupported_method", "Method not supported: $method")
+                else -> CommandResult.unsupportedMethod(method)
             }
         } catch (e: Exception) {
-            error("sdk_error", e.message ?: "Unknown SDK error")
+            CommandResult.internalError(e.message ?: "Unknown SDK error")
         }
     }
 

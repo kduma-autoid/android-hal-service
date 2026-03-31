@@ -12,15 +12,13 @@ import com.sunmi.scanner.io.DataCallback
 import com.sunmi.scanner.io.QueryCallback
 import com.sunmi.scanner.sdk.InnerScanner
 import com.sunmi.sdk.ServiceConnectStatus
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
-import dev.duma.android.hal.plugins.sunmi.scanner.common.ScannerResponseHelper.error
-import dev.duma.android.hal.plugins.sunmi.scanner.common.ScannerResponseHelper.started
-import dev.duma.android.hal.plugins.sunmi.scanner.common.ScannerResponseHelper.success
 import dev.duma.android.hal.plugins.sunmi.scanner.common.ScannerServiceManager
 import dev.duma.android.hal.plugins.sunmi.scanner.common.compat.ScannerService
 import dev.duma.android.hal.plugins.sunmi.scanner.common.compat.SunmiHelper
@@ -122,41 +120,43 @@ class SunmiInnerScannerPlugin(
 
     // --- Execute ---
 
-    override suspend fun execute(method: String, params: String): String = mutex.withLock {
+    override suspend fun execute(method: String, params: String): CommandResult = mutex.withLock {
         val scanner = InnerScanner.getInstance()
         val json = if (params.isBlank() || params == "{}") JSONObject() else JSONObject(params)
 
         return@withLock try {
             when (method) {
                 // --- Core scan control ---
-                "sunmi.scanner.inner.trigger" -> { scanner.scan(); started() }
-                "sunmi.scanner.inner.stop" -> { scanner.stop(); success() }
-                "sunmi.scanner.inner.sendCommand" -> { scanner.sendCommand(json.getString("command")); success() }
+                "sunmi.scanner.inner.trigger" -> { scanner.scan(); CommandResult.Success("""{"status":"scanning"}""") }
+                "sunmi.scanner.inner.stop" -> { scanner.stop(); CommandResult.Success() }
+                "sunmi.scanner.inner.sendCommand" -> { scanner.sendCommand(json.getString("command")); CommandResult.Success() }
                 "sunmi.scanner.inner.sendQuery" -> querySetting(scanner, json.getString("query"))
                 "sunmi.scanner.inner.sendKeyEvent" -> {
                     scanner.sendKeyEvent(KeyEvent(json.optInt("action", KeyEvent.ACTION_DOWN), json.optInt("keyCode", KeyEvent.KEYCODE_UNKNOWN)))
-                    success()
+                    CommandResult.Success()
                 }
-                "sunmi.scanner.inner.clearConfig" -> { scanner.clearConfig(); success() }
-                "sunmi.scanner.inner.isServiceConnected" -> success("connected", ScannerServiceManager.isConnected())
+                "sunmi.scanner.inner.clearConfig" -> { scanner.clearConfig(); CommandResult.Success() }
+                "sunmi.scanner.inner.isServiceConnected" -> CommandResult.Success(JSONObject().put("connected", ScannerServiceManager.isConnected()).toString())
 
                 // --- Scanner model ---
                 "sunmi.scanner.inner.getScannerModel" -> {
                     val id = scanner.getScannerModel()
-                    JSONObject().put("status", "ok").put("id", id).put("name", ScannerService.scannerIdToName(id)).toString()
+                    CommandResult.Success(JSONObject().put("id", id).put("name", ScannerService.scannerIdToName(id)).toString())
                 }
-                "sunmi.scanner.inner.setScannerModel" -> { scanner.setScannerModel(json.getInt("model")); success() }
+                "sunmi.scanner.inner.setScannerModel" -> { scanner.setScannerModel(json.getInt("model")); CommandResult.Success() }
 
                 // --- Output configuration ---
                 "sunmi.scanner.inner.getOutputType" -> queryServiceSetting { ss ->
-                    JSONObject().put("status", "ok")
-                        .put("mode", ss.mOutType)
-                        .put("interval", ss.mOutCharInterval)
-                        .put("tab", ss.mOutAutoAdd?.getOrNull(0)?.let { it == 1 })
-                        .put("enter", ss.mOutAutoAdd?.getOrNull(1)?.let { it == 1 })
-                        .put("asEvent", ss.mOutAutoAdd?.getOrNull(2)?.let { it == 1 })
-                        .put("space", ss.mOutAutoAdd?.getOrNull(3)?.let { it == 1 })
-                        .toString()
+                    CommandResult.Success(
+                        JSONObject()
+                            .put("mode", ss.mOutType)
+                            .put("interval", ss.mOutCharInterval)
+                            .put("tab", ss.mOutAutoAdd?.getOrNull(0)?.let { it == 1 })
+                            .put("enter", ss.mOutAutoAdd?.getOrNull(1)?.let { it == 1 })
+                            .put("asEvent", ss.mOutAutoAdd?.getOrNull(2)?.let { it == 1 })
+                            .put("space", ss.mOutAutoAdd?.getOrNull(3)?.let { it == 1 })
+                            .toString()
+                    )
                 }
                 "sunmi.scanner.inner.setOutputType" -> {
                     scanner.sendCommand(SunmiHelper.setOutType(json.getInt("mode")))
@@ -166,39 +166,41 @@ class SunmiInnerScannerPlugin(
                     val space = if (json.has("space")) (if (json.getBoolean("space")) 1 else 0) else -1
                     scanner.sendCommand(SunmiHelper.setOutAutoAdd(intArrayOf(tab, enter, asEvent, space)))
                     if (json.has("interval")) scanner.sendCommand(SunmiHelper.setOutCharInterval(json.getInt("interval")))
-                    success()
+                    CommandResult.Success()
                 }
                 "sunmi.scanner.inner.getOutputEncodingCode" -> queryServiceSetting { ss ->
-                    success("encoding", ss.mOutCodeCharSet)
+                    CommandResult.Success(JSONObject().put("encoding", ss.mOutCodeCharSet).toString())
                 }
                 "sunmi.scanner.inner.setOutputEncodingCode" -> {
                     scanner.sendCommand(SunmiHelper.setOutCode(json.getInt("encoding")))
-                    success()
+                    CommandResult.Success()
                 }
                 "sunmi.scanner.inner.getScanResultCodeID" -> queryServiceSetting { ss ->
-                    success("type", ss.mOutCodeID)
+                    CommandResult.Success(JSONObject().put("type", ss.mOutCodeID).toString())
                 }
                 "sunmi.scanner.inner.setScanResultCodeID" -> {
                     scanner.sendCommand(SunmiHelper.setSetOutCodeID(json.getInt("type")))
-                    success()
+                    CommandResult.Success()
                 }
 
                 // --- Broadcast ---
                 "sunmi.scanner.inner.isOutputBroadcastEnabled" -> queryServiceSetting { ss ->
-                    success("enabled", ss.mOutBroadcast == 1)
+                    CommandResult.Success(JSONObject().put("enabled", ss.mOutBroadcast == 1).toString())
                 }
                 "sunmi.scanner.inner.setOutputBroadcastEnabled" -> {
                     scanner.sendCommand(SunmiHelper.setOutBroadcast(if (json.getBoolean("enabled")) 1 else 0))
-                    success()
+                    CommandResult.Success()
                 }
                 "sunmi.scanner.inner.getBroadcastConfiguration" -> queryServiceSetting { ss ->
-                    JSONObject().put("status", "ok")
-                        .put("action", ss.mBroadcastAction)
-                        .put("dataKey", ss.mDataKey)
-                        .put("byteKey", ss.mByteKey)
-                        .put("startAction", ss.mStartDecodeAction)
-                        .put("endAction", ss.mEndDecodeAction)
-                        .toString()
+                    CommandResult.Success(
+                        JSONObject()
+                            .put("action", ss.mBroadcastAction)
+                            .put("dataKey", ss.mDataKey)
+                            .put("byteKey", ss.mByteKey)
+                            .put("startAction", ss.mStartDecodeAction)
+                            .put("endAction", ss.mEndDecodeAction)
+                            .toString()
+                    )
                 }
                 "sunmi.scanner.inner.setBroadcastConfiguration" -> {
                     if (json.has("action")) scanner.sendCommand(SunmiHelper.setOutBroadcastAction(json.getString("action")))
@@ -206,16 +208,18 @@ class SunmiInnerScannerPlugin(
                     if (json.has("byteKey")) scanner.sendCommand(SunmiHelper.setOutBroadcastByteKey(json.getString("byteKey")))
                     if (json.has("startAction")) scanner.sendCommand(SunmiHelper.setStartDecodeBroadcastAction(json.getString("startAction").ifEmpty { " " }))
                     if (json.has("endAction")) scanner.sendCommand(SunmiHelper.setEndDecodeBroadcastAction(json.getString("endAction").ifEmpty { " " }))
-                    success()
+                    CommandResult.Success()
                 }
 
                 // --- Trigger ---
                 "sunmi.scanner.inner.getTriggerMethod" -> queryServiceSetting { ss ->
-                    JSONObject().put("status", "ok")
-                        .put("mode", ss.mTriggerMethod)
-                        .put("timeout", ss.mTriggerTimeOut)
-                        .put("sleep", ss.mContinuousTime)
-                        .toString()
+                    CommandResult.Success(
+                        JSONObject()
+                            .put("mode", ss.mTriggerMethod)
+                            .put("timeout", ss.mTriggerTimeOut)
+                            .put("sleep", ss.mContinuousTime)
+                            .toString()
+                    )
                 }
                 "sunmi.scanner.inner.setTriggerMethod" -> {
                     val mode = json.getInt("mode")
@@ -227,124 +231,128 @@ class SunmiInnerScannerPlugin(
                         scanner.sendCommand(SunmiHelper.setTriggerOverTime(if (mode == 2) timeout else 5000))
                     }
                     if (json.has("sleep")) scanner.sendCommand(SunmiHelper.setTriggerContinuousTime(json.getInt("sleep")))
-                    success()
+                    CommandResult.Success()
                 }
                 "sunmi.scanner.inner.setTrigger" -> {
                     val enabled = json.optBoolean("enabled", true)
                     appContext?.sendBroadcast(android.content.Intent("com.sunmi.scanner.ACTION_TRIGGER_CONTROL").putExtra("enable", enabled))
-                    success()
+                    CommandResult.Success()
                 }
 
                 // --- Beep / Vibrate ---
                 "sunmi.scanner.inner.isBeep" -> queryServiceSetting { ss ->
-                    success("enabled", ss.mTips?.getOrNull(0)?.let { it == 1 } ?: true)
+                    CommandResult.Success(JSONObject().put("enabled", ss.mTips?.getOrNull(0)?.let { it == 1 } ?: true).toString())
                 }
                 "sunmi.scanner.inner.setBeep" -> {
                     queryServiceSettingDirect { ss ->
                         val vibrate = ss.mTips?.getOrNull(1) ?: 1
                         scanner.sendCommand(SunmiHelper.setTips(intArrayOf(if (json.getBoolean("enabled")) 1 else 0, vibrate)))
                     }
-                    success()
+                    CommandResult.Success()
                 }
                 "sunmi.scanner.inner.isVibrate" -> queryServiceSetting { ss ->
-                    success("enabled", ss.mTips?.getOrNull(1)?.let { it == 1 } ?: true)
+                    CommandResult.Success(JSONObject().put("enabled", ss.mTips?.getOrNull(1)?.let { it == 1 } ?: true).toString())
                 }
                 "sunmi.scanner.inner.setVibrate" -> {
                     queryServiceSettingDirect { ss ->
                         val beepVal = ss.mTips?.getOrNull(0) ?: 1
                         scanner.sendCommand(SunmiHelper.setTips(intArrayOf(beepVal, if (json.getBoolean("enabled")) 1 else 0)))
                     }
-                    success()
+                    CommandResult.Success()
                 }
-                "sunmi.scanner.inner.beep" -> { beeper?.beep(); success() }
-                "sunmi.scanner.inner.vibrate" -> { beeper?.vibrate(); success() }
+                "sunmi.scanner.inner.beep" -> { beeper?.beep(); CommandResult.Success() }
+                "sunmi.scanner.inner.vibrate" -> { beeper?.vibrate(); CommandResult.Success() }
 
                 // --- Flash / Scene / Center / Virtual button ---
                 "sunmi.scanner.inner.isFlash" -> queryResultSetting(SunmiHelper.SET_FLASH_CONTROL) { value ->
-                    success("enabled", value == "1" || value == "true")
+                    CommandResult.Success(JSONObject().put("enabled", value == "1" || value == "true").toString())
                 }
                 "sunmi.scanner.inner.setFlash" -> {
                     scanner.sendCommand(SunmiHelper.setFlashControl(if (json.getBoolean("enabled")) 1 else 0))
-                    success()
+                    CommandResult.Success()
                 }
                 "sunmi.scanner.inner.getCenterFlagScan" -> queryServiceSetting { ss ->
-                    success("mode", ss.mCenterFlagScan)
+                    CommandResult.Success(JSONObject().put("mode", ss.mCenterFlagScan).toString())
                 }
                 "sunmi.scanner.inner.setCenterFlagScan" -> {
                     scanner.sendCommand(SunmiHelper.setCenterFlagScan(json.getInt("mode")))
-                    success()
+                    CommandResult.Success()
                 }
                 "sunmi.scanner.inner.getScene" -> queryResultSetting(SunmiHelper.SET_SCAN_SPECIFIC_SCENE) { value ->
-                    success("scene", try { value.toInt() } catch (_: Exception) { 0 })
+                    CommandResult.Success(JSONObject().put("scene", try { value.toInt() } catch (_: Exception) { 0 }).toString())
                 }
                 "sunmi.scanner.inner.setScene" -> {
                     scanner.sendCommand(SunmiHelper.setSetScanSpecificScene(json.getInt("scene")))
-                    success()
+                    CommandResult.Success()
                 }
                 "sunmi.scanner.inner.switchSpecialScene" -> {
                     scanner.switchSpecialScene(json.getInt("scene"))
-                    success()
+                    CommandResult.Success()
                 }
                 "sunmi.scanner.inner.isVirtualFloatingScanButton" -> queryServiceSetting { ss ->
-                    success("enabled", ss.mTrigger?.getOrNull(0)?.let { it == 1 } ?: false)
+                    CommandResult.Success(JSONObject().put("enabled", ss.mTrigger?.getOrNull(0)?.let { it == 1 } ?: false).toString())
                 }
                 "sunmi.scanner.inner.setVirtualFloatingScanButton" -> {
                     scanner.sendCommand(SunmiHelper.setScanTrigger(intArrayOf(if (json.getBoolean("enabled")) 1 else 0)))
-                    success()
+                    CommandResult.Success()
                 }
 
                 // --- Prefix / Suffix ---
                 "sunmi.scanner.inner.getPrefix" -> queryServiceSetting { ss ->
-                    JSONObject().put("status", "ok")
-                        .put("content", if (ss.mPrefix == 1) ss.mPrefixContext else JSONObject.NULL)
-                        .toString()
+                    CommandResult.Success(
+                        JSONObject()
+                            .put("content", if (ss.mPrefix == 1) ss.mPrefixContext else JSONObject.NULL)
+                            .toString()
+                    )
                 }
                 "sunmi.scanner.inner.setPrefix" -> {
                     val content = json.optString("content", "").ifEmpty { null }
                     scanner.sendCommand(SunmiHelper.setPrefix(if (content != null) 1 else 0))
                     scanner.sendCommand(SunmiHelper.setPrefixContext(content ?: ScannerService.FIX_NULL))
-                    success()
+                    CommandResult.Success()
                 }
                 "sunmi.scanner.inner.getSuffix" -> queryServiceSetting { ss ->
-                    JSONObject().put("status", "ok")
-                        .put("content", if (ss.mSuffix == 1) ss.mSuffixContext else JSONObject.NULL)
-                        .toString()
+                    CommandResult.Success(
+                        JSONObject()
+                            .put("content", if (ss.mSuffix == 1) ss.mSuffixContext else JSONObject.NULL)
+                            .toString()
+                    )
                 }
                 "sunmi.scanner.inner.setSuffix" -> {
                     val content = json.optString("content", "").ifEmpty { null }
                     scanner.sendCommand(SunmiHelper.setSuffix(if (content != null) 1 else 0))
                     scanner.sendCommand(SunmiHelper.setSuffixContext(content ?: ScannerService.FIX_NULL))
-                    success()
+                    CommandResult.Success()
                 }
                 "sunmi.scanner.inner.getPrefixCharactersRemoved" -> queryServiceSetting { ss ->
-                    success("length", ss.mPrefixCount)
+                    CommandResult.Success(JSONObject().put("length", ss.mPrefixCount).toString())
                 }
                 "sunmi.scanner.inner.setPrefixCharactersRemoved" -> {
                     scanner.sendCommand(SunmiHelper.setPrefixCount(json.getInt("length")))
-                    success()
+                    CommandResult.Success()
                 }
                 "sunmi.scanner.inner.getSuffixCharactersRemoved" -> queryServiceSetting { ss ->
-                    success("length", ss.mSuffixCount)
+                    CommandResult.Success(JSONObject().put("length", ss.mSuffixCount).toString())
                 }
                 "sunmi.scanner.inner.setSuffixCharactersRemoved" -> {
                     scanner.sendCommand(SunmiHelper.setSuffixCount(json.getInt("length")))
-                    success()
+                    CommandResult.Success()
                 }
                 "sunmi.scanner.inner.isRemoveGroupSeparator" -> queryServiceSetting { ss ->
-                    success("enabled", ss.mRemoveGroupChar == 1)
+                    CommandResult.Success(JSONObject().put("enabled", ss.mRemoveGroupChar == 1).toString())
                 }
                 "sunmi.scanner.inner.setRemoveGroupSeparator" -> {
                     scanner.sendCommand(SunmiHelper.setRemoveGroupChar(if (json.getBoolean("enabled")) 1 else 0))
-                    success()
+                    CommandResult.Success()
                 }
 
                 // --- Advanced Formatting ---
                 "sunmi.scanner.inner.isAdvancedFormatEnabled" -> queryServiceSetting { ss ->
-                    success("enabled", ss.mAdvancedFormat == 1)
+                    CommandResult.Success(JSONObject().put("enabled", ss.mAdvancedFormat == 1).toString())
                 }
                 "sunmi.scanner.inner.setAdvancedFormatEnabled" -> {
                     scanner.sendCommand(SunmiHelper.setAdvancedFormat(if (json.getBoolean("enabled")) 1 else 0))
-                    success()
+                    CommandResult.Success()
                 }
                 "sunmi.scanner.inner.getAdvancedFormats" -> queryAdvancedFormats()
                 "sunmi.scanner.inner.setAdvancedFormats" -> {
@@ -353,19 +361,19 @@ class SunmiInnerScannerPlugin(
                     formats.keys().forEach { key ->
                         scanner.sendCommand(SunmiHelper.setAdvancedFormatAdd(arrayOf(key, formats.getString(key))))
                     }
-                    success()
+                    CommandResult.Success()
                 }
                 "sunmi.scanner.inner.addAdvancedFormat" -> {
                     scanner.sendCommand(SunmiHelper.setAdvancedFormatAdd(arrayOf(json.getString("search"), json.getString("replacement"))))
-                    success()
+                    CommandResult.Success()
                 }
                 "sunmi.scanner.inner.removeAdvancedFormat" -> {
                     scanner.sendCommand(SunmiHelper.setAdvancedFormatRemove(json.getString("search")))
-                    success()
+                    CommandResult.Success()
                 }
                 "sunmi.scanner.inner.clearAdvancedFormats" -> {
                     scanner.sendCommand(SunmiHelper.setAdvancedFormatClear(1))
-                    success()
+                    CommandResult.Success()
                 }
 
                 // --- Barcode symbologies ---
@@ -373,44 +381,44 @@ class SunmiInnerScannerPlugin(
                 "sunmi.scanner.inner.getBarcode" -> queryBarcode(json.getString("name"))
                 "sunmi.scanner.inner.setBarcode" -> {
                     val cmd = SunmiHelper.setCodeEnable(json.getString("name"), json.getBoolean("enabled"))
-                    if (cmd.isNullOrEmpty()) error("invalid_barcode", "Unknown barcode type: ${json.getString("name")}")
-                    else { scanner.sendCommand(cmd); success() }
+                    if (cmd.isNullOrEmpty()) CommandResult.badRequest("Unknown barcode type: ${json.getString("name")}")
+                    else { scanner.sendCommand(cmd); CommandResult.Success() }
                 }
                 "sunmi.scanner.inner.getBarcodeConfig" -> queryBarcodeConfig(json.getString("name"))
                 "sunmi.scanner.inner.setBarcodeConfig" -> setBarcodeConfig(scanner, json)
 
-                else -> error("unsupported_method", "Method not supported: $method")
+                else -> CommandResult.unsupportedMethod(method)
             }
         } catch (e: Exception) {
-            error("sdk_error", e.message ?: "Unknown SDK error")
+            CommandResult.internalError(e.message ?: "Unknown SDK error")
         }
     }
 
     // --- Query helpers ---
 
-    private suspend fun querySetting(scanner: InnerScanner, query: String): String {
-        val deferred = CompletableDeferred<String>()
+    private suspend fun querySetting(scanner: InnerScanner, query: String): CommandResult {
+        val deferred = CompletableDeferred<CommandResult>()
         scanner.sendQuery(query, object : QueryCallback() {
             override fun onSuccess(entity: Entity<*>?) {
                 deferred.complete(serializeEntity(entity))
             }
             override fun onFiled(errorCode: Int) {
-                deferred.complete(error("query_failed", "Query failed with code $errorCode"))
+                deferred.complete(CommandResult.internalError("Query failed with code $errorCode"))
             }
         })
         return withTimeout(QUERY_TIMEOUT_MS) { deferred.await() }
     }
 
-    private suspend fun queryServiceSetting(transform: (ServiceSetting) -> String): String {
-        val deferred = CompletableDeferred<String>()
+    private suspend fun queryServiceSetting(transform: (ServiceSetting) -> CommandResult): CommandResult {
+        val deferred = CompletableDeferred<CommandResult>()
         InnerScanner.getInstance().sendQuery(SunmiHelper.QUERY_ALL_SETTING_INFO, object : QueryCallback() {
             override fun onSuccess(entity: Entity<*>?) {
                 val bean = entity?.bean
                 if (bean is ServiceSetting) deferred.complete(transform(bean))
-                else deferred.complete(error("unexpected_type", "Expected ServiceSetting"))
+                else deferred.complete(CommandResult.internalError("Expected ServiceSetting"))
             }
             override fun onFiled(errorCode: Int) {
-                deferred.complete(error("query_failed", "Query failed with code $errorCode"))
+                deferred.complete(CommandResult.internalError("Query failed with code $errorCode"))
             }
         })
         return withTimeout(QUERY_TIMEOUT_MS) { deferred.await() }
@@ -429,8 +437,8 @@ class SunmiInnerScannerPlugin(
         withTimeout(QUERY_TIMEOUT_MS) { deferred.await() }?.let(action)
     }
 
-    private suspend fun queryResultSetting(queryString: String, transform: (String) -> String): String {
-        val deferred = CompletableDeferred<String>()
+    private suspend fun queryResultSetting(queryString: String, transform: (String) -> CommandResult): CommandResult {
+        val deferred = CompletableDeferred<CommandResult>()
         InnerScanner.getInstance().sendQuery(queryString, object : QueryCallback() {
             override fun onSuccess(entity: Entity<*>?) {
                 val bean = entity?.bean
@@ -438,88 +446,84 @@ class SunmiInnerScannerPlugin(
                     val raw = bean.result ?: ""
                     val value = raw.substringAfterLast("=", raw)
                     deferred.complete(transform(value))
-                } else deferred.complete(error("unexpected_type", "Expected Result"))
+                } else deferred.complete(CommandResult.internalError("Expected Result"))
             }
             override fun onFiled(errorCode: Int) {
-                deferred.complete(error("query_failed", "Query failed with code $errorCode"))
+                deferred.complete(CommandResult.internalError("Query failed with code $errorCode"))
             }
         })
         return withTimeout(QUERY_TIMEOUT_MS) { deferred.await() }
     }
 
-    private suspend fun queryAdvancedFormats(): String {
-        val deferred = CompletableDeferred<String>()
+    private suspend fun queryAdvancedFormats(): CommandResult {
+        val deferred = CompletableDeferred<CommandResult>()
         InnerScanner.getInstance().sendQuery(SunmiHelper.QUERY_ADVANCED_FORMAT, object : QueryCallback() {
             override fun onSuccess(entity: Entity<*>?) {
                 val bean = entity?.bean
-                val result = JSONObject().put("status", "ok")
                 val formats = JSONObject()
                 if (bean is java.util.ArrayList<*>) {
                     for (item in bean) {
                         if (item is Pair) formats.put(item.first ?: "", item.second ?: "")
                     }
                 }
-                result.put("formats", formats)
-                deferred.complete(result.toString())
+                deferred.complete(CommandResult.Success(JSONObject().put("formats", formats).toString()))
             }
             override fun onFiled(errorCode: Int) {
-                deferred.complete(error("query_failed", "Query failed with code $errorCode"))
+                deferred.complete(CommandResult.internalError("Query failed with code $errorCode"))
             }
         })
         return withTimeout(QUERY_TIMEOUT_MS) { deferred.await() }
     }
 
-    private suspend fun queryBarcodesList(): String {
-        val deferred = CompletableDeferred<String>()
+    private suspend fun queryBarcodesList(): CommandResult {
+        val deferred = CompletableDeferred<CommandResult>()
         InnerScanner.getInstance().sendQuery(SunmiHelper.QUERY_ALL_ENABLE_CODE, object : QueryCallback() {
             override fun onSuccess(entity: Entity<*>?) {
                 val bean = entity?.bean
                 if (bean is CodeEnable) {
-                    val result = JSONObject().put("status", "ok")
                     val barcodes = JSONArray()
                     bean.codes?.forEachIndexed { i, code ->
                         barcodes.put(JSONObject().put("name", code).put("enabled", bean.enable?.getOrNull(i) ?: false))
                     }
-                    result.put("barcodes", barcodes)
-                    deferred.complete(result.toString())
-                } else deferred.complete(error("unexpected_type", "Expected CodeEnable"))
+                    deferred.complete(CommandResult.Success(JSONObject().put("barcodes", barcodes).toString()))
+                } else deferred.complete(CommandResult.internalError("Expected CodeEnable"))
             }
             override fun onFiled(errorCode: Int) {
-                deferred.complete(error("query_failed", "Query failed with code $errorCode"))
+                deferred.complete(CommandResult.internalError("Query failed with code $errorCode"))
             }
         })
         return withTimeout(QUERY_TIMEOUT_MS) { deferred.await() }
     }
 
-    private suspend fun queryBarcode(name: String): String {
-        val deferred = CompletableDeferred<String>()
+    private suspend fun queryBarcode(name: String): CommandResult {
+        val deferred = CompletableDeferred<CommandResult>()
         InnerScanner.getInstance().sendQuery(SunmiHelper.QUERY_ALL_ENABLE_CODE, object : QueryCallback() {
             override fun onSuccess(entity: Entity<*>?) {
                 val bean = entity?.bean
                 if (bean is CodeEnable) {
                     val idx = bean.codes?.indexOf(name) ?: -1
                     if (idx >= 0) {
-                        deferred.complete(JSONObject().put("status", "ok").put("name", name).put("enabled", bean.enable?.getOrNull(idx) ?: false).toString())
-                    } else deferred.complete(error("not_found", "Barcode type not found: $name"))
-                } else deferred.complete(error("unexpected_type", "Expected CodeEnable"))
+                        deferred.complete(CommandResult.Success(JSONObject().put("name", name).put("enabled", bean.enable?.getOrNull(idx) ?: false).toString()))
+                    } else deferred.complete(CommandResult.badRequest("Barcode type not found: $name"))
+                } else deferred.complete(CommandResult.internalError("Expected CodeEnable"))
             }
             override fun onFiled(errorCode: Int) {
-                deferred.complete(error("query_failed", "Query failed with code $errorCode"))
+                deferred.complete(CommandResult.internalError("Query failed with code $errorCode"))
             }
         })
         return withTimeout(QUERY_TIMEOUT_MS) { deferred.await() }
     }
 
-    private suspend fun queryBarcodeConfig(name: String): String {
+    private suspend fun queryBarcodeConfig(name: String): CommandResult {
         val queryCmd = SunmiHelper.queryCodeSetting(name)
-        if (queryCmd.isNullOrEmpty()) return error("invalid_barcode", "Unknown barcode type: $name")
+        if (queryCmd.isNullOrEmpty()) return CommandResult.badRequest("Unknown barcode type: $name")
 
-        val deferred = CompletableDeferred<String>()
+        val deferred = CompletableDeferred<CommandResult>()
         InnerScanner.getInstance().sendQuery(queryCmd, object : QueryCallback() {
             override fun onSuccess(entity: Entity<*>?) {
                 val bean = entity?.bean
                 if (bean is CodeSetting) {
-                    deferred.complete(JSONObject().put("status", "ok").put("name", name)
+                    deferred.complete(CommandResult.Success(JSONObject().put("name", name)
                         .put("minLen", bean.minLen).put("maxLen", bean.maxLen)
                         .put("checkCharType", bean.checkCharType).put("checkCharMode", bean.checkCharMode)
                         .put("isStartEndType", bean.isStartEndType).put("startEndFormat", bean.startEndFormat)
@@ -527,17 +531,17 @@ class SunmiInnerScannerPlugin(
                         .put("isSystemCharZero", bean.isSystemCharZero).put("isExtendToCode", bean.isExtendToCode)
                         .put("doubleCode", bean.doubleCode).put("isMicroCode", bean.isMicroCode)
                         .put("inverseCode", bean.inverseCode).put("formatCode", bean.formatCode)
-                        .toString())
-                } else deferred.complete(error("unexpected_type", "Expected CodeSetting"))
+                        .toString()))
+                } else deferred.complete(CommandResult.internalError("Expected CodeSetting"))
             }
             override fun onFiled(errorCode: Int) {
-                deferred.complete(error("query_failed", "Query failed with code $errorCode"))
+                deferred.complete(CommandResult.internalError("Query failed with code $errorCode"))
             }
         })
         return withTimeout(QUERY_TIMEOUT_MS) { deferred.await() }
     }
 
-    private fun setBarcodeConfig(scanner: InnerScanner, json: JSONObject): String {
+    private fun setBarcodeConfig(scanner: InnerScanner, json: JSONObject): CommandResult {
         val name = json.getString("name")
         if (json.has("minLen") || json.has("maxLen")) {
             val minLen = json.optInt("minLen", 0)
@@ -556,15 +560,15 @@ class SunmiInnerScannerPlugin(
         if (json.has("isMicroCode")) scanner.sendCommand(SunmiHelper.setCodeReadMicro(name, json.getBoolean("isMicroCode")))
         if (json.has("inverseCode")) scanner.sendCommand(SunmiHelper.setCodeReadInverse(name, json.getInt("inverseCode")))
         if (json.has("formatCode")) scanner.sendCommand(SunmiHelper.setCodeFormatMode(name, json.getInt("formatCode")))
-        return success()
+        return CommandResult.Success()
     }
 
     // --- Entity serialization ---
 
-    private fun serializeEntity(entity: Entity<*>?): String {
-        if (entity == null) return error("empty_response", "No data returned")
-        val bean = entity.bean ?: return error("empty_response", "No data in entity")
-        val result = JSONObject().put("status", "ok")
+    private fun serializeEntity(entity: Entity<*>?): CommandResult {
+        if (entity == null) return CommandResult.internalError("No data returned")
+        val bean = entity.bean ?: return CommandResult.internalError("No data in entity")
+        val result = JSONObject()
 
         when (bean) {
             is ServiceSetting -> {
@@ -620,7 +624,7 @@ class SunmiInnerScannerPlugin(
             }
             else -> result.put("type", bean.javaClass.simpleName).put("data", bean.toString())
         }
-        return result.toString()
+        return CommandResult.Success(result.toString())
     }
 
     // --- Helpers ---

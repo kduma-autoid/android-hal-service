@@ -1,6 +1,7 @@
 package dev.duma.android.hal.plugins.sunmi.printerx.lcd
 
 import android.content.Context
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginDescriptor
 import dev.duma.android.hal.plugins.sunmi.printerx.lcd.handler.LcdApiHandler
@@ -62,6 +63,6 @@ class SunmiPrinterXLcdPlugin(context: Context? = null) : BasePrinterXPlugin(cont
         events = emptyList()
     )
 
-    override suspend fun handleExecute(method: String, params: String, json: JSONObject): String =
+    override suspend fun handleExecute(method: String, params: String, json: JSONObject): CommandResult =
         guardedExecute { lcdHandler.handle(method, json) }
 }

@@ -31,7 +31,7 @@ class AidlPluginAdapter(
 
     override fun initialize(pluginContext: PluginContext) {
         val pluginContextBinder = object : IPluginContext.Stub() {
-            override fun execute(method: String, jsonParams: String): String {
+            override fun execute(method: String, jsonParams: String): CommandResult {
                 return runBlocking(Dispatchers.IO) {
                     pluginContext.execute(method, jsonParams)
                 }
@@ -48,7 +48,7 @@ class AidlPluginAdapter(
         binder.initialize(pluginContextBinder)
     }
 
-    override suspend fun execute(method: String, params: String): String {
+    override suspend fun execute(method: String, params: String): CommandResult {
         return withContext(Dispatchers.IO) {
             binder.execute(method, params)
         }

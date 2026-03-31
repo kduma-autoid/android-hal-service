@@ -5,8 +5,7 @@ import android.util.Base64
 import com.sunmi.tms.api.TMSApi
 import com.sunmi.tmsmaster.aidl.networkmanager.IUnifiedCallback
 import com.sunmi.tmsmaster.aidl.networkmanager.WifiConfigurationInfo
-import dev.duma.android.hal.plugins.sunmi.tms.handler.success
-import dev.duma.android.hal.plugins.sunmi.tms.handler.unsupportedMethod
+import dev.duma.android.hal.contract.CommandResult
 import kotlinx.coroutines.suspendCancellableCoroutine
 import org.json.JSONArray
 import org.json.JSONObject
@@ -14,41 +13,41 @@ import kotlin.coroutines.resume
 
 internal class NetworkManagerHandler(private val api: TMSApi) {
 
-    suspend fun handle(method: String, params: String): String {
+    suspend fun handle(method: String, params: String): CommandResult {
         val op = method.removePrefix("sunmi.tms.network.")
         val json = if (params.isBlank() || params == "{}") JSONObject() else JSONObject(params)
         return when (op) {
-            "enableMobileNetwork" -> { api.networkManager.enableMobileNetwork(json.getInt("slotIdx"), json.getBoolean("enable")); success() }
-            "getDefaultDataSlotIndex" -> success(api.networkManager.defaultDataSlotIndex)
-            "setDefaultDataSlotIndex" -> { api.networkManager.setDefaultDataSlotIndex(json.getInt("slotIndex")); success() }
-            "setMobileDataLocked" -> { api.networkManager.setMobileDataLocked(json.getBoolean("locked")); success() }
-            "getMobileDataStatus" -> success(api.networkManager.mobileDataStatus)
-            "getMobileDataStatusBySlot" -> success(api.networkManager.getMobileDataStatusBySlot(json.getInt("slotIndex")))
-            "getDataRoamingEnabled" -> success(api.networkManager.getDataRoamingEnabled(json.getInt("slotIndex")))
-            "setDataRoamingEnabled" -> { api.networkManager.setDataRoamingEnabled(json.getInt("slotIndex"), json.getBoolean("enable")); success() }
-            "isActiveSlotIndex" -> success(api.networkManager.isActiveSlotIndex(json.getInt("slotIndex")))
-            "enableWIFI" -> { api.networkManager.enableWifi(json.getBoolean("isEnable")); success() }
+            "enableMobileNetwork" -> { api.networkManager.enableMobileNetwork(json.getInt("slotIdx"), json.getBoolean("enable")); CommandResult.Success() }
+            "getDefaultDataSlotIndex" -> CommandResult.Success(JSONObject().put("result", api.networkManager.defaultDataSlotIndex).toString())
+            "setDefaultDataSlotIndex" -> { api.networkManager.setDefaultDataSlotIndex(json.getInt("slotIndex")); CommandResult.Success() }
+            "setMobileDataLocked" -> { api.networkManager.setMobileDataLocked(json.getBoolean("locked")); CommandResult.Success() }
+            "getMobileDataStatus" -> CommandResult.Success(JSONObject().put("result", api.networkManager.mobileDataStatus).toString())
+            "getMobileDataStatusBySlot" -> CommandResult.Success(JSONObject().put("result", api.networkManager.getMobileDataStatusBySlot(json.getInt("slotIndex"))).toString())
+            "getDataRoamingEnabled" -> CommandResult.Success(JSONObject().put("result", api.networkManager.getDataRoamingEnabled(json.getInt("slotIndex"))).toString())
+            "setDataRoamingEnabled" -> { api.networkManager.setDataRoamingEnabled(json.getInt("slotIndex"), json.getBoolean("enable")); CommandResult.Success() }
+            "isActiveSlotIndex" -> CommandResult.Success(JSONObject().put("result", api.networkManager.isActiveSlotIndex(json.getInt("slotIndex"))).toString())
+            "enableWIFI" -> { api.networkManager.enableWifi(json.getBoolean("isEnable")); CommandResult.Success() }
             "connectWifiSsid" -> {
                 suspendCancellableCoroutine { cont ->
                     api.networkManager.connectWifiSsid(json.getString("ssid"), object : IUnifiedCallback.Stub() {
-                        override fun onCall(result: String?) { cont.resume(success(result)) }
+                        override fun onCall(result: String?) { cont.resume(CommandResult.Success(result?.let { JSONObject().put("result", it).toString() })) }
                     })
                 }
             }
             "removeWifiSsid" -> {
                 suspendCancellableCoroutine { cont ->
                     api.networkManager.removeWifiSsid(json.getString("ssid"), object : IUnifiedCallback.Stub() {
-                        override fun onCall(result: String?) { cont.resume(success(result)) }
+                        override fun onCall(result: String?) { cont.resume(CommandResult.Success(result?.let { JSONObject().put("result", it).toString() })) }
                     })
                 }
             }
-            "forgetSavedWifi" -> { api.networkManager.forgetSavedWifi(); success() }
+            "forgetSavedWifi" -> { api.networkManager.forgetSavedWifi(); CommandResult.Success() }
             "addNetwork" -> {
                 val bundle = Bundle().apply {
                     putString("ssid", json.getString("ssid"))
                     putString("preSharedKey", json.optString("preSharedKey", ""))
                 }
-                success(api.networkManager.addNetwork(bundle))
+                CommandResult.Success(JSONObject().put("result", api.networkManager.addNetwork(bundle)).toString())
             }
             "updateNetwork" -> {
                 val bundle = Bundle().apply {
@@ -56,9 +55,9 @@ internal class NetworkManagerHandler(private val api: TMSApi) {
                     putString("preSharedKey", json.optString("preSharedKey", ""))
                     putInt("networkId", json.getInt("networkId"))
                 }
-                success(api.networkManager.updateNetwork(bundle))
+                CommandResult.Success(JSONObject().put("result", api.networkManager.updateNetwork(bundle)).toString())
             }
-            "removeNetwork" -> { api.networkManager.removeNetwork(json.getInt("networkId")); success() }
+            "removeNetwork" -> { api.networkManager.removeNetwork(json.getInt("networkId")); CommandResult.Success() }
             "getConfiguredNetworks" -> {
                 val bundles = api.networkManager.configuredNetworks
                 val arr = JSONArray()
@@ -68,7 +67,7 @@ internal class NetworkManagerHandler(private val api: TMSApi) {
                         put("networkId", b.getInt("networkId"))
                     })
                 }
-                success(arr)
+                CommandResult.Success(JSONObject().put("result", arr).toString())
             }
             "addWifiSsidByWifiConfiguration" -> {
                 val config = WifiConfigurationInfo()
@@ -77,7 +76,7 @@ internal class NetworkManagerHandler(private val api: TMSApi) {
                 config.security_type = json.optInt("security_type", 0)
                 suspendCancellableCoroutine { cont ->
                     api.networkManager.addWifiSsidByWifiConfiguration(config, object : IUnifiedCallback.Stub() {
-                        override fun onCall(result: String?) { cont.resume(success(result)) }
+                        override fun onCall(result: String?) { cont.resume(CommandResult.Success(result?.let { JSONObject().put("result", it).toString() })) }
                     })
                 }
             }
@@ -92,28 +91,28 @@ internal class NetworkManagerHandler(private val api: TMSApi) {
                         json.optString("dns2", ""),
                         json.optBoolean("reconnect", false),
                         object : IUnifiedCallback.Stub() {
-                            override fun onCall(result: String?) { cont.resume(success(result)) }
+                            override fun onCall(result: String?) { cont.resume(CommandResult.Success(result?.let { JSONObject().put("result", it).toString() })) }
                         }
                     )
                 }
             }
-            "resetNetworkSettings" -> { api.networkManager.resetNetworkSettings(); success() }
+            "resetNetworkSettings" -> { api.networkManager.resetNetworkSettings(); CommandResult.Success() }
             "installWlanCertificate" -> {
                 val bytes = Base64.decode(json.getString("certData"), Base64.DEFAULT)
                 api.networkManager.installWlanCertificate(json.getString("name"), bytes, json.optString("password", ""))
-                success()
+                CommandResult.Success()
             }
-            "setCustomNtpServer" -> { api.networkManager.setCustomNtpServer(json.getString("server")); success() }
-            "getCustomNtpServer" -> success(api.networkManager.customNtpServer)
+            "setCustomNtpServer" -> { api.networkManager.setCustomNtpServer(json.getString("server")); CommandResult.Success() }
+            "getCustomNtpServer" -> CommandResult.Success(JSONObject().put("result", api.networkManager.customNtpServer).toString())
             "turnOnWifiHotspot" -> {
                 api.networkManager.turnOnWifiHotspot(json.getString("ssid"), json.getString("preShareKey"), json.getInt("keyManagement"))
-                success()
+                CommandResult.Success()
             }
-            "turnOffWifiHotspot" -> { api.networkManager.turnOffWifiHotspot(); success() }
-            "isWifiHotspotEnable" -> success(api.networkManager.isWifiHotspotEnable)
-            "showWifiHotspotSettings" -> { api.networkManager.showWifiHotspotSettings(); success() }
-            "disableWifiHotspotAndHideSettings" -> { api.networkManager.disableWifiHotspotAndHideSettings(); success() }
-            "enableEthernet" -> { api.networkManager.enableEthernet(json.getBoolean("enable")); success() }
+            "turnOffWifiHotspot" -> { api.networkManager.turnOffWifiHotspot(); CommandResult.Success() }
+            "isWifiHotspotEnable" -> CommandResult.Success(JSONObject().put("result", api.networkManager.isWifiHotspotEnable).toString())
+            "showWifiHotspotSettings" -> { api.networkManager.showWifiHotspotSettings(); CommandResult.Success() }
+            "disableWifiHotspotAndHideSettings" -> { api.networkManager.disableWifiHotspotAndHideSettings(); CommandResult.Success() }
+            "enableEthernet" -> { api.networkManager.enableEthernet(json.getBoolean("enable")); CommandResult.Success() }
             "getTrafficOfEachApp" -> {
                 val list = api.networkManager.getTrafficOfEachApp(json.getInt("networkType"), json.getLong("startTime"), json.getLong("endTime"))
                 val arr = JSONArray()
@@ -132,24 +131,24 @@ internal class NetworkManagerHandler(private val api: TMSApi) {
                         }
                     })
                 }
-                success(arr)
+                CommandResult.Success(JSONObject().put("result", arr).toString())
             }
             "queryTrafficUsageSummary" -> {
                 val bucket = api.networkManager.queryTrafficUsageSummary(json.getInt("networkType"), json.getLong("startTime"), json.getLong("endTime"))
                 if (bucket == null) {
-                    success(null)
+                    CommandResult.Success()
                 } else {
-                    success(JSONObject().apply {
+                    CommandResult.Success(JSONObject().put("result", JSONObject().apply {
                         put("rxBytes", bucket.rxBytes)
                         put("txBytes", bucket.txBytes)
                         put("rxPackets", bucket.rxPackets)
                         put("txPackets", bucket.txPackets)
                         put("beginTimeStamp", bucket.beginTimeStamp)
                         put("endTimeStamp", bucket.endTimeStamp)
-                    })
+                    }).toString())
                 }
             }
-            else -> unsupportedMethod(method)
+            else -> CommandResult.unsupportedMethod(method)
         }
     }
 }

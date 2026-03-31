@@ -4,8 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Base64
 import com.sunmi.tms.api.TMSApi
-import dev.duma.android.hal.plugins.sunmi.tms.handler.success
-import dev.duma.android.hal.plugins.sunmi.tms.handler.unsupportedMethod
+import dev.duma.android.hal.contract.CommandResult
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
@@ -15,7 +14,7 @@ internal class SystemManagerHandler(
     private val emitEvent: (String, String) -> Unit
 ) {
 
-    suspend fun handle(method: String, params: String): String {
+    suspend fun handle(method: String, params: String): CommandResult {
         val op = method.removePrefix("sunmi.tms.system.")
         val json = if (params.isBlank() || params == "{}") JSONObject() else JSONObject(params)
         return when (op) {
@@ -31,13 +30,13 @@ internal class SystemManagerHandler(
                         emitEvent("sunmi.tms.system.updateFail", JSONObject().put("info", info ?: "").toString())
                     }
                 })
-                success()
+                CommandResult.Success()
             }
-            "setDefaultLauncher" -> { api.systemManager.setDefaultLauncher(json.getString("packageName")); success() }
+            "setDefaultLauncher" -> { api.systemManager.setDefaultLauncher(json.getString("packageName")); CommandResult.Success() }
             "doScreenshot" -> {
                 val pfd = api.systemManager.doScreenshot()
                 if (pfd == null) {
-                    success(null)
+                    CommandResult.Success()
                 } else {
                     val bitmap = BitmapFactory.decodeFileDescriptor(pfd.fileDescriptor)
                     pfd.close()
@@ -45,22 +44,22 @@ internal class SystemManagerHandler(
                     bitmap.compress(Bitmap.CompressFormat.PNG, 100, baos)
                     bitmap.recycle()
                     val base64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
-                    success(base64)
+                    CommandResult.Success(JSONObject().put("result", base64).toString())
                 }
             }
-            "enableCommonAppLock" -> { api.systemManager.enableCommonAppLock(json.getBoolean("enable")); success() }
-            "isCommonAppLockEnabled" -> success(api.systemManager.isCommonAppLockEnabled)
-            "setSystemLanguage" -> { api.systemManager.setSystemLanguage(json.getString("language")); success() }
-            "disableSecurityPCI24HoursReboot" -> { api.systemManager.disableSecurityPCI24HoursReboot(json.getBoolean("disable")); success() }
+            "enableCommonAppLock" -> { api.systemManager.enableCommonAppLock(json.getBoolean("enable")); CommandResult.Success() }
+            "isCommonAppLockEnabled" -> CommandResult.Success(JSONObject().put("result", api.systemManager.isCommonAppLockEnabled).toString())
+            "setSystemLanguage" -> { api.systemManager.setSystemLanguage(json.getString("language")); CommandResult.Success() }
+            "disableSecurityPCI24HoursReboot" -> { api.systemManager.disableSecurityPCI24HoursReboot(json.getBoolean("disable")); CommandResult.Success() }
             "set24HourRebootRegular" -> {
                 api.systemManager.set24HourRebootRegular(
                     json.getInt("type"), json.getInt("hour"), json.getInt("minute"), json.getInt("second")
                 )
-                success()
+                CommandResult.Success()
             }
-            "setSecurityCenterPwd" -> { api.systemManager.setSecurityCenterPwd(json.getString("pwd")); success() }
-            "enableAdb" -> { api.systemManager.setAdbEnabled(json.getBoolean("enable")); success() }
-            "isAdbEnabled" -> success(api.systemManager.isAdbEnabled)
+            "setSecurityCenterPwd" -> { api.systemManager.setSecurityCenterPwd(json.getString("pwd")); CommandResult.Success() }
+            "enableAdb" -> { api.systemManager.setAdbEnabled(json.getBoolean("enable")); CommandResult.Success() }
+            "isAdbEnabled" -> CommandResult.Success(JSONObject().put("result", api.systemManager.isAdbEnabled).toString())
             "queryAppUsageState" -> {
                 val list = api.systemManager.queryAppUsageState(
                     json.getInt("intervalType"), json.getLong("beginTime"), json.getLong("endTime")
@@ -77,13 +76,13 @@ internal class SystemManagerHandler(
                         put("lastEvent", item.lastEvent)
                     })
                 }
-                success(arr)
+                CommandResult.Success(JSONObject().put("result", arr).toString())
             }
             "getSystemPackageList" -> {
                 val list = api.systemManager.systemPackageList
-                success(JSONArray(list))
+                CommandResult.Success(JSONObject().put("result", JSONArray(list)).toString())
             }
-            else -> unsupportedMethod(method)
+            else -> CommandResult.unsupportedMethod(method)
         }
     }
 }

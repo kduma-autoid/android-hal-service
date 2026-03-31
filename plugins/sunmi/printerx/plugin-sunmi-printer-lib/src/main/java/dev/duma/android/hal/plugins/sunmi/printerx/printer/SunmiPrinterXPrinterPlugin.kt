@@ -4,6 +4,7 @@ import android.content.Context
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.PluginDescriptor
 import dev.duma.android.hal.plugins.sunmi.printerx.printer.handler.*
 import dev.duma.android.hal.plugins.sunmi.printerx.printer.receiver.PrinterBroadcastReceiver
@@ -40,7 +41,7 @@ class SunmiPrinterXPrinterPlugin(context: Context? = null) : BasePrinterXPlugin(
         events = buildEventList()
     )
 
-    override suspend fun handleExecute(method: String, params: String, json: JSONObject): String {
+    override suspend fun handleExecute(method: String, params: String, json: JSONObject): CommandResult {
         val module = method.removePrefix("sunmi.printerx.printer.").substringBefore(".")
         return when (module) {
             "query" -> guardedExecute { queryHandler.handle(method, json) }
@@ -56,7 +57,7 @@ class SunmiPrinterXPrinterPlugin(context: Context? = null) : BasePrinterXPlugin(
                 else guardedExecute { canvasHandler.handle(method, json) }
             }
             "file" -> fileHandler.handle(method, json) // always async, skip mutex
-            else -> unsupportedMethod(method)
+            else -> CommandResult.unsupportedMethod(method)
         }
     }
 

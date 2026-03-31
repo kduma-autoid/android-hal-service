@@ -1,5 +1,6 @@
 package dev.duma.android.hal.transport.ws
 
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.transport.core.CallerContext
 import dev.duma.android.hal.transport.core.CommandHandler
 import dev.duma.android.hal.transport.core.CommandTransport
@@ -130,7 +131,7 @@ class WsTransport : CommandTransport, EventTransport {
                     append("}")
                 }
                 val result = handler.requestToken(request, callerContext)
-                WsProtocol.serializeResponse(msg.id, result)
+                serializeCommandResult(msg.id, result)
             }
 
             is WsMessage.Authenticate -> {
@@ -142,7 +143,7 @@ class WsTransport : CommandTransport, EventTransport {
                 val token = session.token
                     ?: return WsProtocol.serializeError(msg.id, "unauthorized", "Not authenticated")
                 val result = handler.execute(token, msg.method, msg.params, callerContext)
-                WsProtocol.serializeResponse(msg.id, result)
+                serializeCommandResult(msg.id, result)
             }
 
             is WsMessage.Subscribe -> {
@@ -150,7 +151,7 @@ class WsTransport : CommandTransport, EventTransport {
                     ?: return WsProtocol.serializeError(msg.id, "unauthorized", "Not authenticated")
                 session.subscribedEvents.addAll(msg.events)
                 val result = handler.subscribe(token, msg.events.joinToString(","), callerContext)
-                WsProtocol.serializeResponse(msg.id, result)
+                serializeCommandResult(msg.id, result)
             }
 
             is WsMessage.Unsubscribe -> {
@@ -158,12 +159,17 @@ class WsTransport : CommandTransport, EventTransport {
                     ?: return WsProtocol.serializeError(msg.id, "unauthorized", "Not authenticated")
                 session.subscribedEvents.removeAll(msg.events.toSet())
                 val result = handler.unsubscribe(token, msg.events.joinToString(","), callerContext)
-                WsProtocol.serializeResponse(msg.id, result)
+                serializeCommandResult(msg.id, result)
             }
 
             is WsMessage.ParseError -> {
                 WsProtocol.serializeError(null, "parse_error", "Invalid message format")
             }
         }
+    }
+
+    private fun serializeCommandResult(id: String, result: CommandResult): String = when (result) {
+        is CommandResult.Success -> WsProtocol.serializeResponse(id, result.body ?: "{}")
+        is CommandResult.Failure -> WsProtocol.serializeError(id, result.code, result.message)
     }
 }

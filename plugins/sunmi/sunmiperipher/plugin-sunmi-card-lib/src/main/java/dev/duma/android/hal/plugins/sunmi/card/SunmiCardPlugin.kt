@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import com.sunmi.card.IDataListener
 import com.sunmi.peripheralsdk.CardManager
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
@@ -80,21 +81,21 @@ class SunmiCardPlugin(
         }
     }
 
-    override suspend fun execute(method: String, params: String): String = mutex.withLock {
+    override suspend fun execute(method: String, params: String): CommandResult = mutex.withLock {
         return@withLock try {
             when (method) {
                 "sunmi.card.getInfo" -> {
-                    JSONObject().apply {
+                    CommandResult.Success(JSONObject().apply {
                         put("name", CardManager.getName() ?: "")
                         put("version", CardManager.getVersion() ?: "")
                         put("sn", CardManager.getSn() ?: "")
                         put("connected", CardManager.isConnected())
-                    }.toString()
+                    }.toString())
                 }
-                else -> error("unsupported_method", "Method not supported: $method")
+                else -> CommandResult.unsupportedMethod(method)
             }
         } catch (e: Exception) {
-            error("sdk_error", e.message ?: "Unknown SDK error")
+            CommandResult.internalError(e.message ?: "Unknown SDK error")
         }
     }
 
@@ -126,6 +127,4 @@ class SunmiCardPlugin(
         return json.toString()
     }
 
-    private fun error(code: String, message: String): String =
-        """{"error":"$code","message":"$message"}"""
 }

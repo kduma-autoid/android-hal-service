@@ -1,5 +1,6 @@
 package dev.duma.android.hal.plugins.generic
 
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
@@ -72,17 +73,17 @@ class GenericScannerPlugin : HalPlugin {
         }
     }
 
-    override suspend fun execute(method: String, params: String): String {
-        val context = ctx ?: return """{"error":"not_initialized","message":"Plugin not initialized"}"""
+    override suspend fun execute(method: String, params: String): CommandResult {
+        val context = ctx ?: return CommandResult.unavailable("Plugin not initialized")
 
         val operation = method.removePrefix("scanner.")
         return when (operation) {
             "trigger", "stop" -> {
                 val vendorMethod = findVendorMethod(context, operation)
-                    ?: return """{"error":"no_scanner_backend","message":"No vendor scanner plugin available"}"""
+                    ?: return CommandResult.unavailable("No vendor scanner plugin available")
                 context.execute(vendorMethod, params)
             }
-            else -> """{"error":"unsupported_method","method":"$method"}"""
+            else -> CommandResult.unsupportedMethod(method)
         }
     }
 

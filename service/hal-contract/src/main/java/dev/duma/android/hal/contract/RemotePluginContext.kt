@@ -16,12 +16,12 @@ class RemotePluginContext(
     override val applicationContext: Context
 ) : PluginContext {
 
-    override suspend fun execute(method: String, params: String): String {
+    override suspend fun execute(method: String, params: String): CommandResult {
         return withContext(Dispatchers.IO) {
             try {
                 binder.execute(method, params)
             } catch (e: DeadObjectException) {
-                """{"error":"service_unavailable","message":"hal-service connection lost"}"""
+                CommandResult.unavailable("hal-service connection lost")
             }
         }
     }

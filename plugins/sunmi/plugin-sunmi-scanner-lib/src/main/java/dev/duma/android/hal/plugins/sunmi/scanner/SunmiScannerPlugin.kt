@@ -1,6 +1,7 @@
 package dev.duma.android.hal.plugins.sunmi.scanner
 
 import android.content.Context
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
@@ -64,17 +65,17 @@ class SunmiScannerPlugin(private val appContext: Context? = null) : HalPlugin {
         // Stub — timer started by trigger, stopped by stop
     }
 
-    override suspend fun execute(method: String, params: String): String {
+    override suspend fun execute(method: String, params: String): CommandResult {
         return when (method) {
             "sunmi.scanner.trigger" -> {
                 startDemoTimer()
-                """{"status":"scanning"}"""
+                CommandResult.Success("""{"status":"scanning"}""")
             }
             "sunmi.scanner.stop" -> {
                 stopDemoTimer()
-                """{"status":"idle"}"""
+                CommandResult.Success("""{"status":"idle"}""")
             }
-            else -> """{"error":"unsupported_method","method":"$method"}"""
+            else -> CommandResult.unsupportedMethod(method)
         }
     }
 

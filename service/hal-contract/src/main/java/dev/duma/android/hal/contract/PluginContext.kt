@@ -9,7 +9,7 @@ import android.content.Context
  * Out-of-process (AIDL) plugins do not receive PluginContext.
  */
 interface PluginContext {
-    suspend fun execute(method: String, params: String): String
+    suspend fun execute(method: String, params: String): CommandResult
     fun getAvailableCapabilities(): List<String>
     fun hasCapability(capability: String): Boolean
     fun emitEvent(eventName: String, jsonData: String)

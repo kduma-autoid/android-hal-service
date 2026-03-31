@@ -1,6 +1,7 @@
 package dev.duma.android.hal.plugins.sunmi.printer
 
 import android.content.Context
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
@@ -53,11 +54,11 @@ class SunmiPrinterPlugin(private val appContext: Context? = null) : HalPlugin {
         // Stub — no PluginContext usage needed
     }
 
-    override suspend fun execute(method: String, params: String): String {
+    override suspend fun execute(method: String, params: String): CommandResult {
         return when (method) {
-            "sunmi.printer.print" -> """{"jobId":"job_${System.currentTimeMillis()}","status":"queued"}"""
-            "sunmi.printer.status" -> """{"status":"idle","paperLevel":"ok"}"""
-            else -> """{"error":"unsupported_method","method":"$method"}"""
+            "sunmi.printer.print" -> CommandResult.Success("""{"jobId":"job_${System.currentTimeMillis()}","status":"queued"}""")
+            "sunmi.printer.status" -> CommandResult.Success("""{"status":"idle","paperLevel":"ok"}""")
+            else -> CommandResult.unsupportedMethod(method)
         }
     }
 

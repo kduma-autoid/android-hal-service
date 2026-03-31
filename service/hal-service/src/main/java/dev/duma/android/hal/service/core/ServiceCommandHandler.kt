@@ -1,5 +1,6 @@
 package dev.duma.android.hal.service.core
 
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.service.auth.AuthManager
 import dev.duma.android.hal.service.auth.TokenEntity
 import dev.duma.android.hal.service.auth.TokenManager
@@ -36,9 +37,9 @@ class ServiceCommandHandler(
     private val startTimeMillis: Long = System.currentTimeMillis()
 ) : CommandHandler {
 
-    override suspend fun requestToken(request: String, callerContext: CallerContext): String {
+    override suspend fun requestToken(request: String, callerContext: CallerContext): CommandResult {
         val json = Json.parseToJsonElement(request) as? JsonObject
-            ?: return errorJson("invalid_request", "Invalid JSON")
+            ?: return CommandResult.badRequest("Invalid JSON")
 
         val requestedPermissions = (json["requestedPermissions"] ?: json["requested_permissions"])
             ?.jsonArray?.map { it.jsonPrimitive.content }
@@ -53,12 +54,12 @@ class ServiceCommandHandler(
         )
 
         return when (val result = authManager.requestToken(tokenRequest, callerContext)) {
-            is TokenResponse.Success -> buildJsonObject {
+            is TokenResponse.Success -> CommandResult.Success(buildJsonObject {
                 put("token", result.token)
                 putJsonArray("permissions") { result.permissions.forEach { add(JsonPrimitive(it)) } }
                 result.expiresAt?.let { put("expires_at", it) }
-            }.toString()
-            is TokenResponse.Error -> errorJson(result.code, result.message)
+            }.toString())
+            is TokenResponse.Error -> CommandResult.Failure(result.code, result.message, errorTypeForCode(result.code))
         }
     }
 
@@ -67,26 +68,26 @@ class ServiceCommandHandler(
         method: String,
         params: String,
         callerContext: CallerContext
-    ): String {
+    ): CommandResult {
         return when (method) {
-            "system.ping" -> handlePing()
+            "system.ping" -> CommandResult.Success(handlePing())
             "system.status" -> {
-                requireToken(token, callerContext) ?: return errorJson("unauthorized", "Invalid token")
-                handleStatus()
+                requireToken(token, callerContext) ?: return CommandResult.unauthorized("Invalid token")
+                CommandResult.Success(handleStatus())
             }
             "system.describe" -> {
                 val tokenEntity = requireToken(token, callerContext)
-                    ?: return errorJson("unauthorized", "Invalid token")
-                handleDescribe(tokenEntity, params)
+                    ?: return CommandResult.unauthorized("Invalid token")
+                CommandResult.Success(handleDescribe(tokenEntity, params))
             }
             else -> {
                 val tokenEntity = requireToken(token, callerContext)
-                    ?: return errorJson("unauthorized", "Invalid token")
+                    ?: return CommandResult.unauthorized("Invalid token")
 
                 val permissions = tokenEntity.permissions.split(",")
                 val methodCapability = method.substringBeforeLast(".")
                 if ("*" !in permissions && permissions.none { methodCapability.startsWith(it) }) {
-                    return errorJson("forbidden", "No permission for method: $method")
+                    return CommandResult.forbidden("No permission for method: $method")
                 }
 
                 // Super permission check
@@ -98,7 +99,7 @@ class ServiceCommandHandler(
                         perm == "$method.super"                     // method-level super
                     }
                     if (!hasSuperAccess) {
-                        return errorJson("forbidden", "Super permission required for: $method")
+                        return CommandResult.forbidden("Super permission required for: $method")
                     }
                 }
 
@@ -116,7 +117,7 @@ class ServiceCommandHandler(
                         experimentalConfig.isPluginEnabled(it)
                     } ?: false
                     if (!hasExperimentalAccess && !isEnabledViaPrefs) {
-                        return errorJson("experimental_method_disabled", "Experimental method not enabled: $method")
+                        return CommandResult.forbidden("Experimental method not enabled: $method")
                     }
                 }
 
@@ -125,16 +126,16 @@ class ServiceCommandHandler(
         }
     }
 
-    override suspend fun subscribe(token: String, events: String, callerContext: CallerContext): String {
+    override suspend fun subscribe(token: String, events: String, callerContext: CallerContext): CommandResult {
         requireToken(token, callerContext)
-            ?: return errorJson("unauthorized", "Invalid token")
-        return buildJsonObject { put("status", "ok") }.toString()
+            ?: return CommandResult.unauthorized("Invalid token")
+        return CommandResult.Success()
     }
 
-    override suspend fun unsubscribe(token: String, events: String, callerContext: CallerContext): String {
+    override suspend fun unsubscribe(token: String, events: String, callerContext: CallerContext): CommandResult {
         requireToken(token, callerContext)
-            ?: return errorJson("unauthorized", "Invalid token")
-        return buildJsonObject { put("status", "ok") }.toString()
+            ?: return CommandResult.unauthorized("Invalid token")
+        return CommandResult.Success()
     }
 
     override fun getStatus(): String = handleStatus()
@@ -300,10 +301,10 @@ class ServiceCommandHandler(
         return tokenManager.validateToken(token, callerContext)
     }
 
-    private fun errorJson(code: String, message: String): String {
-        return buildJsonObject {
-            put("error", code)
-            put("message", message)
-        }.toString()
+    private fun errorTypeForCode(code: String): CommandResult.ErrorType = when (code) {
+        "invalid_developer_key", "developer_key_expired", "restriction_mismatch" -> CommandResult.ErrorType.BAD_REQUEST
+        "user_denied" -> CommandResult.ErrorType.FORBIDDEN
+        "timeout" -> CommandResult.ErrorType.TIMEOUT
+        else -> CommandResult.ErrorType.INTERNAL
     }
 }

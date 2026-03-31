@@ -2,16 +2,15 @@ package dev.duma.android.hal.plugins.sunmi.printerx.printer.handler
 
 import com.sunmi.printerx.enums.Shape
 import com.sunmi.printerx.style.AreaStyle
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.plugins.sunmi.printerx.sdk.awaitPrintResult
 import dev.duma.android.hal.plugins.sunmi.printerx.sdk.base64ToBitmap
 import dev.duma.android.hal.plugins.sunmi.printerx.sdk.requirePrinter
-import dev.duma.android.hal.plugins.sunmi.printerx.sdk.success
-import dev.duma.android.hal.plugins.sunmi.printerx.sdk.unsupportedMethod
 import org.json.JSONObject
 
 internal class CanvasApiHandler {
 
-    suspend fun handle(method: String, json: JSONObject): String {
+    suspend fun handle(method: String, json: JSONObject): CommandResult {
         val (printer, err) = requirePrinter(json)
         if (err != null) return err
         val canvas = printer!!.canvasApi()
@@ -25,31 +24,31 @@ internal class CanvasApiHandler {
                     buildBaseStyle(json)
                 }
                 canvas.initCanvas(style)
-                success()
+                CommandResult.Success()
             }
             "renderText" -> {
                 val text = json.getString("text")
                 val style = if (json.has("style")) buildTextStyle(json.getJSONObject("style")) else buildTextStyle(JSONObject())
                 canvas.renderText(text, style)
-                success()
+                CommandResult.Success()
             }
             "renderBarCode" -> {
                 val code = json.getString("code")
                 val style = if (json.has("style")) buildBarcodeStyle(json.getJSONObject("style")) else buildBarcodeStyle(JSONObject())
                 canvas.renderBarCode(code, style)
-                success()
+                CommandResult.Success()
             }
             "renderQrCode" -> {
                 val code = json.getString("code")
                 val style = if (json.has("style")) buildQrStyle(json.getJSONObject("style")) else buildQrStyle(JSONObject())
                 canvas.renderQrCode(code, style)
-                success()
+                CommandResult.Success()
             }
             "renderBitmap" -> {
                 val bitmap = base64ToBitmap(json.getString("bitmap"))
                 val style = if (json.has("style")) buildBitmapStyle(json.getJSONObject("style")) else buildBitmapStyle(JSONObject())
                 canvas.renderBitmap(bitmap, style)
-                success()
+                CommandResult.Success()
             }
             "renderArea" -> {
                 val styleJson = json.optJSONObject("style") ?: json
@@ -63,7 +62,7 @@ internal class CanvasApiHandler {
                 if (styleJson.has("endY")) areaStyle.setEndY(styleJson.getInt("endY"))
                 if (styleJson.has("thick")) areaStyle.setThick(styleJson.getInt("thick"))
                 canvas.renderArea(areaStyle)
-                success()
+                CommandResult.Success()
             }
             "printCanvas" -> {
                 val count = json.optInt("count", 1)
@@ -72,7 +71,7 @@ internal class CanvasApiHandler {
                     canvas.printCanvas(count, result)
                 }
             }
-            else -> unsupportedMethod(method)
+            else -> CommandResult.unsupportedMethod(method)
         }
     }
 }

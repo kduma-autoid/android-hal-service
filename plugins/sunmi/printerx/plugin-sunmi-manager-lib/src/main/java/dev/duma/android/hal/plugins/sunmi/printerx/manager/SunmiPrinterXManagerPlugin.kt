@@ -1,6 +1,7 @@
 package dev.duma.android.hal.plugins.sunmi.printerx.manager
 
 import android.content.Context
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
@@ -65,10 +66,10 @@ class SunmiPrinterXManagerPlugin(context: Context? = null) : BasePrinterXPlugin(
         )
     )
 
-    override suspend fun handleExecute(method: String, params: String, json: JSONObject): String {
+    override suspend fun handleExecute(method: String, params: String, json: JSONObject): CommandResult {
         return when (method) {
             "sunmi.printerx.manager.getPrinters" -> SharedPrinterManager.buildGetPrintersResponse()
-            else -> unsupportedMethod(method)
+            else -> CommandResult.unsupportedMethod(method)
         }
     }
 }

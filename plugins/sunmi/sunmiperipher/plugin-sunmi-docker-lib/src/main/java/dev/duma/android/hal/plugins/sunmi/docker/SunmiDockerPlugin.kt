@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
 import com.sunmi.docker.IDockerController
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.MethodDescriptor
@@ -100,27 +101,27 @@ class SunmiDockerPlugin(
         }
     }
 
-    override suspend fun execute(method: String, params: String): String = mutex.withLock {
+    override suspend fun execute(method: String, params: String): CommandResult = mutex.withLock {
         val controller = dockerController
-            ?: return@withLock error("device_not_ready", "Docker controller not connected")
+            ?: return@withLock CommandResult.unavailable("Docker controller not connected")
 
         return@withLock try {
             when (method) {
                 "sunmi.docker.enableReversePower" -> {
                     controller.enableReversePower()
-                    success()
+                    CommandResult.Success()
                 }
                 "sunmi.docker.disableReversePower" -> {
                     controller.disableReversePower()
-                    success()
+                    CommandResult.Success()
                 }
                 "sunmi.docker.isReversePowerEnabled" -> {
-                    """{"enabled":${controller.isReversePowerEnabled}}"""
+                    CommandResult.Success("""{"enabled":${controller.isReversePowerEnabled}}""")
                 }
-                else -> error("unsupported_method", "Method not supported: $method")
+                else -> CommandResult.unsupportedMethod(method)
             }
         } catch (e: Exception) {
-            error("sdk_error", e.message ?: "Unknown SDK error")
+            CommandResult.internalError(e.message ?: "Unknown SDK error")
         }
     }
 
@@ -128,7 +129,4 @@ class SunmiDockerPlugin(
         this.callback = callback
     }
 
-    private fun success(): String = """{"status":"ok"}"""
-    private fun error(code: String, message: String): String =
-        """{"error":"$code","message":"$message"}"""
 }

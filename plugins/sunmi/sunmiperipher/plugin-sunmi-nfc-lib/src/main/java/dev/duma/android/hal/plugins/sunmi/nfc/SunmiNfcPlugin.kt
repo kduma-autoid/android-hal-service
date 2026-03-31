@@ -5,6 +5,7 @@ import android.content.Intent
 import com.sunmi.nfc.INfcListener
 import com.sunmi.nfc.Nfc
 import com.sunmi.peripheralsdk.NfcManager
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
@@ -92,30 +93,30 @@ class SunmiNfcPlugin(
         }
     }
 
-    override suspend fun execute(method: String, params: String): String = mutex.withLock {
+    override suspend fun execute(method: String, params: String): CommandResult = mutex.withLock {
         return@withLock try {
             when (method) {
                 "sunmi.nfc.switchModule" -> {
                     val json = JSONObject(params)
                     val sn = json.optString("sn", "").ifEmpty {
                         getDeviceSerialNo()
-                            ?: return@withLock error("invalid_params", "No SN provided and device serial unavailable")
+                            ?: return@withLock CommandResult.badRequest("No SN provided and device serial unavailable")
                     }
                     NfcManager.switchNfc(sn)
-                    success()
+                    CommandResult.Success()
                 }
                 "sunmi.nfc.setWatermarkAlpha" -> {
                     val alpha = JSONObject(params).getInt("alpha")
                     if (alpha < 0 || alpha > 100) {
-                        return@withLock error("invalid_params", "alpha must be 0-100")
+                        return@withLock CommandResult.badRequest("alpha must be 0-100")
                     }
                     NfcManager.setNfcWaterMarkAlpha(alpha)
-                    success()
+                    CommandResult.Success()
                 }
-                else -> error("unsupported_method", "Method not supported: $method")
+                else -> CommandResult.unsupportedMethod(method)
             }
         } catch (e: Exception) {
-            error("sdk_error", e.message ?: "Unknown SDK error")
+            CommandResult.internalError(e.message ?: "Unknown SDK error")
         }
     }
 
@@ -143,7 +144,8 @@ class SunmiNfcPlugin(
             if (ctx.hasCapability("sunmi.tms.device")) {
                 try {
                     val result = ctx.execute("sunmi.tms.device.device_info.getSerialNo", "{}")
-                    val serialNo = JSONObject(result).optString("result", "")
+                    val body = (result as? CommandResult.Success)?.body ?: ""
+                    val serialNo = JSONObject(body).optString("result", "")
                     if (serialNo.isNotEmpty()) return serialNo
                 } catch (_: Exception) { }
             }
@@ -166,7 +168,4 @@ class SunmiNfcPlugin(
         )
     }
 
-    private fun success(): String = """{"status":"ok"}"""
-    private fun error(code: String, message: String): String =
-        """{"error":"$code","message":"$message"}"""
 }

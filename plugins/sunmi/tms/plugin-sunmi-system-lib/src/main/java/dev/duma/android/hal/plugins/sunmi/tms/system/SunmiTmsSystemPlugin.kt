@@ -1,6 +1,7 @@
 package dev.duma.android.hal.plugins.sunmi.tms.system
 
 import android.content.Context
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginDescriptor
@@ -32,7 +33,7 @@ class SunmiTmsSystemPlugin(context: Context? = null) : BaseTmsPlugin(context) {
         )
     )
 
-    override suspend fun execute(method: String, params: String): String = guardedExecute {
+    override suspend fun execute(method: String, params: String): CommandResult = guardedExecute {
         val withoutPlugin = method.removePrefix("sunmi.tms.system.")
         if (withoutPlugin.startsWith("system_ui.")) {
             systemUiHandler.handle(method, params)

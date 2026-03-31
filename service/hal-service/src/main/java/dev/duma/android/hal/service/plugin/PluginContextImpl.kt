@@ -1,6 +1,7 @@
 package dev.duma.android.hal.service.plugin
 
 import android.content.Context
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventBus
 import dev.duma.android.hal.contract.PluginContext
 
@@ -16,7 +17,7 @@ class PluginContextImpl(
     override val applicationContext: Context
 ) : PluginContext {
 
-    override suspend fun execute(method: String, params: String): String {
+    override suspend fun execute(method: String, params: String): CommandResult {
         return registry.executeOnPlugin(method, params)
     }
 

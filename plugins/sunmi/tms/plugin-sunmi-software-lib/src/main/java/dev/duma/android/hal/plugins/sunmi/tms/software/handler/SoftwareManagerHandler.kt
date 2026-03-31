@@ -4,8 +4,7 @@ import com.sunmi.tms.api.TMSApi
 import com.sunmi.tmsmaster.aidl.networkmanager.IUnifiedCallback
 import com.sunmi.tmsmaster.aidl.softwaremanager.OnInstallAppListener
 import com.sunmi.tmsmaster.aidl.softwaremanager.OnUninstallAppListener
-import dev.duma.android.hal.plugins.sunmi.tms.handler.success
-import dev.duma.android.hal.plugins.sunmi.tms.handler.unsupportedMethod
+import dev.duma.android.hal.contract.CommandResult
 import kotlinx.coroutines.suspendCancellableCoroutine
 import org.json.JSONArray
 import org.json.JSONObject
@@ -16,7 +15,7 @@ internal class SoftwareManagerHandler(
     private val emitEvent: (String, String) -> Unit
 ) {
 
-    suspend fun handle(method: String, params: String): String {
+    suspend fun handle(method: String, params: String): CommandResult {
         val op = method.removePrefix("sunmi.tms.software.")
         val json = if (params.isBlank() || params == "{}") JSONObject() else JSONObject(params)
         return when (op) {
@@ -37,7 +36,7 @@ internal class SoftwareManagerHandler(
                             JSONObject().put("packageName", packageName ?: "").put("errorId", errorId).toString())
                     }
                 })
-                success()
+                CommandResult.Success()
             }
             "installAppV2" -> {
                 val filePath = json.getString("appFilePath")
@@ -57,7 +56,7 @@ internal class SoftwareManagerHandler(
                             JSONObject().put("packageName", packageName ?: "").put("errorId", errorId).toString())
                     }
                 })
-                success()
+                CommandResult.Success()
             }
             "uninstallApp" -> {
                 val packageName = json.getString("packageName")
@@ -76,59 +75,59 @@ internal class SoftwareManagerHandler(
                             JSONObject().put("packageName", pkg ?: "").put("errorId", errorId).toString())
                     }
                 })
-                success()
+                CommandResult.Success()
             }
-            "killApp" -> { api.softwareManager.killApp(json.getString("packageName")); success() }
-            "restartApp" -> { api.softwareManager.restartApp(json.getString("packageName")); success() }
-            "setBatteryOptimizationWhitelist" -> { api.softwareManager.setBatteryOptimizationWhitelist(json.getString("whitelist")); success() }
-            "setAppEnabled" -> { api.softwareManager.setAppEnabled(json.getString("packageName"), json.getBoolean("enabled")); success() }
-            "grantAppPermissions" -> { api.softwareManager.grantAppPermissions(json.getString("packageName"), json.getString("permissions")); success() }
-            "revokeAppPermission" -> { api.softwareManager.revokeAppPermission(json.getString("packageName"), json.getString("permissions")); success() }
-            "getRequestPermissions" -> success(api.softwareManager.getRequestPermissions(json.getString("packageName")))
-            "allowAlertWindowPermission" -> { api.softwareManager.allowAlertWindowPermission(json.getString("packageName")); success() }
-            "prohibitUninstall" -> { api.softwareManager.prohibitUninstall(json.getString("packageName"), json.getBoolean("allowUninstall")); success() }
-            "getProhibitUninstallList" -> success(api.softwareManager.prohibitUninstallList)
-            "enableAutoStartApp" -> { api.softwareManager.enableAutoStartApp(json.getBoolean("enable")); success() }
-            "isAutoStartAppEnabled" -> success(api.softwareManager.isAutoStartAppEnabled)
-            "setAutoStartApp" -> { api.softwareManager.setAutoStartApp(json.getString("packageName")); success() }
-            "getAutoStartApp" -> success(api.softwareManager.autoStartApp)
-            "clearAutoStartApp" -> { api.softwareManager.clearAutoStartApp(); success() }
+            "killApp" -> { api.softwareManager.killApp(json.getString("packageName")); CommandResult.Success() }
+            "restartApp" -> { api.softwareManager.restartApp(json.getString("packageName")); CommandResult.Success() }
+            "setBatteryOptimizationWhitelist" -> { api.softwareManager.setBatteryOptimizationWhitelist(json.getString("whitelist")); CommandResult.Success() }
+            "setAppEnabled" -> { api.softwareManager.setAppEnabled(json.getString("packageName"), json.getBoolean("enabled")); CommandResult.Success() }
+            "grantAppPermissions" -> { api.softwareManager.grantAppPermissions(json.getString("packageName"), json.getString("permissions")); CommandResult.Success() }
+            "revokeAppPermission" -> { api.softwareManager.revokeAppPermission(json.getString("packageName"), json.getString("permissions")); CommandResult.Success() }
+            "getRequestPermissions" -> CommandResult.Success(JSONObject().put("result", api.softwareManager.getRequestPermissions(json.getString("packageName"))).toString())
+            "allowAlertWindowPermission" -> { api.softwareManager.allowAlertWindowPermission(json.getString("packageName")); CommandResult.Success() }
+            "prohibitUninstall" -> { api.softwareManager.prohibitUninstall(json.getString("packageName"), json.getBoolean("allowUninstall")); CommandResult.Success() }
+            "getProhibitUninstallList" -> CommandResult.Success(JSONObject().put("result", api.softwareManager.prohibitUninstallList).toString())
+            "enableAutoStartApp" -> { api.softwareManager.enableAutoStartApp(json.getBoolean("enable")); CommandResult.Success() }
+            "isAutoStartAppEnabled" -> CommandResult.Success(JSONObject().put("result", api.softwareManager.isAutoStartAppEnabled).toString())
+            "setAutoStartApp" -> { api.softwareManager.setAutoStartApp(json.getString("packageName")); CommandResult.Success() }
+            "getAutoStartApp" -> CommandResult.Success(JSONObject().put("result", api.softwareManager.autoStartApp).toString())
+            "clearAutoStartApp" -> { api.softwareManager.clearAutoStartApp(); CommandResult.Success() }
             "clearApplicationUserData" -> {
                 val result = api.softwareManager.clearApplicationUserData(json.getString("packageName"))
-                success(result)
+                CommandResult.Success(JSONObject().put("result", result).toString())
             }
             "deleteApplicationCacheFiles" -> {
                 suspendCancellableCoroutine { cont ->
                     api.softwareManager.deleteApplicationCacheFiles(json.getString("packageName"), object : IUnifiedCallback.Stub() {
                         override fun onCall(result: String?) {
-                            cont.resume(success(result))
+                            cont.resume(CommandResult.Success(result?.let { JSONObject().put("result", it).toString() }))
                         }
                     })
                 }
             }
-            "isForeground" -> success(api.softwareManager.isForeground(json.getString("packageName")))
+            "isForeground" -> CommandResult.Success(JSONObject().put("result", api.softwareManager.isForeground(json.getString("packageName"))).toString())
             "addAppToCommonAppLockList" -> {
                 val arr = json.getJSONArray("packageNames")
                 val list = (0 until arr.length()).map { arr.getString(it) }
                 api.softwareManager.addAppToCommonAppLockList(list, json.getInt("type"), json.getString("password"))
-                success()
+                CommandResult.Success()
             }
             "removeAppFromCommonAppLockList" -> {
                 val arr = json.getJSONArray("packageNames")
                 val list = (0 until arr.length()).map { arr.getString(it) }
                 api.softwareManager.removeAppFromCommonAppLockList(list)
-                success()
+                CommandResult.Success()
             }
             "getCommonAppLockList" -> {
                 val list = api.softwareManager.commonAppLockList
-                success(JSONArray(list))
+                CommandResult.Success(JSONObject().put("result", JSONArray(list)).toString())
             }
-            "isCommonAppLock" -> success(api.softwareManager.isCommonAppLock(json.getString("packageName")))
+            "isCommonAppLock" -> CommandResult.Success(JSONObject().put("result", api.softwareManager.isCommonAppLock(json.getString("packageName"))).toString())
             "setNotificationsEnabledForPackage" -> {
                 api.softwareManager.setNotificationsEnabledForPackage(json.getString("packageName"), json.getBoolean("enabled"))
-                success()
+                CommandResult.Success()
             }
-            else -> unsupportedMethod(method)
+            else -> CommandResult.unsupportedMethod(method)
         }
     }
 }

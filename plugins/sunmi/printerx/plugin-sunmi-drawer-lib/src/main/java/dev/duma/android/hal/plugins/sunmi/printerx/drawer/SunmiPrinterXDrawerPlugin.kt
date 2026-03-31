@@ -1,6 +1,7 @@
 package dev.duma.android.hal.plugins.sunmi.printerx.drawer
 
 import android.content.Context
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginDescriptor
 import dev.duma.android.hal.plugins.sunmi.printerx.drawer.handler.CashDrawerApiHandler
@@ -40,7 +41,7 @@ class SunmiPrinterXDrawerPlugin(context: Context? = null) : BasePrinterXPlugin(c
         events = emptyList()
     )
 
-    override suspend fun handleExecute(method: String, params: String, json: JSONObject): String {
+    override suspend fun handleExecute(method: String, params: String, json: JSONObject): CommandResult {
         // cashDrawer.open skips mutex (long-running async operation)
         return when {
             method == "sunmi.printerx.drawer.open" -> cashDrawerHandler.handle(method, json)

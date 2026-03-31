@@ -4,6 +4,7 @@ import android.content.pm.PackageManager
 import android.os.Binder
 import android.os.IBinder
 import android.os.RemoteCallbackList
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventBus
 import dev.duma.android.hal.transport.core.CallerContext
 import dev.duma.android.hal.transport.core.CommandHandler
@@ -38,10 +39,11 @@ class AidlTransport : CommandTransport, EventTransport {
     private val callbackUids = ConcurrentHashMap<IBinder, Int>()
 
     val binder: IBinder = object : IHalService.Stub() {
-        override fun requestToken(jsonRequest: String): String {
+        override fun requestToken(jsonRequest: String): CommandResult {
             val callerContext = buildCallerContext()
             return runBlocking {
-                handler?.requestToken(jsonRequest, callerContext) ?: errorJson("service_unavailable")
+                handler?.requestToken(jsonRequest, callerContext)
+                    ?: CommandResult.unavailable("Service not available")
             }
         }
 
@@ -51,17 +53,19 @@ class AidlTransport : CommandTransport, EventTransport {
             return true
         }
 
-        override fun execute(method: String, jsonParams: String): String {
+        override fun execute(method: String, jsonParams: String): CommandResult {
             val uid = Binder.getCallingUid()
-            val token = sessionTokens[uid] ?: return errorJson("unauthorized")
+            val token = sessionTokens[uid]
+                ?: return CommandResult.unauthorized()
             val callerContext = buildCallerContext()
             return runBlocking {
-                handler?.execute(token, method, jsonParams, callerContext) ?: errorJson("service_unavailable")
+                handler?.execute(token, method, jsonParams, callerContext)
+                    ?: CommandResult.unavailable("Service not available")
             }
         }
 
         override fun getStatus(): String {
-            return handler?.getStatus() ?: errorJson("service_unavailable")
+            return handler?.getStatus() ?: """{"error":"service_unavailable"}"""
         }
 
         override fun registerCallback(callback: IHalCallback) {
@@ -75,25 +79,29 @@ class AidlTransport : CommandTransport, EventTransport {
             callbackUids.remove(callback.asBinder())
         }
 
-        override fun subscribe(jsonEvents: String): String {
+        override fun subscribe(jsonEvents: String): CommandResult {
             val uid = Binder.getCallingUid()
-            val token = sessionTokens[uid] ?: return errorJson("unauthorized")
+            val token = sessionTokens[uid]
+                ?: return CommandResult.unauthorized()
             val events = jsonEvents.trim('[', ']', '"').split("\",\"").map { it.trim() }
             sessionSubscriptions.getOrPut(uid) { CopyOnWriteArraySet() }.addAll(events)
             val callerContext = buildCallerContext()
             return runBlocking {
-                handler?.subscribe(token, jsonEvents, callerContext) ?: errorJson("service_unavailable")
+                handler?.subscribe(token, jsonEvents, callerContext)
+                    ?: CommandResult.unavailable("Service not available")
             }
         }
 
-        override fun unsubscribe(jsonEvents: String): String {
+        override fun unsubscribe(jsonEvents: String): CommandResult {
             val uid = Binder.getCallingUid()
-            val token = sessionTokens[uid] ?: return errorJson("unauthorized")
+            val token = sessionTokens[uid]
+                ?: return CommandResult.unauthorized()
             val events = jsonEvents.trim('[', ']', '"').split("\",\"").map { it.trim() }
             sessionSubscriptions[uid]?.removeAll(events.toSet())
             val callerContext = buildCallerContext()
             return runBlocking {
-                handler?.unsubscribe(token, jsonEvents, callerContext) ?: errorJson("service_unavailable")
+                handler?.unsubscribe(token, jsonEvents, callerContext)
+                    ?: CommandResult.unavailable("Service not available")
             }
         }
     }
@@ -156,7 +164,4 @@ class AidlTransport : CommandTransport, EventTransport {
         )
     }
 
-    private fun errorJson(code: String): String {
-        return """{"error":"$code","message":"$code"}"""
-    }
 }

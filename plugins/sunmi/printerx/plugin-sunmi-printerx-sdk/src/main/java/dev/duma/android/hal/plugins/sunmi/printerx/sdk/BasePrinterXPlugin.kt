@@ -2,6 +2,7 @@ package dev.duma.android.hal.plugins.sunmi.printerx.sdk
 
 import android.content.Context
 import android.content.Intent
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.PluginContext
@@ -42,12 +43,12 @@ abstract class BasePrinterXPlugin(
         _eventCallback?.onEvent(event, payload)
     }
 
-    override suspend fun execute(method: String, params: String): String {
+    override suspend fun execute(method: String, params: String): CommandResult {
         val json = if (params.isBlank() || params == "{}") JSONObject() else JSONObject(params)
         return try {
             handleExecute(method, params, json)
         } catch (e: Exception) {
-            error("sdk_error", e.message ?: "Unknown error")
+            CommandResult.internalError(e.message ?: "Unknown error")
         }
     }
 
@@ -59,27 +60,15 @@ abstract class BasePrinterXPlugin(
         method: String,
         params: String,
         json: JSONObject
-    ): String
+    ): CommandResult
 
     /**
      * Mutex-guarded SDK call. Use for operations that should be serialised
      * (queries, synchronous SDK calls). Skip for long-running async operations
      * (printTrans, printCanvas, printFile, cashDrawer.open) to avoid blocking.
      */
-    protected suspend fun guardedExecute(block: suspend () -> String): String =
+    protected suspend fun guardedExecute(block: suspend () -> CommandResult): CommandResult =
         mutex.withLock {
-            try { block() } catch (e: Exception) { error("sdk_error", e.message ?: "Unknown error") }
+            try { block() } catch (e: Exception) { CommandResult.internalError(e.message ?: "Unknown error") }
         }
-
-    protected fun success(data: Any? = null): String {
-        val obj = JSONObject().put("status", "ok")
-        if (data != null) obj.put("result", data)
-        return obj.toString()
-    }
-
-    protected fun error(code: String, message: String): String =
-        JSONObject().put("error", code).put("message", message).toString()
-
-    protected fun unsupportedMethod(method: String): String =
-        error("unsupported_method", "Method not supported: $method")
 }

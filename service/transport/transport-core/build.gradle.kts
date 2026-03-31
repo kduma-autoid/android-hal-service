@@ -33,6 +33,6 @@ android {
 }
 
 dependencies {
-    implementation(project(":service:hal-contract"))
+    api(project(":service:hal-contract"))
     implementation(libs.kotlinx.coroutines.core)
 }

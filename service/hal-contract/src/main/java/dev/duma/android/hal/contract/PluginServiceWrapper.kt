@@ -40,7 +40,7 @@ class PluginServiceWrapper(
 
     override fun getCapabilities(): List<String> = plugin.getCapabilities()
 
-    override fun execute(method: String, jsonParams: String): String {
+    override fun execute(method: String, jsonParams: String): CommandResult {
         return runBlocking { plugin.execute(method, jsonParams) }
     }
 

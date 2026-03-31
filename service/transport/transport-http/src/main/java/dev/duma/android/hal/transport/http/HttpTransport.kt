@@ -1,5 +1,6 @@
 package dev.duma.android.hal.transport.http
 
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.transport.core.CallerContext
 import dev.duma.android.hal.transport.core.CommandHandler
 import dev.duma.android.hal.transport.core.CommandTransport
@@ -36,7 +37,7 @@ class HttpTransport : CommandTransport {
                     val body = call.receiveText()
                     val callerContext = buildCallerContext(call)
                     val result = handler.requestToken(body, callerContext)
-                    call.respondText(result, ContentType.Application.Json)
+                    respondWithResult(call, result)
                 }
 
                 post("/api/execute") {
@@ -65,13 +66,13 @@ class HttpTransport : CommandTransport {
                     val params = parsed["params"]?.toString() ?: "{}"
                     val callerContext = buildCallerContext(call)
                     val result = handler.execute(token, method, params, callerContext)
-                    call.respondText(result, ContentType.Application.Json)
+                    respondWithResult(call, result)
                 }
 
                 get("/api/health") {
                     val callerContext = buildCallerContext(call)
                     val result = handler.execute("", "system.ping", "{}", callerContext)
-                    call.respondText(result, ContentType.Application.Json)
+                    respondWithResult(call, result)
                 }
 
                 get("/api/status") {
@@ -87,7 +88,7 @@ class HttpTransport : CommandTransport {
                     }
                     val callerContext = buildCallerContext(call)
                     val result = handler.execute(token, "system.status", "{}", callerContext)
-                    call.respondText(result, ContentType.Application.Json)
+                    respondWithResult(call, result)
                 }
 
                 get("/api/describe") {
@@ -103,7 +104,7 @@ class HttpTransport : CommandTransport {
                     }
                     val callerContext = buildCallerContext(call)
                     val result = handler.execute(token, "system.describe", "{}", callerContext)
-                    call.respondText(result, ContentType.Application.Json)
+                    respondWithResult(call, result)
                 }
             }
         }
@@ -112,6 +113,30 @@ class HttpTransport : CommandTransport {
 
     override fun stop() {
         running = false
+    }
+
+    private suspend fun respondWithResult(call: ApplicationCall, result: CommandResult) {
+        when (result) {
+            is CommandResult.Success -> call.respondText(
+                result.body ?: "{}",
+                ContentType.Application.Json
+            )
+            is CommandResult.Failure -> call.respondText(
+                """{"error":"${result.code}","message":"${result.message}"}""",
+                ContentType.Application.Json,
+                result.type.toHttpStatus()
+            )
+        }
+    }
+
+    private fun CommandResult.ErrorType.toHttpStatus(): HttpStatusCode = when (this) {
+        CommandResult.ErrorType.BAD_REQUEST -> HttpStatusCode.BadRequest
+        CommandResult.ErrorType.UNAUTHORIZED -> HttpStatusCode.Unauthorized
+        CommandResult.ErrorType.FORBIDDEN -> HttpStatusCode.Forbidden
+        CommandResult.ErrorType.NOT_FOUND -> HttpStatusCode.NotFound
+        CommandResult.ErrorType.TIMEOUT -> HttpStatusCode.RequestTimeout
+        CommandResult.ErrorType.INTERNAL -> HttpStatusCode.InternalServerError
+        CommandResult.ErrorType.UNAVAILABLE -> HttpStatusCode.ServiceUnavailable
     }
 
     private fun buildCallerContext(call: ApplicationCall): CallerContext {
