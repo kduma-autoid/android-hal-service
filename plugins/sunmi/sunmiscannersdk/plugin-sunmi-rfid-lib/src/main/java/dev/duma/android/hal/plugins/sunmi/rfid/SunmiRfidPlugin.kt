@@ -2,6 +2,7 @@ package dev.duma.android.hal.plugins.sunmi.rfid
 
 import android.content.Context
 import android.content.Intent
+import androidx.core.content.ContextCompat
 import com.sunmi.rfid.RFIDManager
 import com.sunmi.rfid.ReaderCall
 import com.sunmi.rfid.constant.CMD
@@ -110,7 +111,7 @@ class SunmiRfidPlugin(
             RFIDManager.getInstance().addServiceConnectStatus(connectStatus)
 
             RFIDManager.getInstance().connect(ctx)
-            ctx.registerReceiver(broadcastReceiver, RfidBroadcastReceiver.buildIntentFilter(), android.content.Context.RECEIVER_NOT_EXPORTED)
+            ContextCompat.registerReceiver(ctx, broadcastReceiver, RfidBroadcastReceiver.buildIntentFilter(), ContextCompat.RECEIVER_NOT_EXPORTED)
         }
     }
 
