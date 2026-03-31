@@ -134,6 +134,9 @@ jobs:
 
       - name: Build Android packages
         run: ./gradlew assembleRelease
+        env:
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
 
       - name: Collect APKs
         run: |

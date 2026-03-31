@@ -12,6 +12,26 @@ allprojects {
 }
 
 subprojects {
+    plugins.withId("com.android.application") {
+        extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
+            signingConfigs {
+                create("release") {
+                    storeFile = rootProject.file("keys.jks")
+                    storePassword = System.getenv("SIGNING_STORE_PASSWORD")
+                        ?: project.findProperty("signingStorePassword") as String? ?: ""
+                    keyAlias = "release"
+                    keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
+                        ?: project.findProperty("signingKeyPassword") as String? ?: ""
+                }
+            }
+            buildTypes {
+                getByName("release") {
+                    signingConfig = signingConfigs.getByName("release")
+                }
+            }
+        }
+    }
+
     plugins.withId("com.android.library") {
         extensions.configure<com.android.build.api.dsl.LibraryExtension> {
             publishing {
