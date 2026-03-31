@@ -46,7 +46,7 @@ function startFlash() {
 function startRainbow() {
   exec(() =>
     light.value!.setMultiFlashing(
-      STATUS_LIGHT_COLORS.map((color) => ({
+      STATUS_LIGHT_COLORS.map((color: StatusLightColor) => ({
         color,
         onMs: rainbowOnMs.value,
         offMs: rainbowOffMs.value,

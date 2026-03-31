@@ -61,13 +61,26 @@ async function connect(): Promise<void> {
 
     let newClient: HalClient;
 
+    const { HalClient: HalClientClass } = await import('@kduma-autoid/hal-client');
+
     if (settings.transport === 'ws') {
-      const { createWsHalClient } = await import('@kduma-autoid/hal-client/ws');
-      newClient = createWsHalClient(options);
+      const { WsConnection, WsCommandTransport, WsEventTransport } = await import('@kduma-autoid/hal-client-transport-ws');
+      const wsUrl = (options.baseUrl ?? 'http://localhost:8400').replace(/^http/, 'ws') + '/ws';
+      const connection = new WsConnection({ url: wsUrl });
+      const cmdTransport = new WsCommandTransport(connection);
+      const evtTransport = new WsEventTransport(connection);
+      newClient = new HalClientClass(options)
+        .useConnection(connection)
+        .useAuthTransport(cmdTransport)
+        .useCommandTransport(cmdTransport)
+        .useEventTransport(evtTransport);
       await newClient.connect();
     } else {
-      const { createHttpHalClient } = await import('@kduma-autoid/hal-client/http');
-      newClient = createHttpHalClient(options);
+      const { HttpCommandTransport } = await import('@kduma-autoid/hal-client-transport-http');
+      const transport = new HttpCommandTransport({ baseUrl: options.baseUrl ?? 'http://localhost:8400' });
+      newClient = new HalClientClass(options)
+        .useAuthTransport(transport)
+        .useCommandTransport(transport);
     }
 
     await newClient.requestToken();

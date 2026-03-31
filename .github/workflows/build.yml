@@ -90,6 +90,10 @@ jobs:
         run: pnpm install --frozen-lockfile
         working-directory: clients/ts
 
+      - name: Build workspace packages
+        run: pnpm --filter './packages/*' build
+        working-directory: clients/ts
+
       - name: Build example app
         run: |
           pnpm exec vue-tsc --noEmit
