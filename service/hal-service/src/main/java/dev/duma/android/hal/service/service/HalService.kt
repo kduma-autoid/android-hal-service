@@ -2,6 +2,7 @@ package dev.duma.android.hal.service.service
 
 import android.app.Notification
 import android.app.NotificationChannel
+import dev.duma.android.hal.service.R
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
@@ -10,7 +11,6 @@ import android.os.IBinder
 import android.util.Log
 import androidx.room.Room
 import com.nimbusds.jose.jwk.RSAKey
-import com.nimbusds.jose.jwk.gen.RSAKeyGenerator
 import dev.duma.android.hal.contract.EventBus
 import dev.duma.android.hal.service.auth.AuthManager
 import dev.duma.android.hal.service.auth.DeveloperKeyVerifier
@@ -81,9 +81,9 @@ class HalService : Service() {
 
         // 2. Auth
         val tokenManager = TokenManager(db.tokenDao())
-        // TODO: Load real public key from resources — using generated key for now
-        val testKey = RSAKeyGenerator(2048).generate()
-        val verifier = DeveloperKeyVerifier(testKey.toPublicJWK())
+        val jwkJson = resources.openRawResource(R.raw.developer_portal_public_key)
+            .bufferedReader().use { it.readText() }
+        val verifier = DeveloperKeyVerifier(RSAKey.parse(jwkJson))
         val serviceContext = this
         val superPrefs = getSharedPreferences("hal_super", MODE_PRIVATE)
         val authManager = AuthManager(
