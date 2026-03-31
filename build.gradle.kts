@@ -42,24 +42,26 @@ subprojects {
             }
         }
 
-        afterEvaluate {
-            apply(plugin = "maven-publish")
-            extensions.configure<org.gradle.api.publish.PublishingExtension> {
-                publications {
-                    create<org.gradle.api.publish.maven.MavenPublication>("release") {
-                        from(components["release"])
-                        groupId = "dev.duma.android.hal"
-                        artifactId = project.name
-                        version = rootProject.version.toString()
+        if (project.findProperty("publishLibrary")?.toString()?.toBoolean() == true) {
+            afterEvaluate {
+                apply(plugin = "maven-publish")
+                extensions.configure<org.gradle.api.publish.PublishingExtension> {
+                    publications {
+                        create<org.gradle.api.publish.maven.MavenPublication>("release") {
+                            from(components["release"])
+                            groupId = "dev.duma.android.hal"
+                            artifactId = project.name
+                            version = rootProject.version.toString()
+                        }
                     }
-                }
-                repositories {
-                    maven {
-                        name = "GitHubPackages"
-                        url = uri("https://maven.pkg.github.com/kduma-autoid/android-hal-service")
-                        credentials {
-                            username = System.getenv("GITHUB_ACTOR") ?: ""
-                            password = System.getenv("GITHUB_TOKEN") ?: ""
+                    repositories {
+                        maven {
+                            name = "GitHubPackages"
+                            url = uri("https://maven.pkg.github.com/kduma-autoid/android-hal-service")
+                            credentials {
+                                username = System.getenv("GITHUB_ACTOR") ?: ""
+                                password = System.getenv("GITHUB_TOKEN") ?: ""
+                            }
                         }
                     }
                 }
