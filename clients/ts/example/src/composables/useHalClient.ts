@@ -4,6 +4,11 @@ import { LocalStorageTokenStore } from '@kduma-autoid/hal-client-token-store-bro
 import { useToast } from './useToast';
 
 const SETTINGS_KEY = 'hal_example_settings';
+const BUILTIN_SERVICE_KEY = import.meta.env.VITE_SERVICE_KEY ?? '';
+
+export type AuthMode = 'builtin' | 'service-key' | 'device-secret' | 'none';
+
+export const hasBuiltinKey = !!BUILTIN_SERVICE_KEY;
 
 function base64urlEncode(data: Uint8Array | string): string {
   const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : data;
@@ -45,6 +50,7 @@ async function generateDeviceKeyJwt(secret: string, clientId: string): Promise<s
 export interface AppSettings {
   baseUrl: string;
   clientId: string;
+  authMode: AuthMode;
   serviceKey: string;
   deviceSecret: string;
   transport: 'http' | 'ws';
@@ -53,7 +59,8 @@ export interface AppSettings {
 const defaultSettings: AppSettings = {
   baseUrl: 'http://localhost:8400',
   clientId: 'hal-example',
-  serviceKey: import.meta.env.VITE_SERVICE_KEY ?? '',
+  authMode: hasBuiltinKey ? 'builtin' : 'none',
+  serviceKey: '',
   deviceSecret: '',
   transport: 'ws',
 };
@@ -67,7 +74,22 @@ function loadSettings(): void {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (raw) {
-      Object.assign(settings, { ...defaultSettings, ...JSON.parse(raw) });
+      const parsed = JSON.parse(raw);
+      // Migrate old settings without authMode
+      if (!parsed.authMode) {
+        if (parsed.serviceKey) {
+          parsed.authMode = 'service-key';
+        } else if (parsed.deviceSecret) {
+          parsed.authMode = 'device-secret';
+        } else {
+          parsed.authMode = defaultSettings.authMode;
+        }
+      }
+      // If saved authMode is 'builtin' but no builtin key available, fall back
+      if (parsed.authMode === 'builtin' && !hasBuiltinKey) {
+        parsed.authMode = 'none';
+      }
+      Object.assign(settings, { ...defaultSettings, ...parsed });
     }
   } catch {
     // ignore corrupt settings
@@ -76,7 +98,25 @@ function loadSettings(): void {
 
 function saveSettings(newSettings: AppSettings): void {
   Object.assign(settings, newSettings);
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  // Don't persist the builtin key to localStorage
+  const toSave = { ...settings, serviceKey: settings.authMode === 'builtin' ? '' : settings.serviceKey };
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(toSave));
+}
+
+async function resolveServiceKey(): Promise<string | undefined> {
+  switch (settings.authMode) {
+    case 'builtin':
+      return BUILTIN_SERVICE_KEY || undefined;
+    case 'service-key':
+      return settings.serviceKey || undefined;
+    case 'device-secret':
+      if (settings.deviceSecret) {
+        return generateDeviceKeyJwt(settings.deviceSecret, settings.clientId);
+      }
+      return undefined;
+    case 'none':
+      return undefined;
+  }
 }
 
 async function connect(): Promise<void> {
@@ -91,10 +131,7 @@ async function connect(): Promise<void> {
 
   try {
     const tokenStore = new LocalStorageTokenStore('hal_example_token');
-    let serviceKey = settings.serviceKey || undefined;
-    if (!serviceKey && settings.deviceSecret) {
-      serviceKey = await generateDeviceKeyJwt(settings.deviceSecret, settings.clientId);
-    }
+    const serviceKey = await resolveServiceKey();
     const options = {
       clientId: settings.clientId,
       baseUrl: settings.baseUrl,

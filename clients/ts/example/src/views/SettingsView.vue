@@ -1,17 +1,10 @@
 <script setup lang="ts">
 import { reactive } from 'vue';
-import { useHalClient, type AppSettings } from '../composables/useHalClient';
+import { useHalClient, hasBuiltinKey, type AppSettings } from '../composables/useHalClient';
 
 const { settings, isConnected, error, saveSettings, connect } = useHalClient();
 
 const form = reactive<AppSettings>({ ...settings });
-
-const defaultServiceKey = import.meta.env.VITE_SERVICE_KEY ?? '';
-
-function resetServiceKey() {
-  form.serviceKey = defaultServiceKey;
-  form.deviceSecret = '';
-}
 
 async function onSubmit() {
   saveSettings({ ...form });
@@ -34,23 +27,24 @@ async function onSubmit() {
     </label>
 
     <label class="field">
-      <span>Service Key</span>
-      <div class="input-with-action">
-        <input v-model="form.serviceKey" type="text" placeholder="Optional JWT" :disabled="!!form.deviceSecret" />
-        <button
-          v-if="defaultServiceKey && form.serviceKey !== defaultServiceKey"
-          type="button"
-          class="btn btn-reset"
-          :disabled="!!form.deviceSecret"
-          @click="resetServiceKey"
-        >Reset</button>
-      </div>
+      <span>Authentication</span>
+      <select v-model="form.authMode">
+        <option v-if="hasBuiltinKey" value="builtin">Built-in Service Key</option>
+        <option value="service-key">Custom Service Key (JWT)</option>
+        <option value="device-secret">Device Secret (HMAC)</option>
+        <option value="none">Permission Dialog</option>
+      </select>
     </label>
 
-    <label class="field">
+    <label v-if="form.authMode === 'service-key'" class="field">
+      <span>Service Key</span>
+      <input v-model="form.serviceKey" type="text" placeholder="Paste JWT token" />
+    </label>
+
+    <label v-if="form.authMode === 'device-secret'" class="field">
       <span>Device Secret</span>
-      <input v-model="form.deviceSecret" type="text" placeholder="Base64URL-encoded HMAC key" :disabled="!!form.serviceKey" />
-      <span class="hint">Used to generate a device key JWT (HS256) when no service key is set.</span>
+      <input v-model="form.deviceSecret" type="text" placeholder="Base64URL-encoded HMAC key" />
+      <span class="hint">Used to generate a device key JWT (HS256) on each connection.</span>
     </label>
 
     <label class="field">
@@ -94,29 +88,6 @@ h2 { margin-top: 0; }
   font-size: 11px;
   font-weight: 400;
   color: #888;
-}
-.input-with-action {
-  display: flex;
-  gap: 8px;
-}
-.input-with-action input {
-  flex: 1;
-  min-width: 0;
-}
-.btn-reset {
-  padding: 8px 12px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  background: #f5f5f5;
-  font-size: 13px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.btn-reset:hover { background: #e5e5e5; }
-.field input:disabled {
-  background: #f5f5f5;
-  color: #999;
-  cursor: not-allowed;
 }
 .field input,
 .field select {
