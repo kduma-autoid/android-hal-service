@@ -16,6 +16,8 @@ import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
+import dev.duma.android.hal.contract.allEvents
+import dev.duma.android.hal.contract.allMethods
 import dev.duma.android.hal.service.plugin.PluginRegistry
 
 class PluginDetailActivity : AppCompatActivity() {
@@ -141,7 +143,7 @@ class PluginDetailActivity : AppCompatActivity() {
             })
         }
 
-        val isExperimental = desc.experimental || desc.methods.any { it.experimental }
+        val isExperimental = desc.experimental || desc.allMethods.any { it.experimental }
         if (isExperimental) {
             layout.addView(TextView(this).apply {
                 text = "EXPERIMENTAL PLUGIN"
@@ -165,51 +167,65 @@ class PluginDetailActivity : AppCompatActivity() {
             }
         }
 
-        // Methods — split into regular and experimental
-        val regularMethods = if (desc.experimental) emptyList() else desc.methods.filter { !it.experimental }
-        val experimentalMethods = if (desc.experimental) desc.methods else desc.methods.filter { it.experimental }
+        // Groups — each group contains methods and/or events
+        val totalMethods = desc.allMethods.size
+        val totalEvents = desc.allEvents.size
+        layout.addView(sectionHeader("API ($totalMethods methods, $totalEvents events)"))
 
-        layout.addView(sectionHeader("Methods (${regularMethods.size})"))
-        if (regularMethods.isEmpty()) {
-            layout.addView(emptyText("No methods"))
-        } else {
+        if (desc.groups.isEmpty() || (totalMethods == 0 && totalEvents == 0)) {
+            layout.addView(emptyText("No methods or events"))
+        }
+
+        for (group in desc.groups) {
+            if (group.methods.isEmpty() && group.events.isEmpty()) continue
+
+            // Group header (if named)
+            if (group.name != null) {
+                layout.addView(TextView(this).apply {
+                    text = group.name
+                    textSize = 15f
+                    setTypeface(null, Typeface.BOLD)
+                    setPadding(0, 20, 0, 4)
+                    setTextColor(Color.parseColor("#1565C0"))
+                })
+            }
+
+            // Methods within this group — split into regular and experimental
+            val regularMethods = if (desc.experimental) emptyList() else group.methods.filter { !it.experimental }
+            val experimentalMethods = if (desc.experimental) group.methods else group.methods.filter { it.experimental }
+
             for (method in regularMethods) {
                 layout.addView(buildMethodBlock(method, isExperimental = false))
             }
-        }
 
-        if (experimentalMethods.isNotEmpty()) {
-            val expContainer = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                visibility = View.GONE
-            }
-            for (method in experimentalMethods) {
-                expContainer.addView(buildMethodBlock(method, isExperimental = true))
-            }
+            if (experimentalMethods.isNotEmpty()) {
+                val expContainer = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    visibility = View.GONE
+                }
+                for (method in experimentalMethods) {
+                    expContainer.addView(buildMethodBlock(method, isExperimental = true))
+                }
 
-            val expLabel = "${experimentalMethods.size} experimental method${if (experimentalMethods.size != 1) "s" else ""}"
-            val toggleBtn = Button(this).apply {
-                text = expLabel
-                setOnClickListener {
-                    if (expContainer.visibility == View.GONE) {
-                        expContainer.visibility = View.VISIBLE
-                        text = "Hide experimental methods"
-                    } else {
-                        expContainer.visibility = View.GONE
-                        text = expLabel
+                val expLabel = "${experimentalMethods.size} experimental method${if (experimentalMethods.size != 1) "s" else ""}"
+                val toggleBtn = Button(this).apply {
+                    text = expLabel
+                    setOnClickListener {
+                        if (expContainer.visibility == View.GONE) {
+                            expContainer.visibility = View.VISIBLE
+                            text = "Hide experimental methods"
+                        } else {
+                            expContainer.visibility = View.GONE
+                            text = expLabel
+                        }
                     }
                 }
+                layout.addView(toggleBtn)
+                layout.addView(expContainer)
             }
-            layout.addView(toggleBtn)
-            layout.addView(expContainer)
-        }
 
-        // Events
-        layout.addView(sectionHeader("Events (${desc.events.size})"))
-        if (desc.events.isEmpty()) {
-            layout.addView(emptyText("No events"))
-        } else {
-            for (event in desc.events) {
+            // Events within this group
+            for (event in group.events) {
                 layout.addView(divider())
                 layout.addView(TextView(this).apply {
                     text = event.name

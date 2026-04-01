@@ -107,7 +107,7 @@ class SunmiExternalScannerPlugin(
 
     override fun getCapabilities() = listOf("sunmi.scanner.external")
 
-    override fun getDescriptor() = PluginDescriptor(
+    override fun getDescriptor() = PluginDescriptor.withFlatLists(
         pluginId = pluginId,
         name = "Sunmi: Scanner (External)",
         version = version,
@@ -126,49 +126,49 @@ class SunmiExternalScannerPlugin(
                 "Stop active barcode scan.",
                 "sunmi.scanner.external",
                 exampleParameters = """{}""",
-                exampleOutput = """{"status":"ok"}"""
+                exampleOutput = """{}"""
             ),
             MethodDescriptor(
                 "sunmi.scanner.external.setParams",
                 "Set scanner parameters as key-value pairs.",
                 "sunmi.scanner.external",
                 exampleParameters = """{"ScanMode":"1","DurationScanMode":"3"}""",
-                exampleOutput = """{"status":"ok"}"""
+                exampleOutput = """{}"""
             ),
             MethodDescriptor(
                 "sunmi.scanner.external.getVersion",
                 "Get the scanner SDK version string.",
                 "sunmi.scanner.external",
                 exampleParameters = """{}""",
-                exampleOutput = """{"status":"ok","version":"1.0.0"}"""
+                exampleOutput = """{"version":"1.0.0"}"""
             ),
             MethodDescriptor(
                 "sunmi.scanner.external.getScanEngineVersion",
                 "Request scan engine version (async, logged by SDK).",
                 "sunmi.scanner.external",
                 exampleParameters = """{}""",
-                exampleOutput = """{"status":"ok"}"""
+                exampleOutput = """{}"""
             ),
             MethodDescriptor(
                 "sunmi.scanner.external.sendData",
                 "Send raw hex-encoded data to the scanner module.",
                 "sunmi.scanner.external",
                 exampleParameters = """{"data":"1b31"}""",
-                exampleOutput = """{"status":"ok"}"""
+                exampleOutput = """{}"""
             ),
             MethodDescriptor(
                 "sunmi.scanner.external.release",
                 "Release scanner resources and unregister callbacks.",
                 "sunmi.scanner.external",
                 exampleParameters = """{}""",
-                exampleOutput = """{"status":"ok"}"""
+                exampleOutput = """{}"""
             ),
             MethodDescriptor(
                 "sunmi.scanner.external.isServiceConnected",
                 "Check if the scanner service is connected.",
                 "sunmi.scanner.external",
                 exampleParameters = """{}""",
-                exampleOutput = """{"status":"ok","connected":true}"""
+                exampleOutput = """{"connected":true}"""
             )
         ),
         events = listOf(

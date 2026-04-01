@@ -29,7 +29,7 @@ class SunmiScannerPlugin(private val appContext: Context? = null) : HalPlugin {
 
     override fun getCapabilities(): List<String> = listOf("sunmi.scanner")
 
-    override fun getDescriptor(): PluginDescriptor = PluginDescriptor(
+    override fun getDescriptor(): PluginDescriptor = PluginDescriptor.withFlatLists(
         pluginId = pluginId,
         name = "[DEMO] Sunmi Scanner",
         version = version,
@@ -48,7 +48,7 @@ class SunmiScannerPlugin(private val appContext: Context? = null) : HalPlugin {
                 "sunmi.scanner",
                 experimental = true,
                 exampleParameters = "{}",
-                exampleOutput = """{"status":"ok"}"""
+                exampleOutput = """{"status":"idle"}"""
             )
         ),
         events = listOf(

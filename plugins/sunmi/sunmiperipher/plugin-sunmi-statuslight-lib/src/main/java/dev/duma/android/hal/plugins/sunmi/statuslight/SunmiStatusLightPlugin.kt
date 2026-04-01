@@ -44,7 +44,7 @@ class SunmiStatusLightPlugin(
 
     override fun getCapabilities(): List<String> = listOf("sunmi.statuslight")
 
-    override fun getDescriptor(): PluginDescriptor = PluginDescriptor(
+    override fun getDescriptor(): PluginDescriptor = PluginDescriptor.withFlatLists(
         pluginId = pluginId,
         name = "Sunmi: Status Light (FLEX 3)",
         version = version,

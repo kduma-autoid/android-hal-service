@@ -11,7 +11,12 @@ import dev.duma.android.hal.service.plugin.PluginRegistry
 import dev.duma.android.hal.transport.core.CallerContext
 import dev.duma.android.hal.transport.core.CommandHandler
 import dev.duma.android.hal.transport.core.TransportRegistry
+import dev.duma.android.hal.contract.DescriptorGroup
+import dev.duma.android.hal.contract.MethodDescriptor
+import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.PluginDescriptor
+import dev.duma.android.hal.contract.allMethods
+import dev.duma.android.hal.contract.allEvents
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -149,7 +154,7 @@ class ServiceCommandHandler(
             } else if (desc.experimental) {
                 null
             } else {
-                desc.copy(methods = desc.methods.filter { !it.experimental })
+                desc.copy(groups = filterGroups(desc.groups, methodPredicate = { !it.experimental }))
             }
         }
         return Json.encodeToString(Json.encodeToJsonElement(descriptors))
@@ -214,15 +219,11 @@ class ServiceCommandHandler(
             allDescriptors
         } else {
             allDescriptors.map { desc ->
-                desc.copy(
-                    methods = desc.methods.filter { m ->
-                        permissions.any { m.requiredPermission.startsWith(it) }
-                    },
-                    events = desc.events.filter { e ->
-                        permissions.any { e.requiredPermission.startsWith(it) }
-                    }
-                )
-            }.filter { it.methods.isNotEmpty() || it.events.isNotEmpty() }
+                desc.copy(groups = filterGroups(desc.groups,
+                    methodPredicate = { m -> permissions.any { m.requiredPermission.startsWith(it) } },
+                    eventPredicate = { e -> permissions.any { e.requiredPermission.startsWith(it) } }
+                ))
+            }.filter { it.allMethods.isNotEmpty() || it.allEvents.isNotEmpty() }
         }
 
         // Step 2: Filter super methods unless withSuper=true
@@ -230,8 +231,8 @@ class ServiceCommandHandler(
             filtered
         } else {
             filtered.map { desc ->
-                desc.copy(methods = desc.methods.filter { !it.superRequired })
-            }.filter { it.methods.isNotEmpty() || it.events.isNotEmpty() }
+                desc.copy(groups = filterGroups(desc.groups, methodPredicate = { !it.superRequired }))
+            }.filter { it.allMethods.isNotEmpty() || it.allEvents.isNotEmpty() }
         }
 
         // Step 3: Filter experimental methods/plugins unless withExperimental=true
@@ -250,9 +251,9 @@ class ServiceCommandHandler(
                 } else if (desc.experimental) {
                     null
                 } else {
-                    desc.copy(methods = desc.methods.filter { !it.experimental })
+                    desc.copy(groups = filterGroups(desc.groups, methodPredicate = { !it.experimental }))
                 }
-            }.filter { it.methods.isNotEmpty() || it.events.isNotEmpty() }
+            }.filter { it.allMethods.isNotEmpty() || it.allEvents.isNotEmpty() }
         }
 
         // Step 4: Build response with extra metadata
@@ -273,29 +274,36 @@ class ServiceCommandHandler(
                             put("experimentalActive", isExpEnabledViaPrefs || hasExpViaToken)
                         }
                         putJsonArray("capabilities") { desc.capabilities.forEach { add(JsonPrimitive(it)) } }
-                        putJsonArray("methods") {
-                            desc.methods.forEach { m ->
+                        putJsonArray("groups") {
+                            desc.groups.forEach { group ->
                                 add(buildJsonObject {
-                                    put("name", m.name)
-                                    put("description", m.description)
-                                    put("requiredPermission", m.requiredPermission)
-                                    if (m.superRequired) put("superRequired", true)
-                                    if (m.experimental || desc.experimental) {
-                                        put("experimental", true)
-                                        put("experimentalActive", isExpEnabledViaPrefs || hasExpViaToken)
+                                    group.name?.let { put("name", it) }
+                                    putJsonArray("methods") {
+                                        group.methods.forEach { m ->
+                                            add(buildJsonObject {
+                                                put("name", m.name)
+                                                put("description", m.description)
+                                                put("requiredPermission", m.requiredPermission)
+                                                if (m.superRequired) put("superRequired", true)
+                                                if (m.experimental || desc.experimental) {
+                                                    put("experimental", true)
+                                                    put("experimentalActive", isExpEnabledViaPrefs || hasExpViaToken)
+                                                }
+                                                put("exampleParameters", m.exampleParameters)
+                                                put("exampleOutput", m.exampleOutput)
+                                            })
+                                        }
                                     }
-                                    put("exampleParameters", m.exampleParameters)
-                                    put("exampleOutput", m.exampleOutput)
-                                })
-                            }
-                        }
-                        putJsonArray("events") {
-                            desc.events.forEach { e ->
-                                add(buildJsonObject {
-                                    put("name", e.name)
-                                    put("description", e.description)
-                                    put("requiredPermission", e.requiredPermission)
-                                    put("exampleEvent", e.exampleEvent)
+                                    putJsonArray("events") {
+                                        group.events.forEach { e ->
+                                            add(buildJsonObject {
+                                                put("name", e.name)
+                                                put("description", e.description)
+                                                put("requiredPermission", e.requiredPermission)
+                                                put("exampleEvent", e.exampleEvent)
+                                            })
+                                        }
+                                    }
                                 })
                             }
                         }
@@ -308,6 +316,17 @@ class ServiceCommandHandler(
     private suspend fun requireToken(token: String, callerContext: CallerContext): TokenEntity? {
         return tokenManager.validateToken(token, callerContext)
     }
+
+    private fun filterGroups(
+        groups: List<DescriptorGroup>,
+        methodPredicate: ((MethodDescriptor) -> Boolean)? = null,
+        eventPredicate: ((EventDescriptor) -> Boolean)? = null
+    ): List<DescriptorGroup> = groups.map { g ->
+        g.copy(
+            methods = if (methodPredicate != null) g.methods.filter(methodPredicate) else g.methods,
+            events = if (eventPredicate != null) g.events.filter(eventPredicate) else g.events
+        )
+    }.filter { it.methods.isNotEmpty() || it.events.isNotEmpty() }
 
     private fun errorTypeForCode(code: String): CommandResult.ErrorType = when (code) {
         "invalid_key", "key_expired", "restriction_mismatch" -> CommandResult.ErrorType.BAD_REQUEST

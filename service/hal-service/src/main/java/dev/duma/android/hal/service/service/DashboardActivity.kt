@@ -4,6 +4,8 @@ import android.Manifest
 import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
+import dev.duma.android.hal.contract.allEvents
+import dev.duma.android.hal.contract.allMethods
 import dev.duma.android.hal.service.R
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -374,7 +376,7 @@ class DashboardActivity : AppCompatActivity() {
         }
 
         val allEvents = pluginReg.getSupportedDescriptors()
-            .flatMap { it.events }
+            .flatMap { it.allEvents }
             .distinctBy { it.name }
 
         if (allEvents.isEmpty()) {
@@ -533,8 +535,10 @@ class DashboardActivity : AppCompatActivity() {
             })
 
             val infoParts = mutableListOf<String>()
-            if (desc.methods.isNotEmpty()) infoParts.add("${desc.methods.size} methods")
-            if (desc.events.isNotEmpty()) infoParts.add("${desc.events.size} events")
+            val methodCount = desc.allMethods.size
+            val eventCount = desc.allEvents.size
+            if (methodCount > 0) infoParts.add("$methodCount methods")
+            if (eventCount > 0) infoParts.add("$eventCount events")
             if (isUnsupported) infoParts.add("UNSUPPORTED")
             if (isExperimental) infoParts.add("EXPERIMENTAL")
 

@@ -36,7 +36,7 @@ class SunmiPrinterXManagerPlugin(context: Context? = null) : BasePrinterXPlugin(
 
     override fun getCapabilities() = listOf("sunmi.printerx.manager")
 
-    override fun getDescriptor() = PluginDescriptor(
+    override fun getDescriptor() = PluginDescriptor.withFlatLists(
         pluginId = pluginId,
         name = "Sunmi: Printer Manager",
         version = version,
@@ -47,7 +47,7 @@ class SunmiPrinterXManagerPlugin(context: Context? = null) : BasePrinterXPlugin(
                 "Gets list of available printers and default printer ID.",
                 "sunmi.printerx.manager",
                 exampleParameters = "{}",
-                exampleOutput = """{"status":"ok","printers":["printer1","printer2"],"defaultPrinter":"printer1"}"""
+                exampleOutput = """{"printers":["printer1","printer2"],"defaultPrinter":"printer1"}"""
             )
         ),
         events = listOf(

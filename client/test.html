@@ -265,42 +265,50 @@
                 html += `</div>`;
                 html += `<div class="plugin-body" id="plugin-body-${pi}">`;
 
-                if (plugin.methods && plugin.methods.length) {
-                    html += `<div class="section-label">Methods</div>`;
-                    plugin.methods.forEach(m => {
-                        const id = methodCounter++;
-                        const paramsId = `params-${id}`;
-                        const outputId = `output-${id}`;
-                        const defaultParams = formatJson(m.exampleParameters) || '{}';
-                        const placeholderOutput = m.exampleOutput ? formatJson(m.exampleOutput) : '';
+                (plugin.groups || []).forEach(group => {
+                    if ((!group.methods || !group.methods.length) && (!group.events || !group.events.length)) return;
 
-                        html += `<div class="method-card">`;
-                        html += `<div class="method-name" onclick="fillMethod('${esc(m.name)}', '${paramsId}')" title="Click to fill HTTP/WS fields">${esc(m.name)}</div>`;
-                        html += `<div class="method-desc">${esc(m.description)}</div>`;
-                        html += `<div class="method-fields">`;
-                        html += `<div class="method-field"><label>Parameters</label><textarea id="${paramsId}">${esc(defaultParams)}</textarea></div>`;
-                        html += `<div class="method-field"><label>Response</label><textarea id="${outputId}" placeholder="${esc(placeholderOutput)}" readonly></textarea></div>`;
-                        html += `</div>`;
-                        html += `<div class="method-actions">`;
-                        html += `<button onclick="executeMethod('${esc(m.name)}', '${paramsId}', '${outputId}', false)">Execute (HTTP)</button>`;
-                        html += `<button class="ws-btn" onclick="executeMethod('${esc(m.name)}', '${paramsId}', '${outputId}', true)">Execute (WS)</button>`;
-                        html += `</div>`;
-                        html += `</div>`;
-                    });
-                }
+                    if (group.name) {
+                        html += `<div class="section-label" style="color:#1565C0;font-size:15px;border-bottom:1px solid #e0e7ff;padding-bottom:4px;">${esc(group.name)}</div>`;
+                    }
 
-                if (plugin.events && plugin.events.length) {
-                    html += `<div class="section-label">Events</div>`;
-                    plugin.events.forEach(e => {
-                        html += `<div class="event-card">`;
-                        html += `<div class="event-name">${esc(e.name)}</div>`;
-                        html += `<div class="event-desc">${esc(e.description)}</div>`;
-                        if (e.exampleEvent) {
-                            html += `<div class="event-example"><label>Example payload</label><code>${esc(formatJson(e.exampleEvent))}</code></div>`;
-                        }
-                        html += `</div>`;
-                    });
-                }
+                    if (group.methods && group.methods.length) {
+                        if (!group.name) html += `<div class="section-label">Methods</div>`;
+                        group.methods.forEach(m => {
+                            const id = methodCounter++;
+                            const paramsId = `params-${id}`;
+                            const outputId = `output-${id}`;
+                            const defaultParams = formatJson(m.exampleParameters) || '{}';
+                            const placeholderOutput = m.exampleOutput ? formatJson(m.exampleOutput) : '';
+
+                            html += `<div class="method-card">`;
+                            html += `<div class="method-name" onclick="fillMethod('${esc(m.name)}', '${paramsId}')" title="Click to fill HTTP/WS fields">${esc(m.name)}</div>`;
+                            html += `<div class="method-desc">${esc(m.description)}</div>`;
+                            html += `<div class="method-fields">`;
+                            html += `<div class="method-field"><label>Parameters</label><textarea id="${paramsId}">${esc(defaultParams)}</textarea></div>`;
+                            html += `<div class="method-field"><label>Response</label><textarea id="${outputId}" placeholder="${esc(placeholderOutput)}" readonly></textarea></div>`;
+                            html += `</div>`;
+                            html += `<div class="method-actions">`;
+                            html += `<button onclick="executeMethod('${esc(m.name)}', '${paramsId}', '${outputId}', false)">Execute (HTTP)</button>`;
+                            html += `<button class="ws-btn" onclick="executeMethod('${esc(m.name)}', '${paramsId}', '${outputId}', true)">Execute (WS)</button>`;
+                            html += `</div>`;
+                            html += `</div>`;
+                        });
+                    }
+
+                    if (group.events && group.events.length) {
+                        if (!group.name) html += `<div class="section-label">Events</div>`;
+                        group.events.forEach(e => {
+                            html += `<div class="event-card">`;
+                            html += `<div class="event-name">${esc(e.name)}</div>`;
+                            html += `<div class="event-desc">${esc(e.description)}</div>`;
+                            if (e.exampleEvent) {
+                                html += `<div class="event-example"><label>Example payload</label><code>${esc(formatJson(e.exampleEvent))}</code></div>`;
+                            }
+                            html += `</div>`;
+                        });
+                    }
+                });
 
                 html += `</div></div>`;
             });

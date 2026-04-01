@@ -12,6 +12,7 @@ export type {
   DescribeOptions,
   DescribeResponse,
   PluginDescriptor,
+  DescriptorGroup,
   MethodDescriptor,
   EventDescriptor,
   StatusResponse,
@@ -27,6 +28,8 @@ export {
   HalConnectionError,
   isHalErrorResponse,
   createHalError,
+  allMethods,
+  allEvents,
 } from './types/index.js';
 
 // Interfaces

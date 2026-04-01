@@ -29,7 +29,7 @@ class GenericScannerPlugin : HalPlugin {
 
     override fun getCapabilities(): List<String> = listOf("scanner")
 
-    override fun getDescriptor(): PluginDescriptor = PluginDescriptor(
+    override fun getDescriptor(): PluginDescriptor = PluginDescriptor.withFlatLists(
         pluginId = pluginId,
         name = "[DEMO] Scanner",
         version = version,
@@ -47,7 +47,7 @@ class GenericScannerPlugin : HalPlugin {
                 "Stop scanning",
                 "scanner",
                 exampleParameters = "{}",
-                exampleOutput = """{"status":"ok"}"""
+                exampleOutput = """{}"""
             )
         ),
         events = listOf(

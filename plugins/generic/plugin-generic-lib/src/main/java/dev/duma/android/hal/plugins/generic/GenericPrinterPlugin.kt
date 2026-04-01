@@ -28,7 +28,7 @@ class GenericPrinterPlugin : HalPlugin {
 
     override fun getCapabilities(): List<String> = listOf("printer")
 
-    override fun getDescriptor(): PluginDescriptor = PluginDescriptor(
+    override fun getDescriptor(): PluginDescriptor = PluginDescriptor.withFlatLists(
         pluginId = pluginId,
         name = "[DEMO] Printer",
         version = version,
@@ -39,14 +39,14 @@ class GenericPrinterPlugin : HalPlugin {
                 "Print using available printer",
                 "printer",
                 exampleParameters = """{"text":"Hello World"}""",
-                exampleOutput = """{"status":"ok"}"""
+                exampleOutput = """{}"""
             ),
             MethodDescriptor(
                 "printer.status",
                 "Get printer status",
                 "printer",
                 exampleParameters = "{}",
-                exampleOutput = """{"status":"ok","printerStatus":"ready"}"""
+                exampleOutput = """{}"""
             )
         ),
         events = emptyList()

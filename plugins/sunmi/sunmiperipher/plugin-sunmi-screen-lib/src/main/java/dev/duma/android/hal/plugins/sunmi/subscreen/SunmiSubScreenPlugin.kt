@@ -51,7 +51,7 @@ class SunmiSubScreenPlugin(
 
     override fun getCapabilities(): List<String> = listOf("sunmi.screen")
 
-    override fun getDescriptor(): PluginDescriptor = PluginDescriptor(
+    override fun getDescriptor(): PluginDescriptor = PluginDescriptor.withFlatLists(
         pluginId = pluginId,
         name = "Sunmi: Customer Screen",
         version = version,
@@ -69,21 +69,21 @@ class SunmiSubScreenPlugin(
                 "Enable or disable a connected screen.",
                 "sunmi.screen",
                 exampleParameters = """{"sn": "SCR-001", "enabled": true}""",
-                exampleOutput = """{"status": "ok"}"""
+                exampleOutput = """{}"""
             ),
             MethodDescriptor(
                 "sunmi.screen.setTouchSwitch",
                 "Enable or disable the touch panel on a connected screen.",
                 "sunmi.screen",
                 exampleParameters = """{"sn": "SCR-001", "enabled": true}""",
-                exampleOutput = """{"status": "ok"}"""
+                exampleOutput = """{}"""
             ),
             MethodDescriptor(
                 "sunmi.screen.setBrightness",
                 "Set screen brightness level.",
                 "sunmi.screen",
                 exampleParameters = """{"sn": "SCR-001", "brightness": 80}""",
-                exampleOutput = """{"status": "ok"}"""
+                exampleOutput = """{}"""
             )
         ),
         events = listOf(

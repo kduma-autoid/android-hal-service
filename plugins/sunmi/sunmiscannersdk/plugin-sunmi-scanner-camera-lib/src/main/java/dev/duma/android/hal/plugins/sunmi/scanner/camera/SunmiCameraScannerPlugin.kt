@@ -74,7 +74,7 @@ class SunmiCameraScannerPlugin(
 
     override fun getCapabilities() = listOf("sunmi.scanner.camera")
 
-    override fun getDescriptor() = PluginDescriptor(
+    override fun getDescriptor() = PluginDescriptor.withFlatLists(
         pluginId = pluginId,
         name = "Sunmi: Scanner (Camera)",
         version = version,
@@ -93,21 +93,21 @@ class SunmiCameraScannerPlugin(
                 "Close camera scanner UI if currently open.",
                 "sunmi.scanner.camera",
                 exampleParameters = """{}""",
-                exampleOutput = """{"status":"ok"}"""
+                exampleOutput = """{}"""
             ),
             MethodDescriptor(
                 "sunmi.scanner.camera.configure",
                 "Set camera scanner configuration options.",
                 "sunmi.scanner.camera",
                 exampleParameters = """{"IS_QR_CODE_ENABLE":true,"PLAY_SOUND":false,"CAMERA_ID":"0"}""",
-                exampleOutput = """{"status":"ok"}"""
+                exampleOutput = """{}"""
             ),
             MethodDescriptor(
                 "sunmi.scanner.camera.getConfig",
                 "Get current camera scanner configuration.",
                 "sunmi.scanner.camera",
                 exampleParameters = """{}""",
-                exampleOutput = """{"status":"ok","config":{"IS_QR_CODE_ENABLE":true,"PLAY_SOUND":true}}"""
+                exampleOutput = """{"config":{"IS_QR_CODE_ENABLE":true,"PLAY_SOUND":true}}"""
             )
         ),
         events = listOf(

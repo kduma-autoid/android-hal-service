@@ -14,8 +14,10 @@ export type {
   DescribeOptions,
   DescribeResponse,
   PluginDescriptor,
+  DescriptorGroup,
   MethodDescriptor,
   EventDescriptor,
 } from './describe.js';
+export { allMethods, allEvents } from './describe.js';
 export type { StatusResponse, PluginStatus, TransportStatus } from './status.js';
 export type { HealthResponse } from './health.js';

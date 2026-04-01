@@ -47,7 +47,7 @@ class SunmiCardPlugin(
 
     override fun getCapabilities(): List<String> = listOf("sunmi.card")
 
-    override fun getDescriptor(): PluginDescriptor = PluginDescriptor(
+    override fun getDescriptor(): PluginDescriptor = PluginDescriptor.withFlatLists(
         pluginId = pluginId,
         name = "Sunmi: Magnetic Card Reader (FLEX 3)",
         version = version,

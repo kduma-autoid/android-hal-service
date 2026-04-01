@@ -14,6 +14,11 @@ export interface PluginDescriptor {
   experimental?: boolean;
   experimentalActive?: boolean;
   capabilities: string[];
+  groups: DescriptorGroup[];
+}
+
+export interface DescriptorGroup {
+  name?: string | null;
   methods: MethodDescriptor[];
   events: EventDescriptor[];
 }
@@ -34,4 +39,12 @@ export interface EventDescriptor {
   description: string;
   requiredPermission: string;
   exampleEvent: string;
+}
+
+export function allMethods(plugin: PluginDescriptor): MethodDescriptor[] {
+  return plugin.groups.flatMap(g => g.methods);
+}
+
+export function allEvents(plugin: PluginDescriptor): EventDescriptor[] {
+  return plugin.groups.flatMap(g => g.events);
 }

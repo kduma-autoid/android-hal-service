@@ -17,7 +17,7 @@ class SunmiPrinterXLcdPlugin(context: Context? = null) : BasePrinterXPlugin(cont
 
     override fun getCapabilities() = listOf("sunmi.printerx.lcd")
 
-    override fun getDescriptor() = PluginDescriptor(
+    override fun getDescriptor() = PluginDescriptor.withFlatLists(
         pluginId = pluginId,
         name = "Sunmi: LCD",
         version = version,
@@ -28,28 +28,28 @@ class SunmiPrinterXLcdPlugin(context: Context? = null) : BasePrinterXPlugin(cont
                 "Controls LCD state.",
                 "sunmi.printerx.lcd",
                 exampleParameters = """{"command":"WAKE"}""",
-                exampleOutput = """{"status":"ok"}"""
+                exampleOutput = """{}"""
             ),
             MethodDescriptor(
                 "sunmi.printerx.lcd.showText",
                 "Shows text on 128x40 LCD. Call config(WAKE) first.",
                 "sunmi.printerx.lcd",
                 exampleParameters = """{"text":"Hello","size":32,"fill":false}""",
-                exampleOutput = """{"status":"ok"}"""
+                exampleOutput = """{}"""
             ),
             MethodDescriptor(
                 "sunmi.printerx.lcd.showTexts",
                 "Shows multiline text on 128x40 LCD.",
                 "sunmi.printerx.lcd",
                 exampleParameters = """{"texts":["Total","12.99"],"align":[1,2]}""",
-                exampleOutput = """{"status":"ok"}"""
+                exampleOutput = """{}"""
             ),
             MethodDescriptor(
                 "sunmi.printerx.lcd.showBitmap",
                 "Shows bitmap on 128x40 LCD.",
                 "sunmi.printerx.lcd",
                 exampleParameters = """{"bitmap":"iVBOR..."}""",
-                exampleOutput = """{"status":"ok"}"""
+                exampleOutput = """{}"""
             ),
             MethodDescriptor(
                 "sunmi.printerx.lcd.showDigital",
@@ -57,7 +57,7 @@ class SunmiPrinterXLcdPlugin(context: Context? = null) : BasePrinterXPlugin(cont
                 "sunmi.printerx.lcd",
                 experimental = true,
                 exampleParameters = """{"digital":"12.99"}""",
-                exampleOutput = """{"status":"ok"}"""
+                exampleOutput = """{}"""
             )
         ),
         events = emptyList()

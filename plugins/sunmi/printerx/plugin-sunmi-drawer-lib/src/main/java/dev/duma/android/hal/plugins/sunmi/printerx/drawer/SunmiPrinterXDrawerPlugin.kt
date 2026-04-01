@@ -17,7 +17,7 @@ class SunmiPrinterXDrawerPlugin(context: Context? = null) : BasePrinterXPlugin(c
 
     override fun getCapabilities() = listOf("sunmi.printerx.drawer")
 
-    override fun getDescriptor() = PluginDescriptor(
+    override fun getDescriptor() = PluginDescriptor.withFlatLists(
         pluginId = pluginId,
         name = "Sunmi: Cash Drawer",
         version = version,
@@ -28,14 +28,14 @@ class SunmiPrinterXDrawerPlugin(context: Context? = null) : BasePrinterXPlugin(c
                 "Opens cash drawer. Synchronous — waits for hardware confirmation.",
                 "sunmi.printerx.drawer",
                 exampleParameters = "{}",
-                exampleOutput = """{"status":"ok","resultCode":0,"message":""}"""
+                exampleOutput = """{"resultCode":0,"message":""}"""
             ),
             MethodDescriptor(
                 "sunmi.printerx.drawer.isOpen",
                 "Gets cash drawer open/close status.",
                 "sunmi.printerx.drawer",
                 exampleParameters = """{"printerId":""}""",
-                exampleOutput = """{"status":"ok","result":false}"""
+                exampleOutput = """{"result":false}"""
             )
         ),
         events = emptyList()

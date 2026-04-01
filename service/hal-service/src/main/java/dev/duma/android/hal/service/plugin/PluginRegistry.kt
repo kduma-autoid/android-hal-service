@@ -13,6 +13,7 @@ import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.IHardwarePlugin
 import dev.duma.android.hal.contract.PluginDescriptor
+import dev.duma.android.hal.contract.allMethods
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -197,7 +198,7 @@ class PluginRegistry {
 
     fun getMethodDescriptor(method: String): dev.duma.android.hal.contract.MethodDescriptor? {
         val plugin = findForMethod(method) ?: return null
-        return plugin.getDescriptor().methods.find { it.name == method }
+        return plugin.getDescriptor().allMethods.find { it.name == method }
     }
 
     fun allCapabilities(): List<String> {

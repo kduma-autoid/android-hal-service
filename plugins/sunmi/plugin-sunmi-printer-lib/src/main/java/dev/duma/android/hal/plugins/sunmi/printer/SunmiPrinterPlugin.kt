@@ -2,7 +2,7 @@ package dev.duma.android.hal.plugins.sunmi.printer
 
 import android.content.Context
 import dev.duma.android.hal.contract.CommandResult
-import dev.duma.android.hal.contract.EventDescriptor
+import dev.duma.android.hal.contract.DescriptorGroup
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.MethodDescriptor
@@ -31,23 +31,32 @@ class SunmiPrinterPlugin(private val appContext: Context? = null) : HalPlugin {
         version = version,
         capabilities = getCapabilities(),
         experimental = true,
-        methods = listOf(
-            MethodDescriptor(
-                "sunmi.printer.print",
-                "Print receipt using Sunmi printer",
-                "sunmi.printer",
-                exampleParameters = """{"text":"Hello World"}""",
-                exampleOutput = """{"status":"ok"}"""
+        groups = listOf(
+            DescriptorGroup(
+                name = "Printing",
+                methods = listOf(
+                    MethodDescriptor(
+                        "sunmi.printer.print",
+                        "Print receipt using Sunmi printer",
+                        "sunmi.printer",
+                        exampleParameters = """{"text":"Hello World"}""",
+                        exampleOutput = """{"jobId":"job_1234567890","status":"queued"}"""
+                    ),
+                ),
             ),
-            MethodDescriptor(
-                "sunmi.printer.status",
-                "Get Sunmi printer status",
-                "sunmi.printer",
-                exampleParameters = "{}",
-                exampleOutput = """{"status":"ok","printerStatus":"ready"}"""
-            )
-        ),
-        events = emptyList()
+            DescriptorGroup(
+                name = "Statuses",
+                methods = listOf(
+                    MethodDescriptor(
+                        "sunmi.printer.status",
+                        "Get Sunmi printer status",
+                        "sunmi.printer",
+                        exampleParameters = "{}",
+                        exampleOutput = """{"status":"idle","paperLevel":"ok"}"""
+                    ),
+                ),
+            ),
+        )
     )
 
     override fun initialize(pluginContext: PluginContext) {

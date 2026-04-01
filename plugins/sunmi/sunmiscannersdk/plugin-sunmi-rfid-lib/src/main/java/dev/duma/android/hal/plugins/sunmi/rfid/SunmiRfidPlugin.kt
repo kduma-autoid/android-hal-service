@@ -121,7 +121,7 @@ class SunmiRfidPlugin(
 
     override fun getCapabilities() = listOf("sunmi.rfid")
 
-    override fun getDescriptor() = PluginDescriptor(
+    override fun getDescriptor() = PluginDescriptor.withFlatLists(
         pluginId = pluginId,
         name = "Sunmi: UHF RFID",
         version = version,
