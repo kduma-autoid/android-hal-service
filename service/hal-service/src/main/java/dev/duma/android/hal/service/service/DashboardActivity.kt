@@ -116,7 +116,11 @@ class DashboardActivity : AppCompatActivity() {
 
             setNavigationItemSelectedListener { item ->
                 if (item.itemId == demoId) {
-                    startActivity(Intent(Intent.ACTION_VIEW, "https://hal.duma.dev/".toUri()))
+                    try {
+                        startActivity(Intent(Intent.ACTION_VIEW, "https://hal.duma.dev/".toUri()))
+                    } catch (_: android.content.ActivityNotFoundException) {
+                        Toast.makeText(this@DashboardActivity, "No browser available", Toast.LENGTH_SHORT).show()
+                    }
                     drawerLayout.closeDrawers()
                 } else {
                     currentSection = item.itemId
