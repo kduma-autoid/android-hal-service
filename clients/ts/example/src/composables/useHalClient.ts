@@ -133,7 +133,7 @@ async function connect(): Promise<void> {
     const tokenStore = new LocalStorageTokenStore('hal_example_token');
     const serviceKey = await resolveServiceKey();
     const options = {
-      clientId: settings.clientId,
+      clientId: settings.authMode === 'builtin' ? 'hal-example' : settings.clientId,
       baseUrl: settings.baseUrl,
       serviceKey,
       tokenStore,

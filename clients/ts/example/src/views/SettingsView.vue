@@ -21,7 +21,7 @@ async function onSubmit() {
       <input v-model="form.baseUrl" type="text" placeholder="http://localhost:8400" />
     </label>
 
-    <label class="field">
+    <label v-if="form.authMode !== 'builtin'" class="field">
       <span>Client ID</span>
       <input v-model="form.clientId" type="text" placeholder="hal-example" />
     </label>
