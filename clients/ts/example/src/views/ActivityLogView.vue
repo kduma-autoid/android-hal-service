@@ -74,7 +74,7 @@ const eventCount = computed(() => logs.value.filter(l => l.type === 'event').len
           <span class="badge" :class="entry.type === 'method' ? 'badge-method' : 'badge-event'">
             {{ entry.type === 'method' ? 'METHOD' : 'EVENT' }}
           </span>
-          <code class="entry-name">{{ entry.name }}</code>
+          <code class="entry-name">{{ entry.name.replace(/\./g, '.\u200B') }}</code>
           <span v-if="entry.duration !== undefined" class="badge badge-duration">{{ entry.duration }}ms</span>
           <span v-if="entry.error" class="badge badge-error">ERROR</span>
         </div>
@@ -193,7 +193,7 @@ h2 { margin-top: 0; }
   background: #f3f4f6;
   padding: 1px 6px;
   border-radius: 3px;
-  word-break: break-all;
+  word-break: break-word;
 }
 .badge {
   display: inline-block;
