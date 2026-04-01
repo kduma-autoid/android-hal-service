@@ -140,7 +140,24 @@ class SunmiRfidPlugin(
             when (method) {
 
                 // === Fully synchronous ===
-                "sunmi.rfid.getScanModel" -> success(helper.getScanModel())
+                "sunmi.rfid.getScanModel" -> {
+                    val modelId = helper.getScanModel()
+                    val modelName = when (modelId) {
+                        RFIDManager.NONE -> "NONE"
+                        RFIDManager.UHF_R2000 -> "UHF_R2000"
+                        RFIDManager.INNER_M500 -> "INNER_M500"
+                        RFIDManager.UHF_S7100 -> "UHF_S7100"
+                        RFIDManager.INNER_SIM3500 -> "INNER_SIM3500"
+                        else -> "UNKNOWN"
+                    }
+                    CommandResult.Success(
+                        JSONObject()
+                            .put("available", modelId != RFIDManager.NONE)
+                            .put("modelId", modelId)
+                            .put("model", modelName)
+                            .toString()
+                    )
+                }
 
                 // === Async (inventory/streaming) ===
                 "sunmi.rfid.inventory" -> {
@@ -476,12 +493,6 @@ class SunmiRfidPlugin(
         eventCallback?.onEvent(event, payload)
     }
 
-    private fun success(data: Any? = null): CommandResult {
-        val obj = JSONObject().put("status", "ok")
-        if (data != null) obj.put("result", data)
-        return CommandResult.Success(obj.toString())
-    }
-
     private fun started(): CommandResult =
         CommandResult.Success(JSONObject().put("status", "started").toString())
 
@@ -501,7 +512,6 @@ class SunmiRfidPlugin(
      */
     private fun buildSuccessPayload(cmd: Byte, params: DataParameter?): String {
         val obj = JSONObject()
-        obj.put("cmd", cmd.toInt() and 0xFF)
         if (params == null) return obj.toString()
         // Inventory stats
         params.getInt(ParamCts.DATA_COUNT, -1).takeIf { it >= 0 }?.let { obj.put("dataCount", it) }
@@ -511,25 +521,25 @@ class SunmiRfidPlugin(
         params.getLong(ParamCts.START_TIME, -1L).takeIf { it >= 0 }?.let { obj.put("startTime", it) }
         params.getLong(ParamCts.END_TIME, -1L).takeIf { it >= 0 }?.let { obj.put("endTime", it) }
         // Tag data
-        params.getString(ParamCts.TAG_PC)?.let { obj.put("tagPc", it) }
-        params.getString(ParamCts.TAG_EPC)?.let { obj.put("tagEpc", it) }
-        params.getString(ParamCts.TAG_CRC)?.let { obj.put("tagCrc", it) }
-        params.getString(ParamCts.TAG_TID)?.let { obj.put("tagTid", it) }
-        params.getString(ParamCts.TAG_DATA)?.let { obj.put("tagData", it) }
-        params.getInt(ParamCts.TAG_DATA_LEN, -1).takeIf { it >= 0 }?.let { obj.put("tagDataLen", it) }
-        params.getString(ParamCts.TAG_ACCESS_EPC_MATCH)?.let { obj.put("tagAccessEpcMatch", it) }
-        params.getInt(ParamCts.TAG_READ_COUNT, -1).takeIf { it >= 0 }?.let { obj.put("tagReadCount", it) }
-        params.getString(ParamCts.TAG_RSSI)?.let { obj.put("tagRssi", it) }
+        params.getString(ParamCts.TAG_PC)?.let { obj.put("pc", it) }
+        params.getString(ParamCts.TAG_EPC)?.let { obj.put("epc", it) }
+        params.getString(ParamCts.TAG_CRC)?.let { obj.put("crc", it) }
+        params.getString(ParamCts.TAG_TID)?.let { obj.put("tid", it) }
+        params.getString(ParamCts.TAG_DATA)?.let { obj.put("data", it) }
+        params.getInt(ParamCts.TAG_DATA_LEN, -1).takeIf { it >= 0 }?.let { obj.put("dataLen", it) }
+        params.getString(ParamCts.TAG_ACCESS_EPC_MATCH)?.let { obj.put("epcFilter", it) }
+        params.getInt(ParamCts.TAG_READ_COUNT, -1).takeIf { it >= 0 }?.let { obj.put("readCount", it) }
+        params.getString(ParamCts.TAG_RSSI)?.let { obj.put("rssi", it) }
         // 6B specific
-        params.getString(ParamCts.TAG_UID)?.let { obj.put("tagUid", it) }
+        params.getString(ParamCts.TAG_UID)?.let { obj.put("uid", it) }
         // Antenna
         params.getByte(ParamCts.ANT_ID, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("antId", it.toInt()) }
         // FastTID / lock / tag status
-        params.getByte(ParamCts.TAG_MONZA_STATUS, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("tagMonzaStatus", it.toInt()) }
-        params.getByte(ParamCts.TAG_STATUS, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("tagStatus", it.toInt()) }
+        params.getByte(ParamCts.TAG_MONZA_STATUS, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("fastTidStatus", it.toInt()) }
+        params.getByte(ParamCts.TAG_STATUS, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("lockStatus", it.toInt()) }
         // Reader config results
         params.getByte(ParamCts.WORK_ANTENNA, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("workAntenna", it.toInt()) }
-        params.getString(ParamCts.ARY_OUTPUT_POWER)?.let { obj.put("aryOutputPower", it) }
+        params.getString(ParamCts.ARY_OUTPUT_POWER)?.let { obj.put("outputPower", it) }
         params.getByte(ParamCts.FREQUENCY_REGION, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("frequencyRegion", it.toInt()) }
         params.getByte(ParamCts.FREQUENCY_START, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("frequencyStart", it.toInt()) }
         params.getByte(ParamCts.FREQUENCY_END, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("frequencyEnd", it.toInt()) }
@@ -538,8 +548,8 @@ class SunmiRfidPlugin(
         params.getByte(ParamCts.USER_DEFINE_FREQUENCY_INTERVAL, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("userDefineFrequencyInterval", it.toInt()) }
         params.getByte(ParamCts.PLUS_MINUS, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("plusMinus", it.toInt()) }
         params.getByte(ParamCts.TEMPERATURE, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("temperature", it.toInt()) }
-        params.getByte(ParamCts.GP_IO_1_VALUE, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("gpIo1Value", it.toInt()) }
-        params.getByte(ParamCts.GP_IO_2_VALUE, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("gpIo2Value", it.toInt()) }
+        params.getByte(ParamCts.GP_IO_1_VALUE, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("gpio1", it.toInt()) }
+        params.getByte(ParamCts.GP_IO_2_VALUE, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("gpio2", it.toInt()) }
         params.getByte(ParamCts.ANT_CONNECTION_DETECTOR, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("antConnectionDetector", it.toInt()) }
         params.getString(ParamCts.READER_IDENTIFIER)?.let { obj.put("readerIdentifier", it) }
         params.getByte(ParamCts.RF_LINK_PROFILE, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("rfLinkProfile", it.toInt()) }
@@ -555,14 +565,14 @@ class SunmiRfidPlugin(
         params.getString(ParamCts.BATTERY_CHARGING)?.let { obj.put("batteryCharging", it) }
         params.getString(ParamCts.BATTERY_CHARGING_NUM_TIMES)?.let { obj.put("batteryChargingNumTimes", it) }
         // Tag mask
-        params.getByte(ParamCts.MASK_ID, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("maskId", it.toInt()) }
-        params.getInt(ParamCts.MASK_COUNT, -1).takeIf { it >= 0 }?.let { obj.put("maskCount", it) }
-        params.getByte(ParamCts.MASK_TARGET, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("maskTarget", it.toInt()) }
-        params.getByte(ParamCts.MASK_ACTION, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("maskAction", it.toInt()) }
-        params.getByte(ParamCts.MASK_MEMBANK, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("maskMembank", it.toInt()) }
-        params.getByte(ParamCts.MASK_START_ADD, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("maskStartAdd", it.toInt()) }
-        params.getByte(ParamCts.MASK_LEN, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("maskLen", it.toInt()) }
-        params.getString(ParamCts.MASK_VALUE)?.let { obj.put("maskValue", it) }
+        params.getByte(ParamCts.MASK_ID, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("id", it.toInt()) }
+        params.getInt(ParamCts.MASK_COUNT, -1).takeIf { it >= 0 }?.let { obj.put("count", it) }
+        params.getByte(ParamCts.MASK_TARGET, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("target", it.toInt()) }
+        params.getByte(ParamCts.MASK_ACTION, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("action", it.toInt()) }
+        params.getByte(ParamCts.MASK_MEMBANK, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("membank", it.toInt()) }
+        params.getByte(ParamCts.MASK_START_ADD, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("startAddress", it.toInt()) }
+        params.getByte(ParamCts.MASK_LEN, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("length", it.toInt()) }
+        params.getString(ParamCts.MASK_VALUE)?.let { obj.put("value", it) }
         return obj.toString()
     }
 
@@ -571,27 +581,26 @@ class SunmiRfidPlugin(
      */
     private fun buildTagPayload(cmd: Byte, isNew: Boolean, tag: DataParameter?): String {
         val obj = JSONObject()
-        obj.put("cmd", cmd.toInt() and 0xFF)
         obj.put("isNew", isNew)
         if (tag == null) return obj.toString()
         // 6C tag fields
-        tag.getString(ParamCts.TAG_PC)?.let { obj.put("tagPc", it) }
-        tag.getString(ParamCts.TAG_EPC)?.let { obj.put("tagEpc", it) }
-        tag.getString(ParamCts.TAG_CRC)?.let { obj.put("tagCrc", it) }
-        tag.getString(ParamCts.TAG_TID)?.let { obj.put("tagTid", it) }
-        tag.getString(ParamCts.TAG_RSSI)?.let { obj.put("tagRssi", it) }
-        tag.getString(ParamCts.TAG_FREQ)?.let { obj.put("tagFreq", it) }
-        tag.getInt(ParamCts.TAG_READ_COUNT, 0).let { obj.put("tagReadCount", it) }
-        tag.getLong(ParamCts.TAG_TIME, 0L).let { obj.put("tagTime", it) }
+        tag.getString(ParamCts.TAG_PC)?.let { obj.put("pc", it) }
+        tag.getString(ParamCts.TAG_EPC)?.let { obj.put("epc", it) }
+        tag.getString(ParamCts.TAG_CRC)?.let { obj.put("crc", it) }
+        tag.getString(ParamCts.TAG_TID)?.let { obj.put("tid", it) }
+        tag.getString(ParamCts.TAG_RSSI)?.let { obj.put("rssi", it) }
+        tag.getString(ParamCts.TAG_FREQ)?.let { obj.put("freq", it) }
+        tag.getInt(ParamCts.TAG_READ_COUNT, 0).let { obj.put("readCount", it) }
+        tag.getLong(ParamCts.TAG_TIME, 0L).let { obj.put("time", it) }
         // 6B tag fields
-        tag.getString(ParamCts.TAG_UID)?.let { obj.put("tagUid", it) }
+        tag.getString(ParamCts.TAG_UID)?.let { obj.put("uid", it) }
         // Antenna
         tag.getByte(ParamCts.ANT_ID, 0).let { obj.put("antId", it.toInt() and 0xFF) }
         // Switch pattern antenna counts
-        tag.getInt(ParamCts.TAG_ANT_1, -1).takeIf { it >= 0 }?.let { obj.put("tagAnt1", it) }
-        tag.getInt(ParamCts.TAG_ANT_2, -1).takeIf { it >= 0 }?.let { obj.put("tagAnt2", it) }
-        tag.getInt(ParamCts.TAG_ANT_3, -1).takeIf { it >= 0 }?.let { obj.put("tagAnt3", it) }
-        tag.getInt(ParamCts.TAG_ANT_4, -1).takeIf { it >= 0 }?.let { obj.put("tagAnt4", it) }
+        tag.getInt(ParamCts.TAG_ANT_1, -1).takeIf { it >= 0 }?.let { obj.put("ant1Count", it) }
+        tag.getInt(ParamCts.TAG_ANT_2, -1).takeIf { it >= 0 }?.let { obj.put("ant2Count", it) }
+        tag.getInt(ParamCts.TAG_ANT_3, -1).takeIf { it >= 0 }?.let { obj.put("ant3Count", it) }
+        tag.getInt(ParamCts.TAG_ANT_4, -1).takeIf { it >= 0 }?.let { obj.put("ant4Count", it) }
         return obj.toString()
     }
 
@@ -601,23 +610,23 @@ class SunmiRfidPlugin(
         // Basic info
         MethodDescriptor(
             "sunmi.rfid.getScanModel",
-            "Gets RFID module type (sync). Returns 100=none, 101=UHF_R2000, 102=INNER_M500, 103=UHF_S7100, 104=INNER_SIM3500.",
+            "Gets RFID module type.",
             "sunmi.rfid",
             exampleParameters = """{}""",
-            exampleOutput = """{"status":"ok","result":101}"""
+            exampleOutput = """{"available":true,"modelId":101,"model":"UHF_R2000"}"""
         ),
 
         // 6C Inventory (async — returns started, results via events)
         MethodDescriptor(
             "sunmi.rfid.inventory",
-            "6C inventory — buffer mode (async). Tags via tagFound events, summary via operationSuccess.",
+            "6C inventory — buffer mode. Tags via tagFound events, summary via operationSuccess.",
             "sunmi.rfid",
             exampleParameters = """{"btRepeat":255}""",
             exampleOutput = """{"status":"started"}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.realTimeInventory",
-            "6C inventory — real-time (async). Emits tagFound per tag.",
+            "6C inventory — real-time. Emits tagFound per tag.",
             "sunmi.rfid",
             exampleParameters = """{"btRepeat":255}""",
             exampleOutput = """{"status":"started"}"""
@@ -631,35 +640,35 @@ class SunmiRfidPlugin(
         ),
         MethodDescriptor(
             "sunmi.rfid.fastSwitchAntInventory",
-            "6C inventory — fast antenna switch (async).",
+            "6C inventory — fast antenna switch.",
             "sunmi.rfid",
             exampleParameters = """{"btA":0,"btStayA":1,"btB":1,"btStayB":1,"btC":255,"btStayC":1,"btD":255,"btStayD":1,"btInterval":10,"btRepeat":255}""",
             exampleOutput = """{"status":"started"}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.realTimeInventoryWithTid",
-            "6C inventory with TID reading (async).",
+            "6C inventory with TID reading.",
             "sunmi.rfid",
             exampleParameters = """{"scanTime":0,"btTidLen":6,"btTarget":0,"btScan":0,"btAryEpc":""}""",
             exampleOutput = """{"status":"started"}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.iso180006BInventory",
-            "6B inventory (async). Emits tagFound per tag.",
+            "6B inventory. Emits tagFound per tag.",
             "sunmi.rfid",
             exampleParameters = """{}""",
             exampleOutput = """{"status":"started"}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.getInventoryBuffer",
-            "Get buffered 6C tags (async). Tags via tagFound events.",
+            "Get buffered 6C tags. Tags via tagFound events.",
             "sunmi.rfid",
             exampleParameters = """{}""",
             exampleOutput = """{"status":"started"}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.getAndResetInventoryBuffer",
-            "Get buffered 6C tags and clear buffer (async). Tags via tagFound events.",
+            "Get buffered 6C tags and clear buffer. Tags via tagFound events.",
             "sunmi.rfid",
             exampleParameters = """{}""",
             exampleOutput = """{"status":"started"}"""
@@ -668,406 +677,406 @@ class SunmiRfidPlugin(
         // 6C Tag Operations (sync)
         MethodDescriptor(
             "sunmi.rfid.readTag",
-            "Read 6C tag data (sync). Call setAccessEpcMatch first.",
+            "Read 6C tag data. Call setAccessEpcMatch first.",
             "sunmi.rfid",
             exampleParameters = """{"btMemBank":2,"btWordAdd":0,"btWordCnt":6,"btAryPassWord":"00000000"}""",
-            exampleOutput = """{"cmd":1,"tagData":"AABBCCDD"}"""
+            exampleOutput = """{"data":"AABBCCDD"}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.writeTag",
-            "Write 6C tag data (sync). Call setAccessEpcMatch first.",
+            "Write 6C tag data. Call setAccessEpcMatch first.",
             "sunmi.rfid",
             exampleParameters = """{"btAryPassWord":"00000000","btMemBank":1,"btWordAdd":2,"btWordCnt":6,"btAryData":"AABBCCDD..."}""",
-            exampleOutput = """{"cmd":2}"""
+            exampleOutput = """{}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.lockTag",
-            "Lock 6C tag memory bank (sync). lockType: 0=open, 1=lock, 2=perm.open, 3=perm.locked.",
+            "Lock 6C tag memory bank. lockType: 0=open, 1=lock, 2=perm.open, 3=perm.locked.",
             "sunmi.rfid",
             exampleParameters = """{"btAryPassWord":"00000000","btMemBank":1,"btLockType":1}""",
-            exampleOutput = """{"cmd":3}"""
+            exampleOutput = """{}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.killTag",
-            "Kill 6C tag permanently (sync).",
+            "Kill 6C tag permanently.",
             "sunmi.rfid",
             exampleParameters = """{"btAryPassWord":"00000000"}""",
-            exampleOutput = """{"cmd":4}"""
+            exampleOutput = """{}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.setAccessEpcMatch",
-            "Set EPC filter for tag operations (sync).",
+            "Set EPC filter for tag operations.",
             "sunmi.rfid",
             exampleParameters = """{"btAryEpc":"AABBCCDD..."}""",
-            exampleOutput = """{"cmd":5}"""
+            exampleOutput = """{}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.cancelAccessEpcMatch",
-            "Clear EPC filter (sync).",
+            "Clear EPC filter.",
             "sunmi.rfid",
             exampleParameters = """{}""",
-            exampleOutput = """{"cmd":6}"""
+            exampleOutput = """{}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.getAccessEpcMatch",
-            "Get current EPC filter (sync).",
+            "Get current EPC filter.",
             "sunmi.rfid",
             exampleParameters = """{}""",
-            exampleOutput = """{"cmd":7,"tagAccessEpcMatch":"AABBCCDD"}"""
+            exampleOutput = """{"epcFilter":"AABBCCDD"}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.setImpinjFastTid",
-            "Enable FastTID for Impinj Monza tags (sync).",
+            "Enable FastTID for Impinj Monza tags.",
             "sunmi.rfid",
             exampleParameters = """{"blnOpen":true,"blnSave":false}""",
-            exampleOutput = """{"cmd":8}"""
+            exampleOutput = """{}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.getImpinjFastTid",
-            "Get FastTID status (sync).",
+            "Get FastTID status.",
             "sunmi.rfid",
             exampleParameters = """{}""",
-            exampleOutput = """{"cmd":9,"tagMonzaStatus":0}"""
+            exampleOutput = """{"fastTidStatus":0}"""
         ),
 
         // 6B Tag Operations (sync)
         MethodDescriptor(
             "sunmi.rfid.iso180006BReadTag",
-            "Read 6B tag (sync).",
+            "Read 6B tag.",
             "sunmi.rfid",
             exampleParameters = """{"btAryUID":"AABBCCDD11223344","btWordAdd":0,"btWordCnt":4}""",
-            exampleOutput = """{"cmd":10,"tagData":"AABBCCDD"}"""
+            exampleOutput = """{"data":"AABBCCDD"}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.iso180006BWriteTag",
-            "Write 6B tag (sync).",
+            "Write 6B tag.",
             "sunmi.rfid",
             exampleParameters = """{"btAryUID":"AABBCCDD11223344","btWordAdd":0,"btWordCnt":2,"btAryBuffer":"AABB"}""",
-            exampleOutput = """{"cmd":11}"""
+            exampleOutput = """{}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.iso180006BLockTag",
-            "Lock 6B tag byte (sync).",
+            "Lock 6B tag byte.",
             "sunmi.rfid",
             exampleParameters = """{"btAryUID":"AABBCCDD11223344","btWordAdd":10}""",
-            exampleOutput = """{"cmd":12}"""
+            exampleOutput = """{}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.iso180006BQueryLockTag",
-            "Query 6B tag lock status (sync).",
+            "Query 6B tag lock status.",
             "sunmi.rfid",
             exampleParameters = """{"btAryUID":"AABBCCDD11223344","btWordAdd":10}""",
-            exampleOutput = """{"cmd":13,"lockStatus":0}"""
+            exampleOutput = """{"lockStatus":0}"""
         ),
 
         // Buffer Operations (sync)
         MethodDescriptor(
             "sunmi.rfid.getInventoryBufferTagCount",
-            "Get number of buffered 6C tags (sync).",
+            "Get number of buffered 6C tags.",
             "sunmi.rfid",
             exampleParameters = """{}""",
-            exampleOutput = """{"cmd":14,"count":0}"""
+            exampleOutput = """{"count":0}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.resetInventoryBuffer",
-            "Clear 6C tag buffer (sync).",
+            "Clear 6C tag buffer.",
             "sunmi.rfid",
             exampleParameters = """{}""",
-            exampleOutput = """{"cmd":15}"""
+            exampleOutput = """{}"""
         ),
 
         // Antenna (sync)
         MethodDescriptor(
             "sunmi.rfid.setWorkAntenna",
-            "Set active antenna (sync).",
+            "Set active antenna.",
             "sunmi.rfid",
             exampleParameters = """{"btAntId":0}""",
-            exampleOutput = """{"cmd":16}"""
+            exampleOutput = """{}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.getWorkAntenna",
-            "Get active antenna (sync).",
+            "Get active antenna.",
             "sunmi.rfid",
             exampleParameters = """{}""",
-            exampleOutput = """{"cmd":26,"workAntenna":0}"""
+            exampleOutput = """{"workAntenna":0}"""
         ),
 
         // Output Power (sync)
         MethodDescriptor(
             "sunmi.rfid.setOutputAllPower",
-            "Set output power for all antennas (sync), in dBm.",
+            "Set output power for all antennas, in dBm.",
             "sunmi.rfid",
             exampleParameters = """{"btOutputPower":26}""",
-            exampleOutput = """{"cmd":17}"""
+            exampleOutput = """{}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.setOutputPower",
-            "Set per-antenna output power (sync).",
+            "Set per-antenna output power.",
             "sunmi.rfid",
             exampleParameters = """{"btPower1":26,"btPower2":26,"btPower3":26,"btPower4":26}""",
-            exampleOutput = """{"cmd":18}"""
+            exampleOutput = """{}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.getOutputPower",
-            "Get output power (sync).",
+            "Get output power.",
             "sunmi.rfid",
             exampleParameters = """{}""",
-            exampleOutput = """{"cmd":19,"aryOutputPower":[26,26,26,26]}"""
+            exampleOutput = """{"outputPower":[26,26,26,26]}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.setTemporaryOutputPower",
-            "Set non-persistent output power (sync).",
+            "Set non-persistent output power.",
             "sunmi.rfid",
             exampleParameters = """{"btOutputPower":26}""",
-            exampleOutput = """{"cmd":20}"""
+            exampleOutput = """{}"""
         ),
 
         // Frequency (sync)
         MethodDescriptor(
             "sunmi.rfid.setFrequencyRegion",
-            "Set frequency region (sync).",
+            "Set frequency region.",
             "sunmi.rfid",
             exampleParameters = """{"btRegion":1,"btStart":0,"btEnd":0}""",
-            exampleOutput = """{"cmd":21}"""
+            exampleOutput = """{}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.setUserDefineFrequency",
-            "Set user-defined frequency (sync).",
+            "Set user-defined frequency.",
             "sunmi.rfid",
             exampleParameters = """{"btQuantity":1,"btFreqInterval":1,"nStartFreq":920125}""",
-            exampleOutput = """{"cmd":22}"""
+            exampleOutput = """{}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.getFrequencyRegion",
-            "Get frequency region (sync).",
+            "Get frequency region.",
             "sunmi.rfid",
             exampleParameters = """{}""",
-            exampleOutput = """{"cmd":23,"frequencyRegion":1,"frequencyStart":0,"frequencyEnd":0}"""
+            exampleOutput = """{"frequencyRegion":1,"frequencyStart":0,"frequencyEnd":0}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.setFixedFrequency",
-            "Set fixed frequency mode (sync).",
+            "Set fixed frequency mode.",
             "sunmi.rfid",
             exampleParameters = """{}""",
-            exampleOutput = """{"cmd":24}"""
+            exampleOutput = """{}"""
         ),
 
         // Beeper (sync)
         MethodDescriptor(
             "sunmi.rfid.setBeeperMode",
-            "Set beeper mode (sync). 0=off, 1=on.",
+            "Set beeper mode. 0=off, 1=on.",
             "sunmi.rfid",
             exampleParameters = """{"btMode":0}""",
-            exampleOutput = """{"cmd":25}"""
+            exampleOutput = """{}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.getBeeperMode",
-            "Get beeper mode (sync).",
+            "Get beeper mode.",
             "sunmi.rfid",
             exampleParameters = """{}""",
-            exampleOutput = """{"cmd":27,"beepMode":0}"""
+            exampleOutput = """{"beepMode":0}"""
         ),
 
         // RF Link Profile (sync)
         MethodDescriptor(
             "sunmi.rfid.setRfLinkProfile",
-            "Set RF link profile (sync).",
+            "Set RF link profile.",
             "sunmi.rfid",
             exampleParameters = """{"btProfile":0}""",
-            exampleOutput = """{"cmd":28}"""
+            exampleOutput = """{}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.getRfLinkProfile",
-            "Get RF link profile (sync).",
+            "Get RF link profile.",
             "sunmi.rfid",
             exampleParameters = """{}""",
-            exampleOutput = """{"cmd":29,"rfLinkProfile":0}"""
+            exampleOutput = """{"rfLinkProfile":0}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.getRfPortReturnLoss",
-            "Get RF port return loss (sync).",
+            "Get RF port return loss.",
             "sunmi.rfid",
             exampleParameters = """{"btFreq":1}""",
-            exampleOutput = """{"cmd":30,"rfPortReturnLoss":0}"""
+            exampleOutput = """{"rfPortReturnLoss":0}"""
         ),
 
         // Antenna Connection Detector (sync)
         MethodDescriptor(
             "sunmi.rfid.setAntConnectionDetector",
-            "Set antenna connection detector (sync).",
+            "Set antenna connection detector.",
             "sunmi.rfid",
             exampleParameters = """{"btPower":0}""",
-            exampleOutput = """{"cmd":31}"""
+            exampleOutput = """{}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.getAntConnectionDetector",
-            "Get antenna connection detector (sync).",
+            "Get antenna connection detector.",
             "sunmi.rfid",
             exampleParameters = """{}""",
-            exampleOutput = """{"cmd":32,"antConnectionDetector":0}"""
+            exampleOutput = """{"antConnectionDetector":0}"""
         ),
 
         // Reader Identity (sync)
         MethodDescriptor(
             "sunmi.rfid.setReaderIdentifier",
-            "Set reader identifier (sync).",
+            "Set reader identifier.",
             "sunmi.rfid",
             exampleParameters = """{"btAryIdentifier":"AABB..."}""",
-            exampleOutput = """{"cmd":33}"""
+            exampleOutput = """{}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.getReaderIdentifier",
-            "Get reader identifier (sync).",
+            "Get reader identifier.",
             "sunmi.rfid",
             exampleParameters = """{}""",
-            exampleOutput = """{"cmd":34,"readerIdentifier":"AABB0011"}"""
+            exampleOutput = """{"readerIdentifier":"AABB0011"}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.getReaderSN",
-            "Get reader serial number (sync).",
+            "Get reader serial number.",
             "sunmi.rfid",
             exampleParameters = """{}""",
-            exampleOutput = """{"cmd":35,"sn":"SN12345678"}"""
+            exampleOutput = """{"sn":"SN12345678"}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.getReaderCustomSN",
-            "Get reader custom serial number (sync).",
+            "Get reader custom serial number.",
             "sunmi.rfid",
             exampleParameters = """{"btMode":0}""",
-            exampleOutput = """{"cmd":36,"customSn":"CSN12345678"}"""
+            exampleOutput = """{"customSn":"CSN12345678"}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.getReaderVersion",
-            "Get reader hardware version (sync).",
+            "Get reader hardware version.",
             "sunmi.rfid",
             exampleParameters = """{}""",
-            exampleOutput = """{"cmd":37,"version":"1.0.0"}"""
+            exampleOutput = """{"version":"1.0.0"}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.getFirmwareVersion",
-            "Get firmware version (sync).",
+            "Get firmware version.",
             "sunmi.rfid",
             exampleParameters = """{}""",
-            exampleOutput = """{"cmd":38,"firmwareVersion":"2.0.0"}"""
+            exampleOutput = """{"firmwareVersion":"2.0.0"}"""
         ),
 
         // Temperature (sync)
         MethodDescriptor(
             "sunmi.rfid.getReaderTemperature",
-            "Get reader temperature (sync).",
+            "Get reader temperature.",
             "sunmi.rfid",
             exampleParameters = """{}""",
-            exampleOutput = """{"cmd":39,"temperature":25,"plusMinus":"+"}"""
+            exampleOutput = """{"temperature":25,"plusMinus":"+"}"""
         ),
 
         // Battery (sync)
         MethodDescriptor(
             "sunmi.rfid.getBatteryRemainingPercent",
-            "Get battery remaining percentage (sync).",
+            "Get battery remaining percentage.",
             "sunmi.rfid",
             exampleParameters = """{}""",
-            exampleOutput = """{"cmd":40,"batteryRemainingPercent":85}"""
+            exampleOutput = """{"batteryRemainingPercent":85}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.getBatteryVoltage",
-            "Get battery voltage (sync).",
+            "Get battery voltage.",
             "sunmi.rfid",
             exampleParameters = """{}""",
-            exampleOutput = """{"cmd":41,"batteryVoltage":3700}"""
+            exampleOutput = """{"batteryVoltage":3700}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.getBatteryChargeState",
-            "Get battery charge state (sync).",
+            "Get battery charge state.",
             "sunmi.rfid",
             exampleParameters = """{}""",
-            exampleOutput = """{"cmd":42,"batteryCharging":false}"""
+            exampleOutput = """{"batteryCharging":false}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.getBatteryChargeNumTimes",
-            "Get battery charge cycle count (sync).",
+            "Get battery charge cycle count.",
             "sunmi.rfid",
             exampleParameters = """{}""",
-            exampleOutput = """{"cmd":43,"batteryChargingNumTimes":100}"""
+            exampleOutput = """{"batteryChargingNumTimes":100}"""
         ),
 
         // GPIO (sync)
         MethodDescriptor(
             "sunmi.rfid.readGpioValue",
-            "Read GPIO values (sync).",
+            "Read GPIO values.",
             "sunmi.rfid",
             exampleParameters = """{}""",
-            exampleOutput = """{"cmd":44,"gpIo1Value":0,"gpIo2Value":0}"""
+            exampleOutput = """{"gpio1":0,"gpio2":0}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.writeGpioValue",
-            "Write GPIO value (sync).",
+            "Write GPIO value.",
             "sunmi.rfid",
             exampleParameters = """{"btPort":1,"btValue":0}""",
-            exampleOutput = """{"cmd":45}"""
+            exampleOutput = """{}"""
         ),
 
         // System (sync)
         MethodDescriptor(
             "sunmi.rfid.resetReader",
-            "Reset reader (sync).",
+            "Reset reader.",
             "sunmi.rfid",
             exampleParameters = """{}""",
-            exampleOutput = """{"cmd":46}"""
+            exampleOutput = """{}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.reset",
-            "Reset RFID module (sync).",
+            "Reset RFID module.",
             "sunmi.rfid",
             exampleParameters = """{}""",
-            exampleOutput = """{"cmd":47}"""
+            exampleOutput = """{}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.setReaderAddress",
-            "Set reader address (sync).",
+            "Set reader address.",
             "sunmi.rfid",
             exampleParameters = """{"btAddress":0}""",
-            exampleOutput = """{"cmd":48}"""
+            exampleOutput = """{}"""
         ),
 
         // Tag Mask (sync)
         MethodDescriptor(
             "sunmi.rfid.setTagMask",
-            "Set tag mask filter (sync).",
+            "Set tag mask filter.",
             "sunmi.rfid",
             exampleParameters = """{"btMaskId":0,"btTarget":0,"btAction":0,"btMembank":1,"btStartAdd":0,"btMaskLen":0,"btAryMaskData":"AABB..."}""",
-            exampleOutput = """{"cmd":49}"""
+            exampleOutput = """{}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.clearTagMask",
-            "Clear tag mask (sync).",
+            "Clear tag mask.",
             "sunmi.rfid",
             exampleParameters = """{"btMaskId":0}""",
-            exampleOutput = """{"cmd":50}"""
+            exampleOutput = """{}"""
         ),
         MethodDescriptor(
             "sunmi.rfid.getTagMask",
-            "Get tag mask configuration (sync).",
+            "Get tag mask configuration.",
             "sunmi.rfid",
             exampleParameters = """{}""",
-            exampleOutput = """{"cmd":51,"btMaskId":0,"btTarget":0,"btAction":0,"btMembank":1,"btStartAdd":0,"btMaskLen":0,"btAryMaskData":""}"""
+            exampleOutput = """{"id":0,"target":0,"action":0,"membank":1,"startAddress":0,"length":0,"value":""}"""
         ),
 
         // Impinj (sync)
         MethodDescriptor(
             "sunmi.rfid.setImpinjSaveTagFocus",
-            "Enable Impinj tag focus and save (sync).",
+            "Enable Impinj tag focus and save.",
             "sunmi.rfid",
             exampleParameters = """{"blnOpen":true}""",
-            exampleOutput = """{"cmd":52}"""
+            exampleOutput = """{}"""
         ),
 
         // Power (sync)
         MethodDescriptor(
             "sunmi.rfid.setPowerDown",
-            "Set power-down mode (sync).",
+            "Set power-down mode.",
             "sunmi.rfid",
             exampleParameters = """{"nIdleTime":0,"btUnit":0}""",
-            exampleOutput = """{"cmd":53}"""
+            exampleOutput = """{}"""
         ),
     )
 
@@ -1077,20 +1086,20 @@ class SunmiRfidPlugin(
             EVENT_TAG_FOUND,
             "Tag detected during inventory.",
             "sunmi.rfid",
-            exampleEvent = """{"cmd":1,"isNew":true,"tagEpc":"E200001234567890","tagPc":"3000","tagRssi":"-45","tagReadCount":1,"tagTime":1234567890,"antId":0}"""
+            exampleEvent = """{"isNew":true,"epc":"E200001234567890","pc":"3000","rssi":"-45","readCount":1,"time":1234567890,"antId":0}"""
         ),
         // Operation result events (only for async inventory methods)
         EventDescriptor(
             EVENT_OPERATION_SUCCESS,
             "Async operation completed.",
             "sunmi.rfid",
-            exampleEvent = """{"cmd":1,"dataCount":10,"count":10,"readRate":50,"commandDuration":1000}"""
+            exampleEvent = """{"dataCount":10,"count":10,"readRate":50,"commandDuration":1000}"""
         ),
         EventDescriptor(
             EVENT_OPERATION_ERROR,
             "Async operation failed.",
             "sunmi.rfid",
-            exampleEvent = """{"cmd":1,"errorCode":1,"message":"Tag not found"}"""
+            exampleEvent = """{"errorCode":1,"message":"Tag not found"}"""
         ),
         // Broadcast events
         EventDescriptor(
