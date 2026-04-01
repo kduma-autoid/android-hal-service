@@ -40,15 +40,19 @@ export type {
   ConnectionStateEvent,
   ConnectionStateHandler,
   IConnectable,
+  IExecutor,
   IAuthTransport,
   ICommandTransport,
   IEventTransport,
+  IEventSubscriber,
+  IHalClient,
   ITokenStore,
   ILogger,
 } from './interfaces/index.js';
 
 // Implementations
 export { InMemoryTokenStore } from './in-memory-token-store.js';
+export { EventSubscriberAdapter } from './event-subscriber-adapter.js';
 
 // Utils
 export { matchPattern, Deferred } from './utils/index.js';

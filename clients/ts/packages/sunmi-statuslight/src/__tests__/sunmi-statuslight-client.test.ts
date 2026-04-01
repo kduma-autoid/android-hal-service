@@ -1,38 +1,40 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { IExecutor, StatusLightColor } from '../types.js';
+import type { IHalClient } from '@kduma-autoid/hal-client-common';
+import type { StatusLightColor } from '../types.js';
 import { SunmiStatusLightClient } from '../sunmi-statuslight-client.js';
 import { STATUS_LIGHT_COLORS } from '../types.js';
 
-function createMockExecutor(): IExecutor {
+function createMockClient(): IHalClient {
+  const unsub = vi.fn().mockResolvedValue(undefined);
   return {
     execute: vi.fn().mockResolvedValue({ status: 'ok' }),
+    on: vi.fn().mockResolvedValue(unsub),
   };
 }
 
 describe('SunmiStatusLightClient', () => {
-  let executor: IExecutor;
+  let mockClient: IHalClient;
   let client: SunmiStatusLightClient;
 
   beforeEach(() => {
-    executor = createMockExecutor();
-    client = new SunmiStatusLightClient(executor);
+    mockClient = createMockClient();
+    client = new SunmiStatusLightClient(mockClient);
   });
 
   describe('setColor', () => {
     it('should call execute with correct method and params', async () => {
-      const result = await client.setColor('red');
+      await client.setColor('red');
 
-      expect(executor.execute).toHaveBeenCalledWith(
+      expect(mockClient.execute).toHaveBeenCalledWith(
         'sunmi.statuslight.setColor',
         { color: 'red' },
       );
-      expect(result).toEqual({ status: 'ok' });
     });
 
     it.each(STATUS_LIGHT_COLORS)('should support color "%s"', async (color) => {
       await client.setColor(color);
 
-      expect(executor.execute).toHaveBeenCalledWith(
+      expect(mockClient.execute).toHaveBeenCalledWith(
         'sunmi.statuslight.setColor',
         { color },
       );
@@ -41,25 +43,23 @@ describe('SunmiStatusLightClient', () => {
 
   describe('turnOff', () => {
     it('should call execute with correct method and empty params', async () => {
-      const result = await client.turnOff();
+      await client.turnOff();
 
-      expect(executor.execute).toHaveBeenCalledWith(
+      expect(mockClient.execute).toHaveBeenCalledWith(
         'sunmi.statuslight.turnOff',
         {},
       );
-      expect(result).toEqual({ status: 'ok' });
     });
   });
 
   describe('setFlashing', () => {
     it('should call execute with correct method and params', async () => {
-      const result = await client.setFlashing('blue', 500, 300);
+      await client.setFlashing('blue', 500, 300);
 
-      expect(executor.execute).toHaveBeenCalledWith(
+      expect(mockClient.execute).toHaveBeenCalledWith(
         'sunmi.statuslight.setFlashing',
         { color: 'blue', onMs: 500, offMs: 300 },
       );
-      expect(result).toEqual({ status: 'ok' });
     });
   });
 
@@ -71,19 +71,18 @@ describe('SunmiStatusLightClient', () => {
         { color: 'blue' as StatusLightColor, onMs: 400, offMs: 100 },
       ];
 
-      const result = await client.setMultiFlashing(steps);
+      await client.setMultiFlashing(steps);
 
-      expect(executor.execute).toHaveBeenCalledWith(
+      expect(mockClient.execute).toHaveBeenCalledWith(
         'sunmi.statuslight.setMultiFlashing',
         { steps },
       );
-      expect(result).toEqual({ status: 'ok' });
     });
 
     it('should handle empty steps array', async () => {
       await client.setMultiFlashing([]);
 
-      expect(executor.execute).toHaveBeenCalledWith(
+      expect(mockClient.execute).toHaveBeenCalledWith(
         'sunmi.statuslight.setMultiFlashing',
         { steps: [] },
       );
@@ -91,16 +90,16 @@ describe('SunmiStatusLightClient', () => {
   });
 
   describe('error propagation', () => {
-    it('should propagate executor errors', async () => {
+    it('should propagate mockClient errors', async () => {
       const error = new Error('device_not_ready');
-      (executor.execute as ReturnType<typeof vi.fn>).mockRejectedValue(error);
+      (mockClient.execute as ReturnType<typeof vi.fn>).mockRejectedValue(error);
 
       await expect(client.setColor('red')).rejects.toThrow('device_not_ready');
     });
 
     it('should propagate errors for all methods', async () => {
       const error = new Error('unauthorized');
-      (executor.execute as ReturnType<typeof vi.fn>).mockRejectedValue(error);
+      (mockClient.execute as ReturnType<typeof vi.fn>).mockRejectedValue(error);
 
       await expect(client.turnOff()).rejects.toThrow('unauthorized');
       await expect(client.setFlashing('red', 500, 500)).rejects.toThrow('unauthorized');

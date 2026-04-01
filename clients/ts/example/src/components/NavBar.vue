@@ -20,6 +20,7 @@ const menuOpen = ref(false);
           <router-link to="/" class="nav-link" @click="menuOpen = false">Dashboard</router-link>
           <router-link to="/describe" class="nav-link" @click="menuOpen = false">API Explorer</router-link>
           <router-link to="/statuslight" class="nav-link" @click="menuOpen = false">Status Light</router-link>
+          <router-link to="/screens" class="nav-link" @click="menuOpen = false">Screens & NFC</router-link>
           <router-link to="/settings" class="nav-link" @click="menuOpen = false">Settings</router-link>
         </div>
         <div class="navbar-right">

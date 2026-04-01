@@ -3,9 +3,9 @@ import type {
   IAuthTransport,
   ICommandTransport,
   IEventTransport,
+  IHalClient,
   ConnectionState,
   ConnectionStateHandler,
-  EventHandler,
   TokenRequest,
   TokenResult,
   HealthResponse,
@@ -13,15 +13,16 @@ import type {
   DescribeOptions,
   DescribeResponse,
 } from '@kduma-autoid/hal-client-common';
-import { InMemoryTokenStore } from '@kduma-autoid/hal-client-common';
+import { InMemoryTokenStore, EventSubscriberAdapter } from '@kduma-autoid/hal-client-common';
 import type { HalClientOptions } from './hal-client-options.js';
 import { TokenManager } from './token-manager.js';
 
-export class HalClient {
+export class HalClient implements IHalClient {
   private readonly tokenManager: TokenManager;
   private connection: IConnectable | null = null;
   private commandTransport: ICommandTransport | null = null;
   private eventTransport: IEventTransport | null = null;
+  private eventSubscriber: EventSubscriberAdapter | null = null;
 
   constructor(options: HalClientOptions) {
     const tokenStore = options.tokenStore ?? new InMemoryTokenStore();
@@ -59,6 +60,7 @@ export class HalClient {
 
   useEventTransport(transport: IEventTransport): this {
     this.eventTransport = transport;
+    this.eventSubscriber = new EventSubscriberAdapter(transport);
     this.tokenManager.registerEventTransport(transport);
     return this;
   }
@@ -140,34 +142,16 @@ export class HalClient {
     return this.connection.onConnectionStateChange(handler);
   }
 
-  // --- Events ---
+  // --- Events (IEventSubscriber) ---
 
-  async subscribe(events: string[]): Promise<void> {
-    if (this.eventTransport === null) {
+  async on<T = unknown>(
+    event: string,
+    handler: (eventName: string, data: T) => void,
+  ): Promise<() => Promise<void>> {
+    if (this.eventSubscriber === null) {
       throw new Error('No event transport configured. Call useEventTransport() first.');
     }
-    return this.eventTransport.subscribe(events);
-  }
-
-  async unsubscribe(events: string[]): Promise<void> {
-    if (this.eventTransport === null) {
-      throw new Error('No event transport configured. Call useEventTransport() first.');
-    }
-    return this.eventTransport.unsubscribe(events);
-  }
-
-  on<T = unknown>(pattern: string, handler: EventHandler<T>): () => void {
-    if (this.eventTransport === null) {
-      throw new Error('No event transport configured. Call useEventTransport() first.');
-    }
-    return this.eventTransport.on<T>(pattern, handler);
-  }
-
-  off(pattern: string): void {
-    if (this.eventTransport === null) {
-      throw new Error('No event transport configured. Call useEventTransport() first.');
-    }
-    this.eventTransport.off(pattern);
+    return this.eventSubscriber.on<T>(event, handler);
   }
 
   // --- Lifecycle ---
@@ -176,6 +160,7 @@ export class HalClient {
     this.tokenManager.clearToken();
 
     if (this.eventTransport) {
+      this.eventSubscriber = null;
       this.eventTransport.dispose();
       this.eventTransport = null;
     }

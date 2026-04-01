@@ -29,6 +29,12 @@ importers:
       '@kduma-autoid/hal-client-common':
         specifier: workspace:*
         version: link:../packages/common
+      '@kduma-autoid/hal-client-plugin-sunmi-nfc':
+        specifier: workspace:*
+        version: link:../packages/sunmi-nfc
+      '@kduma-autoid/hal-client-plugin-sunmi-screen':
+        specifier: workspace:*
+        version: link:../packages/sunmi-screen
       '@kduma-autoid/hal-client-plugin-sunmi-statuslight':
         specifier: workspace:*
         version: link:../packages/sunmi-statuslight
@@ -76,7 +82,23 @@ importers:
         specifier: workspace:*
         version: link:../transport-ws
 
-  packages/sunmi-statuslight: {}
+  packages/sunmi-nfc:
+    dependencies:
+      '@kduma-autoid/hal-client-common':
+        specifier: workspace:*
+        version: link:../common
+
+  packages/sunmi-screen:
+    dependencies:
+      '@kduma-autoid/hal-client-common':
+        specifier: workspace:*
+        version: link:../common
+
+  packages/sunmi-statuslight:
+    dependencies:
+      '@kduma-autoid/hal-client-common':
+        specifier: workspace:*
+        version: link:../common
 
   packages/token-store-browser:
     dependencies:

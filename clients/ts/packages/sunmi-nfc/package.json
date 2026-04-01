@@ -1,6 +1,6 @@
 {
-  "name": "@kduma-autoid/hal-client-plugin-sunmi-statuslight",
-  "version": "0.0.8",
+  "name": "@kduma-autoid/hal-client-plugin-sunmi-nfc",
+  "version": "0.0.1",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",

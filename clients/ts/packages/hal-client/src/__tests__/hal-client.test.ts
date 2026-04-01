@@ -8,7 +8,6 @@ import type {
   ConnectionStateHandler,
   TokenRequest,
   TokenResult,
-  EventHandler,
 } from '@kduma-autoid/hal-client-common';
 import { HalClient } from '../hal-client.js';
 
@@ -193,44 +192,36 @@ describe('HalClient', () => {
     });
   });
 
-  describe('events', () => {
-    it('should delegate subscribe to event transport', async () => {
-      const client = new HalClient({ clientId: 'test' })
-        .useEventTransport(eventTransport);
-
-      await client.subscribe(['printer.*']);
-      expect(eventTransport.subscribe).toHaveBeenCalledWith(['printer.*']);
-    });
-
-    it('should delegate unsubscribe to event transport', async () => {
-      const client = new HalClient({ clientId: 'test' })
-        .useEventTransport(eventTransport);
-
-      await client.unsubscribe(['printer.*']);
-      expect(eventTransport.unsubscribe).toHaveBeenCalledWith(['printer.*']);
-    });
-
-    it('should delegate on to event transport', () => {
+  describe('events (IEventSubscriber)', () => {
+    it('should subscribe and register handler via on()', async () => {
       const client = new HalClient({ clientId: 'test' })
         .useEventTransport(eventTransport);
 
       const handler = vi.fn();
-      client.on('printer.*', handler);
-      expect(eventTransport.on).toHaveBeenCalledWith('printer.*', handler);
+      await client.on('printer.status', handler);
+
+      expect(eventTransport.subscribe).toHaveBeenCalledWith(['printer.status']);
+      expect(eventTransport.on).toHaveBeenCalledWith('printer.status', handler);
     });
 
-    it('should delegate off to event transport', () => {
+    it('should return async unsubscribe function', async () => {
+      const offFn = vi.fn();
+      (eventTransport.on as ReturnType<typeof vi.fn>).mockReturnValue(offFn);
+
       const client = new HalClient({ clientId: 'test' })
         .useEventTransport(eventTransport);
 
-      client.off('printer.*');
-      expect(eventTransport.off).toHaveBeenCalledWith('printer.*');
+      const unsub = await client.on('printer.status', vi.fn());
+      await unsub();
+
+      expect(offFn).toHaveBeenCalled();
+      expect(eventTransport.unsubscribe).toHaveBeenCalledWith(['printer.status']);
     });
 
     it('should throw when no event transport configured', async () => {
       const client = new HalClient({ clientId: 'test' });
 
-      await expect(client.subscribe(['test'])).rejects.toThrow(
+      await expect(client.on('test', vi.fn())).rejects.toThrow(
         'No event transport configured. Call useEventTransport() first.',
       );
     });
@@ -264,7 +255,7 @@ describe('HalClient', () => {
       await expect(client.execute('test')).rejects.toThrow(
         'No command transport configured',
       );
-      await expect(client.subscribe(['test'])).rejects.toThrow(
+      await expect(client.on('test', vi.fn())).rejects.toThrow(
         'No event transport configured',
       );
       await expect(client.connect()).rejects.toThrow(

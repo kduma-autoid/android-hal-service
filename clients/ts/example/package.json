@@ -15,7 +15,9 @@
     "@kduma-autoid/hal-client-transport-http": "workspace:*",
     "@kduma-autoid/hal-client-transport-ws": "workspace:*",
     "@kduma-autoid/hal-client-token-store-browser": "workspace:*",
-    "@kduma-autoid/hal-client-plugin-sunmi-statuslight": "workspace:*"
+    "@kduma-autoid/hal-client-plugin-sunmi-statuslight": "workspace:*",
+    "@kduma-autoid/hal-client-plugin-sunmi-nfc": "workspace:*",
+    "@kduma-autoid/hal-client-plugin-sunmi-screen": "workspace:*"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.0",
