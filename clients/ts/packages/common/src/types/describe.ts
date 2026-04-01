@@ -38,6 +38,8 @@ export interface EventDescriptor {
   name: string;
   description: string;
   requiredPermission: string;
+  experimental?: boolean;
+  experimentalActive?: boolean;
   exampleEvent: string;
 }
 

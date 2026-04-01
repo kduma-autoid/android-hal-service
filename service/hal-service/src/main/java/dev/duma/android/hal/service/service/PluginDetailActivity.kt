@@ -224,28 +224,38 @@ class PluginDetailActivity : AppCompatActivity() {
                 layout.addView(expContainer)
             }
 
-            // Events within this group
-            for (event in group.events) {
-                layout.addView(divider())
-                layout.addView(TextView(this).apply {
-                    text = event.name
-                    textSize = 14f
-                    setTypeface(null, Typeface.BOLD)
-                    setPadding(0, 8, 0, 2)
-                })
-                layout.addView(TextView(this).apply {
-                    text = event.description
-                    textSize = 13f
-                    setPadding(0, 0, 0, 2)
-                })
-                layout.addView(TextView(this).apply {
-                    text = "Permission: ${event.requiredPermission}"
-                    textSize = 12f
-                    setTextColor(Color.GRAY)
-                })
-                event.exampleEvent.takeIf { it.isNotEmpty() }?.let { example ->
-                    layout.addView(codeBlock("Example", example))
+            // Events within this group — split into regular and experimental
+            val regularEvents = if (desc.experimental) emptyList() else group.events.filter { !it.experimental }
+            val experimentalEvents = if (desc.experimental) group.events else group.events.filter { it.experimental }
+
+            for (event in regularEvents) {
+                layout.addView(buildEventBlock(event))
+            }
+
+            if (experimentalEvents.isNotEmpty()) {
+                val expEventContainer = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    visibility = View.GONE
                 }
+                for (event in experimentalEvents) {
+                    expEventContainer.addView(buildEventBlock(event))
+                }
+
+                val expEventLabel = "${experimentalEvents.size} experimental event${if (experimentalEvents.size != 1) "s" else ""}"
+                val toggleEventBtn = Button(this).apply {
+                    text = expEventLabel
+                    setOnClickListener {
+                        if (expEventContainer.visibility == View.GONE) {
+                            expEventContainer.visibility = View.VISIBLE
+                            text = "Hide experimental events"
+                        } else {
+                            expEventContainer.visibility = View.GONE
+                            text = expEventLabel
+                        }
+                    }
+                }
+                layout.addView(toggleEventBtn)
+                layout.addView(expEventContainer)
             }
         }
 
@@ -319,6 +329,33 @@ class PluginDetailActivity : AppCompatActivity() {
             }
             method.exampleOutput.takeIf { it.isNotEmpty() }?.let { output ->
                 addView(codeBlock("Output", output))
+            }
+        }
+    }
+
+    private fun buildEventBlock(event: dev.duma.android.hal.contract.EventDescriptor): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+
+            addView(divider())
+            addView(TextView(this@PluginDetailActivity).apply {
+                text = event.name
+                textSize = 14f
+                setTypeface(null, Typeface.BOLD)
+                setPadding(0, 8, 0, 2)
+            })
+            addView(TextView(this@PluginDetailActivity).apply {
+                text = event.description
+                textSize = 13f
+                setPadding(0, 0, 0, 2)
+            })
+            addView(TextView(this@PluginDetailActivity).apply {
+                text = "Permission: ${event.requiredPermission}"
+                textSize = 12f
+                setTextColor(Color.GRAY)
+            })
+            event.exampleEvent.takeIf { it.isNotEmpty() }?.let { example ->
+                addView(codeBlock("Example", example))
             }
         }
     }

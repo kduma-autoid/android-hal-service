@@ -251,7 +251,7 @@ class ServiceCommandHandler(
                 } else if (desc.experimental) {
                     null
                 } else {
-                    desc.copy(groups = filterGroups(desc.groups, methodPredicate = { !it.experimental }))
+                    desc.copy(groups = filterGroups(desc.groups, methodPredicate = { !it.experimental }, eventPredicate = { !it.experimental }))
                 }
             }.filter { it.allMethods.isNotEmpty() || it.allEvents.isNotEmpty() }
         }
@@ -300,6 +300,10 @@ class ServiceCommandHandler(
                                                 put("name", e.name)
                                                 put("description", e.description)
                                                 put("requiredPermission", e.requiredPermission)
+                                                if (e.experimental || desc.experimental) {
+                                                    put("experimental", true)
+                                                    put("experimentalActive", isExpEnabledViaPrefs || hasExpViaToken)
+                                                }
                                                 put("exampleEvent", e.exampleEvent)
                                             })
                                         }

@@ -1,20 +1,34 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import type { PluginDescriptor } from '@kduma-autoid/hal-client-common';
 import { useHalClient } from '../composables/useHalClient';
-import PluginCard from '../components/PluginCard.vue';
+import PluginSummaryCard from '../components/PluginSummaryCard.vue';
 
+const route = useRoute();
+const router = useRouter();
 const { client, isConnected } = useHalClient();
 
 const plugins = ref<PluginDescriptor[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
-const withSuper = ref(false);
-const withExperimental = ref(false);
+const withSuper = ref(route.query.withSuper === 'true');
+const withExperimental = ref(route.query.withExperimental === 'true');
 
 const sortedPlugins = computed(() =>
   [...plugins.value].sort((a, b) => a.name.localeCompare(b.name))
 );
+
+const filterQuery = computed(() => {
+  const q: Record<string, string> = {};
+  if (withSuper.value) q.withSuper = 'true';
+  if (withExperimental.value) q.withExperimental = 'true';
+  return q;
+});
+
+watch(filterQuery, (q) => {
+  router.replace({ name: 'describe', query: q });
+});
 
 async function fetchDescribe() {
   if (!client.value || !isConnected.value) return;
@@ -75,7 +89,7 @@ watch(isConnected, (connected) => {
 
     <div v-if="sortedPlugins.length" class="plugins">
       <p class="count">{{ sortedPlugins.length }} plugin(s)</p>
-      <PluginCard v-for="p in sortedPlugins" :key="p.pluginId" :plugin="p" />
+      <PluginSummaryCard v-for="p in sortedPlugins" :key="p.pluginId" :plugin="p" :link-query="filterQuery" />
     </div>
 
     <div v-if="!loading && !error && !sortedPlugins.length" class="empty">

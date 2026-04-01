@@ -7,8 +7,9 @@ const props = defineProps<{ plugin: PluginDescriptor }>();
 
 const methodCount = computed(() => allMethods(props.plugin).length);
 const eventCount = computed(() => allEvents(props.plugin).length);
-const hasActiveExperimentalMethods = computed(() =>
-  allMethods(props.plugin).some(m => m.experimental && m.experimentalActive)
+const hasActiveExperimental = computed(() =>
+  allMethods(props.plugin).some(m => m.experimental && m.experimentalActive) ||
+  allEvents(props.plugin).some(e => e.experimental && e.experimentalActive)
 );
 </script>
 
@@ -20,7 +21,7 @@ const hasActiveExperimentalMethods = computed(() =>
       <span class="badge badge-version">v{{ plugin.version }}</span>
       <span v-if="plugin.experimental && plugin.experimentalActive" class="badge badge-experimental-active">experimental (enabled)</span>
       <span v-else-if="plugin.experimental" class="badge badge-experimental">experimental</span>
-      <span v-else-if="hasActiveExperimentalMethods" class="badge badge-experimental-active">includes experimental</span>
+      <span v-else-if="hasActiveExperimental" class="badge badge-experimental-active">includes experimental</span>
     </div>
 
     <div v-if="plugin.capabilities.length" class="capabilities">
@@ -68,6 +69,7 @@ const hasActiveExperimentalMethods = computed(() =>
                   <th>Name</th>
                   <th>Description</th>
                   <th>Permission</th>
+                  <th>Flags</th>
                 </tr>
               </thead>
               <tbody>
@@ -75,6 +77,10 @@ const hasActiveExperimentalMethods = computed(() =>
                   <td><code>{{ e.name }}</code></td>
                   <td>{{ e.description }}</td>
                   <td><code>{{ e.requiredPermission }}</code></td>
+                  <td>
+                    <span v-if="e.experimental && e.experimentalActive" class="badge badge-experimental-active">exp</span>
+                    <span v-else-if="e.experimental" class="badge badge-experimental">exp</span>
+                  </td>
                 </tr>
               </tbody>
             </table>
