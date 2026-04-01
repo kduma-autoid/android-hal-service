@@ -31,5 +31,5 @@ android {
 }
 
 dependencies {
-    api(group = "", name = "SunmiScannerSdk-release-v1.1.12", ext = "aar")
+    api("dev.duma.android.hal.vendor:sunmi-scanner-sdk:1.1.12")
 }

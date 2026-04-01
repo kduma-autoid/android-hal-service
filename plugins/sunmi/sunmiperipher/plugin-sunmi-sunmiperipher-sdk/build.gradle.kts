@@ -31,5 +31,5 @@ android {
 }
 
 dependencies {
-    api(group = "", name = "sunmiperipher_sdk_v1.0.2", ext = "aar")
+    api("dev.duma.android.hal.vendor:sunmiperipher-sdk:1.0.2")
 }

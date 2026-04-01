@@ -19,14 +19,12 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        flatDir {
-            dirs("plugins/sunmi/sunmiperipher/plugin-sunmi-sunmiperipher-sdk/src/main/libs")
-        }
-        flatDir {
-            dirs("plugins/sunmi/tms/plugin-sunmi-tms-sdk/src/main/libs")
-        }
-        flatDir {
-            dirs("plugins/sunmi/sunmiscannersdk/plugin-sunmi-sunmiscannersdk-sdk/src/main/libs")
+        maven {
+            url = uri("https://maven.pkg.github.com/kduma-autoid/android-hal-service")
+            credentials {
+                username = System.getenv("GITHUB_ACTOR") ?: ""
+                password = System.getenv("GITHUB_TOKEN") ?: ""
+            }
         }
     }
 }
@@ -80,3 +78,5 @@ include(":plugins:sunmi:printerx:plugin-sunmi-printer-lib")
 include(":plugins:sunmi:printerx:plugin-sunmi-drawer-lib")
 include(":plugins:sunmi:printerx:plugin-sunmi-lcd-lib")
 include(":plugins:sunmi:printerx:plugin-sunmi-printerx-bundle")
+
+include(":vendor")
