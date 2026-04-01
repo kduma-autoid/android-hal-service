@@ -79,12 +79,7 @@ class DashboardActivity : AppCompatActivity() {
             setBackgroundColor(ta.getColor(0, Color.parseColor("#6200EE")))
             ta.recycle()
             setTitleTextColor(Color.WHITE)
-            setSubtitleTextColor(Color.parseColor("#CCFFFFFF"))
-            title = "HAL Service"
-            subtitle = try {
-                val info = context.packageManager.getPackageInfo(context.packageName, 0)
-                "v${info.versionName} (${info.versionCode})"
-            } catch (_: Exception) { null }
+            title = "Dashboard"
             setOnApplyWindowInsetsListener { v, insets ->
                 v.setPadding(v.paddingLeft, insets.systemWindowInsetTop, v.paddingRight, v.paddingBottom)
                 insets
@@ -107,6 +102,35 @@ class DashboardActivity : AppCompatActivity() {
                 DrawerLayout.LayoutParams.MATCH_PARENT,
                 Gravity.START
             )
+
+            val versionText = try {
+                val info = packageManager.getPackageInfo(packageName, 0)
+                "v${info.versionName} (${info.versionCode})"
+            } catch (_: Exception) { "" }
+
+            addHeaderView(LinearLayout(this@DashboardActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                val ta = context.obtainStyledAttributes(intArrayOf(androidx.appcompat.R.attr.colorPrimary))
+                setBackgroundColor(ta.getColor(0, Color.parseColor("#6200EE")))
+                ta.recycle()
+                setPadding(48, 48, 48, 32)
+                setOnApplyWindowInsetsListener { v, insets ->
+                    v.setPadding(v.paddingLeft, insets.systemWindowInsetTop + 48, v.paddingRight, v.paddingBottom)
+                    insets
+                }
+                addView(TextView(this@DashboardActivity).apply {
+                    text = "HAL Service"
+                    setTextColor(Color.WHITE)
+                    textSize = 20f
+                    setTypeface(null, android.graphics.Typeface.BOLD)
+                })
+                addView(TextView(this@DashboardActivity).apply {
+                    text = versionText
+                    setTextColor(Color.parseColor("#CCFFFFFF"))
+                    textSize = 14f
+                })
+            })
+
             sectionTitles.forEachIndexed { index, title ->
                 menu.add(0, index, index, title)
             }
@@ -140,6 +164,13 @@ class DashboardActivity : AppCompatActivity() {
         drawerLayout = DrawerLayout(this).apply {
             addView(mainContent)
             addView(navigationView)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                addOnLayoutChangeListener { v, _, _, _, _, _, _, _, _ ->
+                    v.systemGestureExclusionRects = listOf(
+                        android.graphics.Rect(0, 0, 80, v.height)
+                    )
+                }
+            }
         }
 
         setSupportActionBar(toolbar)
