@@ -1,4 +1,4 @@
-import type { IExecutor, StatusLightColor, FlashStep, StatusLightResponse } from './types.js';
+import type { IExecutor, StatusLightColor, FlashStep } from './types.js';
 
 export const PLUGIN_ID = 'sunmi.statuslight';
 
@@ -9,31 +9,19 @@ export class SunmiStatusLightClient {
     this.executor = executor;
   }
 
-  async setColor(color: StatusLightColor): Promise<StatusLightResponse> {
-    return this.executor.execute<StatusLightResponse>(
-      'sunmi.statuslight.setColor',
-      { color },
-    );
+  async setColor(color: StatusLightColor): Promise<void> {
+    await this.executor.execute('sunmi.statuslight.setColor', { color });
   }
 
-  async turnOff(): Promise<StatusLightResponse> {
-    return this.executor.execute<StatusLightResponse>(
-      'sunmi.statuslight.turnOff',
-      {},
-    );
+  async turnOff(): Promise<void> {
+    await this.executor.execute('sunmi.statuslight.turnOff', {});
   }
 
-  async setFlashing(color: StatusLightColor, onMs: number, offMs: number): Promise<StatusLightResponse> {
-    return this.executor.execute<StatusLightResponse>(
-      'sunmi.statuslight.setFlashing',
-      { color, onMs, offMs },
-    );
+  async setFlashing(color: StatusLightColor, onMs: number, offMs: number): Promise<void> {
+    await this.executor.execute('sunmi.statuslight.setFlashing', { color, onMs, offMs });
   }
 
-  async setMultiFlashing(steps: FlashStep[]): Promise<StatusLightResponse> {
-    return this.executor.execute<StatusLightResponse>(
-      'sunmi.statuslight.setMultiFlashing',
-      { steps },
-    );
+  async setMultiFlashing(steps: FlashStep[]): Promise<void> {
+    await this.executor.execute('sunmi.statuslight.setMultiFlashing', { steps });
   }
 }

@@ -12,13 +12,8 @@ export interface FlashStep {
   offMs: number;
 }
 
-export interface StatusLightResponse {
-  status: 'ok';
-}
-
 export type StatusLightErrorCode =
-  | 'invalid_color'
-  | 'device_not_ready'
-  | 'invalid_params'
-  | 'sdk_error'
-  | 'unsupported_method';
+  | 'bad_request'
+  | 'unavailable'
+  | 'unsupported_method'
+  | 'internal_error';

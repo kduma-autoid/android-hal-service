@@ -55,28 +55,28 @@ class SunmiStatusLightPlugin(
                 "Set LED color. Supported colors: red, green, blue, yellow, magenta, cyan, white.",
                 "sunmi.statuslight",
                 exampleParameters = """{"color": "red"}""",
-                exampleOutput = """{"status": "ok"}"""
+                exampleOutput = """{}"""
             ),
             MethodDescriptor(
                 "sunmi.statuslight.turnOff",
                 "Turn off the status LED.",
                 "sunmi.statuslight",
                 exampleParameters = "{}",
-                exampleOutput = """{"status": "ok"}"""
+                exampleOutput = """{}"""
             ),
             MethodDescriptor(
                 "sunmi.statuslight.setFlashing",
                 "Set LED to flash in a single color. NOTE: Hardware support limited — effect stops automatically when app exits.",
                 "sunmi.statuslight",
                 exampleParameters = """{"color": "red", "onMs": 500, "offMs": 500}""",
-                exampleOutput = """{"status": "ok"}"""
+                exampleOutput = """{}"""
             ),
             MethodDescriptor(
                 "sunmi.statuslight.setMultiFlashing",
                 "Set LED to cycle through multiple colors. NOTE: Hardware support limited — effect stops automatically when app exits.",
                 "sunmi.statuslight",
                 exampleParameters = """{"steps": [{"color": "red", "onMs": 500, "offMs": 500}, {"color": "green", "onMs": 300, "offMs": 300}]}""",
-                exampleOutput = """{"status": "ok"}"""
+                exampleOutput = """{}"""
             )
         ),
         events = emptyList()
