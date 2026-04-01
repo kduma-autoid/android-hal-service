@@ -55,7 +55,7 @@ const defaultSettings: AppSettings = {
   clientId: 'hal-example',
   serviceKey: import.meta.env.VITE_SERVICE_KEY ?? '',
   deviceSecret: '',
-  transport: 'http',
+  transport: 'ws',
 };
 
 const settings = reactive<AppSettings>({ ...defaultSettings });
