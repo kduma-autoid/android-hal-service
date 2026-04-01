@@ -21,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap
 internal class RfidOperationBridge(
     private val emitEvent: (String, String) -> Unit
 ) {
-    private val pendingOps = ConcurrentHashMap<Byte, CompletableDeferred<String>>()
+    private val pendingOps = ConcurrentHashMap<Byte, CompletableDeferred<CommandResult>>()
 
     val readerCall = object : ReaderCall() {
 
@@ -29,7 +29,7 @@ internal class RfidOperationBridge(
             val payload = RfidPayloadSerializer.buildSuccessPayload(cmd, params)
             val deferred = pendingOps.remove(cmd)
             if (deferred != null) {
-                deferred.complete(payload)
+                deferred.complete(CommandResult.Success(payload))
             } else {
                 emitEvent(EVENT_OPERATION_SUCCESS, payload)
             }
@@ -42,26 +42,28 @@ internal class RfidOperationBridge(
         }
 
         override fun onFailed(cmd: Byte, errorCode: Byte, msg: String?) {
-            val payload = JSONObject()
-                .put("cmd", cmd.toInt() and 0xFF)
-                .put("errorCode", errorCode.toInt() and 0xFF)
-                .put("message", msg ?: "Unknown error")
-                .toString()
+            val errorHex = (errorCode.toInt() and 0xFF).toString(16).uppercase().padStart(2, '0')
+            val errorMessage = "RFID error 0x$errorHex: ${msg ?: "Unknown error"}"
             val deferred = pendingOps.remove(cmd)
             if (deferred != null) {
-                deferred.complete(payload)
+                deferred.complete(CommandResult.internalError(errorMessage))
             } else {
+                val payload = JSONObject()
+                    .put("cmd", cmd.toInt() and 0xFF)
+                    .put("errorCode", errorCode.toInt() and 0xFF)
+                    .put("message", msg ?: "Unknown error")
+                    .toString()
                 emitEvent(EVENT_OPERATION_ERROR, payload)
             }
         }
     }
 
     suspend fun awaitResult(cmd: Byte, timeout: Long = 5000L, block: () -> Unit): CommandResult {
-        val deferred = CompletableDeferred<String>()
+        val deferred = CompletableDeferred<CommandResult>()
         pendingOps[cmd] = deferred
         return try {
             block()
-            CommandResult.Success(withTimeout(timeout) { deferred.await() })
+            withTimeout(timeout) { deferred.await() }
         } catch (e: TimeoutCancellationException) {
             CommandResult.timeout("Operation timed out after ${timeout}ms")
         } finally {
