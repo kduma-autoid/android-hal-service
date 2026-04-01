@@ -190,12 +190,15 @@ class HalService : Service() {
         bootstrap.registerTransports(transportRegistry)
 
         // 12. ServiceCommandHandler
+        val pkgInfo = try { packageManager.getPackageInfo(packageName, 0) } catch (_: Exception) { null }
         val commandHandler = ServiceCommandHandler(
             authManager = authManager,
             tokenManager = tokenManager,
             pluginRegistry = pluginRegistry,
             transportRegistry = transportRegistry,
-            experimentalConfig = experimentalConfig
+            experimentalConfig = experimentalConfig,
+            versionName = pkgInfo?.versionName,
+            versionCode = pkgInfo?.versionCode
         )
 
         // 13. Start all transports — each registers modules in KtorServerManager

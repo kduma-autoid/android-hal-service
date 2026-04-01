@@ -34,7 +34,9 @@ class ServiceCommandHandler(
     private val pluginRegistry: PluginRegistry,
     private val transportRegistry: TransportRegistry,
     private val experimentalConfig: ExperimentalConfig,
-    private val startTimeMillis: Long = System.currentTimeMillis()
+    private val startTimeMillis: Long = System.currentTimeMillis(),
+    private val versionName: String? = null,
+    private val versionCode: Int? = null
 ) : CommandHandler {
 
     override suspend fun requestToken(request: String, callerContext: CallerContext): CommandResult {
@@ -165,6 +167,12 @@ class ServiceCommandHandler(
 
         return buildJsonObject {
             put("uptime", uptimeSeconds)
+            if (versionName != null || versionCode != null) {
+                putJsonObject("version") {
+                    versionName?.let { put("name", it) }
+                    versionCode?.let { put("code", it) }
+                }
+            }
             putJsonObject("plugins") {
                 pluginRegistry.getSupportedDescriptors().forEach { desc ->
                     putJsonObject(desc.pluginId) {

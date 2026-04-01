@@ -88,6 +88,10 @@ watch(isConnected, (connected) => {
         <div class="info-grid">
           <span class="label">Uptime</span>
           <span>{{ formatUptime(status.uptime) }}</span>
+          <template v-if="status.version">
+            <span class="label">Version</span>
+            <span>{{ status.version.name ?? '?' }}<template v-if="status.version.code"> ({{ status.version.code }})</template></span>
+          </template>
         </div>
 
         <h4>Plugins ({{ Object.keys(status.plugins).length }})</h4>
