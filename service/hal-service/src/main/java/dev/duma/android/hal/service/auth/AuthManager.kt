@@ -3,38 +3,38 @@ package dev.duma.android.hal.service.auth
 import dev.duma.android.hal.transport.core.CallerContext
 
 /**
- * Orchestrates the requestToken flow: verifies developer key JWT if provided,
+ * Orchestrates the requestToken flow: verifies service key JWT if provided,
  * or delegates to user consent dialog. Creates session tokens via [TokenManager].
  * Central entry point for all authorization requests from any transport.
  */
 class AuthManager(
     private val tokenManager: TokenManager,
-    private val developerKeyVerifier: DeveloperKeyVerifier,
-    private val deviceKeyVerifier: (() -> DeveloperKeyVerifier?)? = null,
+    private val serviceKeyVerifier: ServiceKeyVerifier,
+    private val deviceKeyVerifier: (() -> ServiceKeyVerifier?)? = null,
     private val showGrantDialog: suspend (CallerContext, TokenRequest) -> GrantDecision,
     private val isSuperViaDialogAllowed: () -> Boolean = { false }
 ) {
     suspend fun requestToken(request: TokenRequest, callerContext: CallerContext): TokenResponse {
-        if (request.developerKey != null) {
-            return handleDeveloperKey(request, callerContext)
+        if (request.serviceKey != null) {
+            return handleServiceKey(request, callerContext)
         }
         return handleUserGrant(request, callerContext)
     }
 
-    private suspend fun handleDeveloperKey(request: TokenRequest, callerContext: CallerContext): TokenResponse {
-        val jwt = request.developerKey!!
-        var result = developerKeyVerifier.verify(jwt, callerContext, request.clientId)
+    private suspend fun handleServiceKey(request: TokenRequest, callerContext: CallerContext): TokenResponse {
+        val jwt = request.serviceKey!!
+        var result = serviceKeyVerifier.verify(jwt, callerContext, request.clientId)
         var keySource = "developer key"
 
-        // If developer key signature doesn't match, try device key as fallback
+        // If service key signature doesn't match, try device key as fallback
         if (result is VerificationResult.Error
-            && result.error == DeveloperKeyError.INVALID_SIGNATURE
+            && result.error == ServiceKeyError.INVALID_SIGNATURE
             && deviceKeyVerifier != null) {
             val deviceVerifier = deviceKeyVerifier.invoke()
             if (deviceVerifier != null) {
                 val deviceResult = deviceVerifier.verify(jwt, callerContext, request.clientId)
                 if (deviceResult !is VerificationResult.Error
-                    || deviceResult.error != DeveloperKeyError.INVALID_SIGNATURE) {
+                    || deviceResult.error != ServiceKeyError.INVALID_SIGNATURE) {
                     result = deviceResult
                     keySource = "device key"
                 }
@@ -93,9 +93,9 @@ class AuthManager(
             }
             is VerificationResult.Error -> {
                 val (code, message) = when (result.error) {
-                    DeveloperKeyError.INVALID_SIGNATURE -> "invalid_key" to "Invalid $keySource signature"
-                    DeveloperKeyError.EXPIRED -> "key_expired" to "The $keySource has expired"
-                    DeveloperKeyError.RESTRICTION_MISMATCH -> "restriction_mismatch" to "Caller does not match $keySource restrictions"
+                    ServiceKeyError.INVALID_SIGNATURE -> "invalid_key" to "Invalid $keySource signature"
+                    ServiceKeyError.EXPIRED -> "key_expired" to "The $keySource has expired"
+                    ServiceKeyError.RESTRICTION_MISMATCH -> "restriction_mismatch" to "Caller does not match $keySource restrictions"
                 }
                 TokenResponse.Error(code, message)
             }
@@ -110,7 +110,7 @@ class AuthManager(
         } else {
             requestedPerms.filter { !it.endsWith(".super") && it != "super" }
         }
-        // Experimental permissions are never granted via user dialog — only via developer key JWT
+        // Experimental permissions are never granted via user dialog — only via service key JWT
         val grantedPermissions = afterSuperFilter.filter {
             !it.endsWith(".experimental") && it != "experimental"
         }

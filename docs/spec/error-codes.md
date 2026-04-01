@@ -28,7 +28,7 @@ W Intent: JSON string w extra "result"
 |-----|------|------|
 | `unauthorized` | 401 | Brak tokenu / wygasł / binding mismatch / sesja nieautoryzowana |
 | `forbidden` | 403 | Brak uprawnienia do operacji lub eventu |
-| `invalid_key` | 400 | Nieprawidłowy podpis JWT (developer key lub device key) |
+| `invalid_key` | 400 | Nieprawidłowy podpis JWT (service key lub device key) |
 | `key_expired` | 400 | JWT wygasł |
 | `restriction_mismatch` | 400 | JWT restrictions nie pasują (zły package/origin/cert) |
 | `user_denied` | 403 | Użytkownik odmówił w dialogu |

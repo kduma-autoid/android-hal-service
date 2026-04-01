@@ -8,7 +8,7 @@ import type {
 } from '@kduma-autoid/hal-client-common';
 
 export interface TokenManagerOptions {
-  developerKey?: string;
+  serviceKey?: string;
   clientId?: string;
   requestedPermissions?: string[];
   onTokenExpired?: () => void;
@@ -55,7 +55,7 @@ export class TokenManager {
 
     const fullRequest: TokenRequest = {
       clientId: request?.clientId ?? this.options.clientId ?? '',
-      developerKey: request?.developerKey ?? this.options.developerKey,
+      serviceKey: request?.serviceKey ?? this.options.serviceKey,
       requestedPermissions: request?.requestedPermissions ?? this.options.requestedPermissions,
     };
 
@@ -81,7 +81,7 @@ export class TokenManager {
       return;
     }
 
-    if (this.options.developerKey && this.authTransport !== null) {
+    if (this.options.serviceKey && this.authTransport !== null) {
       this.refreshPromise = this.requestToken().finally(() => {
         this.refreshPromise = null;
       });
@@ -93,7 +93,7 @@ export class TokenManager {
       this.options.onTokenExpired();
     }
 
-    throw new Error('Token is expired and cannot be auto-refreshed. No developer key configured.');
+    throw new Error('Token is expired and cannot be auto-refreshed. No service key configured.');
   }
 
   getToken(): string | null {

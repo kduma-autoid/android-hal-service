@@ -31,7 +31,7 @@ export class HalClient {
       undefined,
       undefined,
       {
-        developerKey: options.developerKey,
+        serviceKey: options.serviceKey,
         clientId: options.clientId,
         requestedPermissions: options.requestedPermissions,
         onTokenExpired: options.onTokenExpired,

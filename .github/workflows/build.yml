@@ -96,15 +96,15 @@ jobs:
         run: pnpm build
         working-directory: clients/ts
 
-      - name: Generate developer key JWT
+      - name: Generate service key JWT
         run: |
-          DEVELOPER_KEY=$(./scripts/make-dev-key.sh \
+          SERVICE_KEY=$(./scripts/make-service-key.sh \
             --subject hal-web-demo \
             --client-type web \
             --client-id hal-example \
             --origin "https://hal.duma.dev" \
             --permissions "*")
-          echo "VITE_DEVELOPER_KEY=${DEVELOPER_KEY}" >> "$GITHUB_ENV"
+          echo "VITE_SERVICE_KEY=${SERVICE_KEY}" >> "$GITHUB_ENV"
         env:
           SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
 

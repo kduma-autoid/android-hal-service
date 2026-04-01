@@ -50,7 +50,7 @@ describe('HttpCommandTransport', () => {
 
       const result = await transport.requestToken({
         clientId: 'my-app',
-        developerKey: 'dev-key-abc',
+        serviceKey: 'dev-key-abc',
         requestedPermissions: ['scanner.read', 'printer.write'],
       });
 
@@ -61,7 +61,7 @@ describe('HttpCommandTransport', () => {
 
       const requestBody = JSON.parse(adapter.lastRequest!.body!);
       expect(requestBody.clientId).toBe('my-app');
-      expect(requestBody.developerKey).toBe('dev-key-abc');
+      expect(requestBody.serviceKey).toBe('dev-key-abc');
       expect(requestBody.requestedPermissions).toEqual(['scanner.read', 'printer.write']);
 
       expect(result.token).toBe('test-token-123');
@@ -136,15 +136,15 @@ describe('HttpCommandTransport', () => {
         headers: {},
         body: JSON.stringify({
           error: 'invalid_key',
-          message: 'The developer key is invalid',
+          message: 'The service key is invalid',
         }),
       };
 
       await expect(
-        transport.requestToken({ clientId: 'app', developerKey: 'bad-key' }),
+        transport.requestToken({ clientId: 'app', serviceKey: 'bad-key' }),
       ).rejects.toThrow(HalError);
       await expect(
-        transport.requestToken({ clientId: 'app', developerKey: 'bad-key' }),
+        transport.requestToken({ clientId: 'app', serviceKey: 'bad-key' }),
       ).rejects.toMatchObject({
         code: 'invalid_key',
       });

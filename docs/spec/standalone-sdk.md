@@ -165,7 +165,7 @@ println(result.jobId)  // Typowane!
 
 // Duża apka multi-device — przez HAL Service
 val hal = HalClient("ws://localhost:8400").also {
-    it.requestToken(developerKey = "eyJ...", clientId = "pos-app")
+    it.requestToken(serviceKey = "eyJ...", clientId = "pos-app")
     it.connectWs()
 }
 val printer: PrinterApi = RemotePrinter(hal)

@@ -40,8 +40,8 @@ export class WsCommandTransport implements ICommandTransport, IAuthTransport {
       clientId: request.clientId,
     };
 
-    if (request.developerKey !== undefined) {
-      msg.developerKey = request.developerKey;
+    if (request.serviceKey !== undefined) {
+      msg.serviceKey = request.serviceKey;
     }
 
     if (request.requestedPermissions !== undefined) {

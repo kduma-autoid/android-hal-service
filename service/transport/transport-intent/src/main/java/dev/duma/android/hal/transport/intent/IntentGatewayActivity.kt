@@ -37,12 +37,12 @@ class IntentGatewayActivity : Activity() {
 
         val commandResult = when (intent?.action) {
             ACTION_REQUEST_TOKEN -> {
-                val developerKey = intent.getStringExtra("developerKey")
+                val serviceKey = intent.getStringExtra("serviceKey")
                 val clientId = intent.getStringExtra("clientId") ?: "unknown"
                 val request = buildString {
                     append("""{"clientId":"$clientId"""")
-                    if (developerKey != null) {
-                        append(""","developerKey":"$developerKey"""")
+                    if (serviceKey != null) {
+                        append(""","serviceKey":"$serviceKey"""")
                     }
                     append("}")
                 }

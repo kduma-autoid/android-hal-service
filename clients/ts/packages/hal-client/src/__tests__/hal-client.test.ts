@@ -104,7 +104,7 @@ describe('HalClient', () => {
         .useAuthTransport(authTransport)
         .useCommandTransport(commandTransport);
 
-      // No token set, no developer key, should throw
+      // No token set, no service key, should throw
       await expect(client.execute('test.method')).rejects.toThrow(
         'Token is expired',
       );
@@ -140,7 +140,7 @@ describe('HalClient', () => {
     it('should merge requestToken with options defaults', async () => {
       const client = new HalClient({
         clientId: 'my-client',
-        developerKey: 'my-key',
+        serviceKey: 'my-key',
         requestedPermissions: ['read'],
       }).useAuthTransport(authTransport);
 
@@ -148,7 +148,7 @@ describe('HalClient', () => {
 
       expect(authTransport.requestToken).toHaveBeenCalledWith({
         clientId: 'my-client',
-        developerKey: 'my-key',
+        serviceKey: 'my-key',
         requestedPermissions: ['read'],
       });
     });

@@ -8,7 +8,7 @@ Połączenie: `ws://localhost:8400/ws`
 
 **Request token:**
 ```json
-{"id":"1","type":"requestToken","developerKey":"eyJhbG...","clientId":"my-pos"}
+{"id":"1","type":"requestToken","serviceKey":"eyJhbG...","clientId":"my-pos"}
 ```
 Bez klucza (triggeruje dialog):
 ```json

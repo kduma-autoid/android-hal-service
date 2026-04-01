@@ -732,7 +732,7 @@ class DashboardActivity : AppCompatActivity() {
             }
         })
         layout.addView(TextView(this).apply {
-            text = "When disabled, super permissions can only be granted via developer key JWT."
+            text = "When disabled, super permissions can only be granted via service key JWT."
             textSize = 12f
             setTextColor(Color.GRAY)
             setPadding(0, 4, 0, 0)

@@ -23,7 +23,7 @@ Patrz spec/ktor-coordination.md.
 
 1. Room: TokenEntity (z bound* polami), TokenDao, TokenDatabase
 2. TokenManager: CRUD tokenów z walidacją binding
-3. DeveloperKeyVerifier: JWT weryfikacja (wygeneruj testową parę kluczy)
+3. ServiceKeyVerifier: JWT weryfikacja (wygeneruj testową parę kluczy)
 4. AuthManager: orchestracja requestToken flow
 5. GrantPermissionActivity: dialog zgody użytkownika
 
@@ -44,10 +44,10 @@ Patrz spec/ktor-coordination.md.
 Patrz `docs/spec/testing.md` → "Etap 3":
 - TokenManager: create/validate, binding rejection (wrong package, wrong origin),
   expired token, revoke, unrestricted token
-- DeveloperKeyVerifier: valid JWT, expired, wrong signature, restriction mismatch,
+- ServiceKeyVerifier: valid JWT, expired, wrong signature, restriction mismatch,
   unrestricted, web origin check
-- AuthManager: valid devKey → token, invalid devKey → error (no dialog),
-  no devKey → dialog
+- AuthManager: valid serviceKey → token, invalid serviceKey → error (no dialog),
+  no serviceKey → dialog
 
 Użyj in-memory Room database w testach TokenManager.
 

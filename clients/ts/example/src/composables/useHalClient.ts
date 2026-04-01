@@ -26,7 +26,7 @@ async function generateDeviceKeyJwt(secret: string, clientId: string): Promise<s
     'raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
   );
 
-  const header = base64urlEncode(JSON.stringify({ alg: 'HS256', typ: 'hal-dev-key+jwt' }));
+  const header = base64urlEncode(JSON.stringify({ alg: 'HS256', typ: 'hal-service-key+jwt' }));
   const now = Math.floor(Date.now() / 1000);
   const payload = base64urlEncode(JSON.stringify({
     iss: 'device-key',
@@ -45,7 +45,7 @@ async function generateDeviceKeyJwt(secret: string, clientId: string): Promise<s
 export interface AppSettings {
   baseUrl: string;
   clientId: string;
-  developerKey: string;
+  serviceKey: string;
   deviceSecret: string;
   transport: 'http' | 'ws';
 }
@@ -53,7 +53,7 @@ export interface AppSettings {
 const defaultSettings: AppSettings = {
   baseUrl: 'http://localhost:8400',
   clientId: 'hal-example',
-  developerKey: import.meta.env.VITE_DEVELOPER_KEY ?? '',
+  serviceKey: import.meta.env.VITE_SERVICE_KEY ?? '',
   deviceSecret: '',
   transport: 'http',
 };
@@ -91,14 +91,14 @@ async function connect(): Promise<void> {
 
   try {
     const tokenStore = new LocalStorageTokenStore('hal_example_token');
-    let developerKey = settings.developerKey || undefined;
-    if (!developerKey && settings.deviceSecret) {
-      developerKey = await generateDeviceKeyJwt(settings.deviceSecret, settings.clientId);
+    let serviceKey = settings.serviceKey || undefined;
+    if (!serviceKey && settings.deviceSecret) {
+      serviceKey = await generateDeviceKeyJwt(settings.deviceSecret, settings.clientId);
     }
     const options = {
       clientId: settings.clientId,
       baseUrl: settings.baseUrl,
-      developerKey,
+      serviceKey,
       tokenStore,
     };
 

@@ -18,9 +18,9 @@ class HalClient {
 
     // --- HTTP API ---
 
-    async requestToken(clientId, developerKey = null, requestedPermissions = null) {
+    async requestToken(clientId, serviceKey = null, requestedPermissions = null) {
         const body = { clientId };
-        if (developerKey) body.developerKey = developerKey;
+        if (serviceKey) body.serviceKey = serviceKey;
         if (requestedPermissions) body.requestedPermissions = requestedPermissions;
         const res = await fetch(`${this.baseUrl}/api/token`, {
             method: 'POST',
@@ -106,9 +106,9 @@ class HalClient {
         });
     }
 
-    wsRequestToken(clientId, developerKey = null, requestedPermissions = null) {
+    wsRequestToken(clientId, serviceKey = null, requestedPermissions = null) {
         const msg = { type: 'requestToken', clientId };
-        if (developerKey) msg.developerKey = developerKey;
+        if (serviceKey) msg.serviceKey = serviceKey;
         if (requestedPermissions) msg.requestedPermissions = requestedPermissions;
         return this._wsSend(msg).then(res => {
             if (res.result?.token) this.token = res.result.token;

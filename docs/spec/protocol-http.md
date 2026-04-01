@@ -6,19 +6,19 @@ Bazowy URL: `http://localhost:8400/api`
 
 ### POST /api/token — requestToken
 
-Z developerKey:
+Z serviceKey:
 ```
 POST /api/token
 Content-Type: application/json
 
-{"developerKey":"eyJhbG...","clientId":"my-pos"}
+{"serviceKey":"eyJhbG...","clientId":"my-pos"}
 → 200 {"token":"abc123...","permissions":["printer","scanner"],"expiresAt":...}
 → 400 {"error":"invalid_key","message":"..."}
 → 400 {"error":"key_expired","message":"..."}
 → 400 {"error":"restriction_mismatch","message":"..."}
 ```
 
-Bez developerKey (triggeruje dialog, czeka max 60s):
+Bez serviceKey (triggeruje dialog, czeka max 60s):
 ```
 POST /api/token
 Content-Type: application/json

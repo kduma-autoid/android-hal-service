@@ -1,6 +1,6 @@
 export interface TokenRequest {
   clientId: string;
-  developerKey?: string;
+  serviceKey?: string;
   requestedPermissions?: string[];
 }
 

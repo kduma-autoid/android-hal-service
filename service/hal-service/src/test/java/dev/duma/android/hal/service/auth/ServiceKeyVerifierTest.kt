@@ -19,14 +19,14 @@ import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 
 /**
- * Tests for [DeveloperKeyVerifier] — JWT signature verification, expiration checking,
+ * Tests for [ServiceKeyVerifier] — JWT signature verification, expiration checking,
  * and restriction matching for android/web/unrestricted client types.
  */
-class DeveloperKeyVerifierTest {
+class ServiceKeyVerifierTest {
 
     private val keyPair: RSAKey = RSAKeyGenerator(2048).generate()
     private val wrongKeyPair: RSAKey = RSAKeyGenerator(2048).generate()
-    private val verifier = DeveloperKeyVerifier(RSASSAVerifier(keyPair.toPublicJWK()))
+    private val verifier = ServiceKeyVerifier(RSASSAVerifier(keyPair.toPublicJWK()))
 
     private fun createTestJwt(
         permissions: List<String> = listOf("printer"),
@@ -65,7 +65,7 @@ class DeveloperKeyVerifierTest {
         }
 
         val header = JWSHeader.Builder(JWSAlgorithm.RS256)
-            .type(JOSEObjectType("hal-dev-key+jwt"))
+            .type(JOSEObjectType("hal-service-key+jwt"))
             .build()
         val signedJwt = SignedJWT(
             header,
@@ -94,7 +94,7 @@ class DeveloperKeyVerifierTest {
         val jwt = createTestJwt(exp = Date(System.currentTimeMillis() - 10_000))
         val result = verifier.verify(jwt, CallerContext(transport = "aidl"), "test-client")
         assertIs<VerificationResult.Error>(result)
-        assertEquals(DeveloperKeyError.EXPIRED, result.error)
+        assertEquals(ServiceKeyError.EXPIRED, result.error)
     }
 
     @Test
@@ -111,7 +111,7 @@ class DeveloperKeyVerifierTest {
         signedJwt.sign(RSASSASigner(keyPair))
         val result = verifier.verify(signedJwt.serialize(), CallerContext(transport = "aidl"), "test-client")
         assertIs<VerificationResult.Error>(result)
-        assertEquals(DeveloperKeyError.INVALID_SIGNATURE, result.error)
+        assertEquals(ServiceKeyError.INVALID_SIGNATURE, result.error)
     }
 
     @Test
@@ -119,7 +119,7 @@ class DeveloperKeyVerifierTest {
         val jwt = createTestJwt(signingKey = wrongKeyPair)
         val result = verifier.verify(jwt, CallerContext(transport = "aidl"), "test-client")
         assertIs<VerificationResult.Error>(result)
-        assertEquals(DeveloperKeyError.INVALID_SIGNATURE, result.error)
+        assertEquals(ServiceKeyError.INVALID_SIGNATURE, result.error)
     }
 
     @Test
@@ -132,7 +132,7 @@ class DeveloperKeyVerifierTest {
             transport = "aidl", packageName = "com.wrong.app"
         ), "test-client")
         assertIs<VerificationResult.Error>(result)
-        assertEquals(DeveloperKeyError.RESTRICTION_MISMATCH, result.error)
+        assertEquals(ServiceKeyError.RESTRICTION_MISMATCH, result.error)
     }
 
     @Test
@@ -154,7 +154,7 @@ class DeveloperKeyVerifierTest {
 
         val invalidResult = verifier.verify(jwt, CallerContext(transport = "aidl"), "other-client")
         assertIs<VerificationResult.Error>(invalidResult)
-        assertEquals(DeveloperKeyError.RESTRICTION_MISMATCH, invalidResult.error)
+        assertEquals(ServiceKeyError.RESTRICTION_MISMATCH, invalidResult.error)
     }
 
     @Test
@@ -173,7 +173,7 @@ class DeveloperKeyVerifierTest {
             transport = "http", origin = "https://evil.com"
         ), "test-client")
         assertIs<VerificationResult.Error>(invalidResult)
-        assertEquals(DeveloperKeyError.RESTRICTION_MISMATCH, invalidResult.error)
+        assertEquals(ServiceKeyError.RESTRICTION_MISMATCH, invalidResult.error)
     }
 
     @Test
@@ -224,7 +224,7 @@ class DeveloperKeyVerifierTest {
             .claim("client_type", "web")
             .claim("restrictions", restrictions)
         val header = JWSHeader.Builder(JWSAlgorithm.RS256)
-            .type(JOSEObjectType("hal-dev-key+jwt"))
+            .type(JOSEObjectType("hal-service-key+jwt"))
             .build()
         val signedJwt = SignedJWT(header, claimsBuilder.build())
         signedJwt.sign(RSASSASigner(keyPair))
@@ -239,7 +239,7 @@ class DeveloperKeyVerifierTest {
             transport = "http", origin = "https://evil.com"
         ), "test-client")
         assertIs<VerificationResult.Error>(invalidResult)
-        assertEquals(DeveloperKeyError.RESTRICTION_MISMATCH, invalidResult.error)
+        assertEquals(ServiceKeyError.RESTRICTION_MISMATCH, invalidResult.error)
     }
 
     @Test
@@ -249,7 +249,7 @@ class DeveloperKeyVerifierTest {
             transport = "aidl", packageName = "com.test.app"
         ), "test-client")
         assertIs<VerificationResult.Error>(result)
-        assertEquals(DeveloperKeyError.RESTRICTION_MISMATCH, result.error)
+        assertEquals(ServiceKeyError.RESTRICTION_MISMATCH, result.error)
     }
 
     @Test
@@ -259,7 +259,7 @@ class DeveloperKeyVerifierTest {
             transport = "http", origin = "https://myapp.com"
         ), "test-client")
         assertIs<VerificationResult.Error>(result)
-        assertEquals(DeveloperKeyError.RESTRICTION_MISMATCH, result.error)
+        assertEquals(ServiceKeyError.RESTRICTION_MISMATCH, result.error)
     }
 
     @Test
@@ -290,16 +290,16 @@ class DeveloperKeyVerifierTest {
             transport = "aidl"
         ), "test-client")
         assertIs<VerificationResult.Error>(androidResult)
-        assertEquals(DeveloperKeyError.RESTRICTION_MISMATCH, androidResult.error)
+        assertEquals(ServiceKeyError.RESTRICTION_MISMATCH, androidResult.error)
     }
 
     @Test
     fun `HMAC signed JWT works with MACVerifier`() {
         val secret = ByteArray(32) { it.toByte() }
-        val hmacVerifier = DeveloperKeyVerifier(MACVerifier(secret))
+        val hmacVerifier = ServiceKeyVerifier(MACVerifier(secret))
 
         val header = JWSHeader.Builder(JWSAlgorithm.HS256)
-            .type(JOSEObjectType("hal-dev-key+jwt"))
+            .type(JOSEObjectType("hal-service-key+jwt"))
             .build()
         val claimsBuilder = JWTClaimsSet.Builder()
             .issuer("hal-developer-portal")

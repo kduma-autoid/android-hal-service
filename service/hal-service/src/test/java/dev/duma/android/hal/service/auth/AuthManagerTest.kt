@@ -12,18 +12,18 @@ import kotlin.test.assertIs
 
 /**
  * Tests for [AuthManager] — orchestration of the requestToken flow:
- * developer key verification, user consent dialog, and token creation.
+ * service key verification, user consent dialog, and token creation.
  */
 class AuthManagerTest {
 
     private val tokenManager = mockk<TokenManager>()
-    private val verifier = mockk<DeveloperKeyVerifier>()
+    private val verifier = mockk<ServiceKeyVerifier>()
     private var dialogDecision: GrantDecision = GrantDecision.AllowPermanent
     private var dialogCalled = false
 
     private val authManager = AuthManager(
         tokenManager = tokenManager,
-        developerKeyVerifier = verifier,
+        serviceKeyVerifier = verifier,
         showGrantDialog = { _, _ ->
             dialogCalled = true
             dialogDecision
@@ -45,15 +45,15 @@ class AuthManagerTest {
     )
 
     @Test
-    fun `valid devKey creates token with JWT permissions`() = runTest {
+    fun `valid serviceKey creates token with JWT permissions`() = runTest {
         every { verifier.verify(any(), any(), any()) } returns VerificationResult.Success(
-            DevKeyClaims(permissions = listOf("printer"), clientTypes = listOf("android"))
+            ServiceKeyClaims(permissions = listOf("printer"), clientTypes = listOf("android"))
         )
         coEvery { tokenManager.findExistingToken(any(), any(), any(), any(), any(), any()) } returns null
         coEvery { tokenManager.createToken(any(), any(), any(), any(), any(), any(), any()) } returns testTokenEntity
 
         val result = authManager.requestToken(
-            TokenRequest(developerKey = "valid-jwt", clientId = "app"),
+            TokenRequest(serviceKey = "valid-jwt", clientId = "app"),
             CallerContext(transport = "aidl", packageName = "com.test")
         )
 
@@ -62,12 +62,12 @@ class AuthManagerTest {
     }
 
     @Test
-    fun `invalid devKey returns error without dialog`() = runTest {
+    fun `invalid serviceKey returns error without dialog`() = runTest {
         dialogCalled = false
-        every { verifier.verify(any(), any(), any()) } returns VerificationResult.Error(DeveloperKeyError.INVALID_SIGNATURE)
+        every { verifier.verify(any(), any(), any()) } returns VerificationResult.Error(ServiceKeyError.INVALID_SIGNATURE)
 
         val result = authManager.requestToken(
-            TokenRequest(developerKey = "bad-jwt", clientId = "app"),
+            TokenRequest(serviceKey = "bad-jwt", clientId = "app"),
             CallerContext(transport = "aidl")
         )
 
@@ -77,14 +77,14 @@ class AuthManagerTest {
     }
 
     @Test
-    fun `no devKey shows dialog when no existing token`() = runTest {
+    fun `no serviceKey shows dialog when no existing token`() = runTest {
         dialogCalled = false
         dialogDecision = GrantDecision.AllowPermanent
         coEvery { tokenManager.findExistingToken(any(), any(), any(), any(), any(), any()) } returns null
         coEvery { tokenManager.createToken(any(), any(), any(), any(), any(), any(), any()) } returns testTokenEntity
 
         val result = authManager.requestToken(
-            TokenRequest(developerKey = null, clientId = "app"),
+            TokenRequest(serviceKey = null, clientId = "app"),
             CallerContext(transport = "aidl")
         )
 
@@ -98,7 +98,7 @@ class AuthManagerTest {
         coEvery { tokenManager.findExistingToken(any(), any(), any(), any(), any(), any()) } returns testTokenEntity
 
         val result = authManager.requestToken(
-            TokenRequest(developerKey = null, clientId = "app"),
+            TokenRequest(serviceKey = null, clientId = "app"),
             CallerContext(transport = "aidl")
         )
 
@@ -108,14 +108,14 @@ class AuthManagerTest {
     }
 
     @Test
-    fun `existing token skips createToken for devKey`() = runTest {
+    fun `existing token skips createToken for serviceKey`() = runTest {
         every { verifier.verify(any(), any(), any()) } returns VerificationResult.Success(
-            DevKeyClaims(permissions = listOf("printer"), clientTypes = listOf("android"))
+            ServiceKeyClaims(permissions = listOf("printer"), clientTypes = listOf("android"))
         )
         coEvery { tokenManager.findExistingToken(any(), any(), any(), any(), any(), any()) } returns testTokenEntity
 
         val result = authManager.requestToken(
-            TokenRequest(developerKey = "valid-jwt", clientId = "app"),
+            TokenRequest(serviceKey = "valid-jwt", clientId = "app"),
             CallerContext(transport = "aidl", packageName = "com.test")
         )
 
@@ -125,11 +125,11 @@ class AuthManagerTest {
     }
 
     @Test
-    fun `invalid devKey returns error even if matching token exists`() = runTest {
-        every { verifier.verify(any(), any(), any()) } returns VerificationResult.Error(DeveloperKeyError.INVALID_SIGNATURE)
+    fun `invalid serviceKey returns error even if matching token exists`() = runTest {
+        every { verifier.verify(any(), any(), any()) } returns VerificationResult.Error(ServiceKeyError.INVALID_SIGNATURE)
 
         val result = authManager.requestToken(
-            TokenRequest(developerKey = "bad-jwt", clientId = "app"),
+            TokenRequest(serviceKey = "bad-jwt", clientId = "app"),
             CallerContext(transport = "aidl")
         )
 

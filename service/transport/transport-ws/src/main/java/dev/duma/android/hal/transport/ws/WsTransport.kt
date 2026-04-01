@@ -125,8 +125,8 @@ class WsTransport : CommandTransport, EventTransport {
             is WsMessage.RequestToken -> {
                 val request = buildString {
                     append("""{"clientId":"${msg.clientId}"""")
-                    if (msg.developerKey != null) {
-                        append(""","developerKey":"${msg.developerKey}"""")
+                    if (msg.serviceKey != null) {
+                        append(""","serviceKey":"${msg.serviceKey}"""")
                     }
                     append("}")
                 }

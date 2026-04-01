@@ -14,12 +14,12 @@ import kotlin.test.assertIs
 class WsProtocolTest {
     @Test
     fun `parse requestToken message`() {
-        val json = """{"id":"1","type":"requestToken","clientId":"app","developerKey":"jwt"}"""
+        val json = """{"id":"1","type":"requestToken","clientId":"app","serviceKey":"jwt"}"""
         val msg = WsProtocol.parse(json)
         assertIs<WsMessage.RequestToken>(msg)
         assertEquals("1", msg.id)
         assertEquals("app", msg.clientId)
-        assertEquals("jwt", msg.developerKey)
+        assertEquals("jwt", msg.serviceKey)
     }
 
     @Test

@@ -52,8 +52,8 @@ export class HttpCommandTransport implements ICommandTransport, IAuthTransport {
     const body: Record<string, unknown> = {
       clientId: request.clientId,
     };
-    if (request.developerKey !== undefined) {
-      body.developerKey = request.developerKey;
+    if (request.serviceKey !== undefined) {
+      body.serviceKey = request.serviceKey;
     }
     if (request.requestedPermissions !== undefined) {
       body.requestedPermissions = request.requestedPermissions;

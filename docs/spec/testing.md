@@ -225,11 +225,11 @@ class TokenManagerTest {
 }
 ```
 
-### DeveloperKeyVerifier
+### ServiceKeyVerifier
 
 ```kotlin
-class DeveloperKeyVerifierTest {
-    private lateinit var verifier: DeveloperKeyVerifier
+class ServiceKeyVerifierTest {
+    private lateinit var verifier: ServiceKeyVerifier
     // Wygenerowana testowa para kluczy (ta sama co wkompilowana w APK)
 
     @Test fun `valid JWT returns claims`() {
@@ -249,7 +249,7 @@ class DeveloperKeyVerifierTest {
         val jwt = createTestJwt(exp = pastTimestamp)
         val result = verifier.verify(jwt, CallerContext(transport = "aidl"))
         assertNull(result)
-        // lub: assertEquals(DeveloperKeyError.EXPIRED, error)
+        // lub: assertEquals(ServiceKeyError.EXPIRED, error)
     }
 
     @Test fun `wrong signature returns error`() {
@@ -295,25 +295,25 @@ class DeveloperKeyVerifierTest {
 
 ```kotlin
 class AuthManagerTest {
-    // Mock: tokenManager, developerKeyVerifier, grantPermissionLauncher
+    // Mock: tokenManager, serviceKeyVerifier, grantPermissionLauncher
 
-    @Test fun `valid devKey creates token with JWT permissions`() = runTest {
-        every { verifier.verify(any(), any()) } returns DevKeyClaims(
+    @Test fun `valid serviceKey creates token with JWT permissions`() = runTest {
+        every { verifier.verify(any(), any()) } returns ServiceKeyClaims(
             permissions = listOf("printer"), clientType = "android"
         )
         val result = authManager.requestToken(
-            TokenRequest(developerKey = "valid-jwt", clientId = "app"),
+            TokenRequest(serviceKey = "valid-jwt", clientId = "app"),
             CallerContext(transport = "aidl", packageName = "com.test")
         )
         assertTrue(result is TokenResponse.Success)
         assertEquals(listOf("printer"), (result as TokenResponse.Success).permissions)
     }
 
-    @Test fun `invalid devKey returns error without dialog`() = runTest {
+    @Test fun `invalid serviceKey returns error without dialog`() = runTest {
         every { verifier.verify(any(), any()) } returns null
 
         val result = authManager.requestToken(
-            TokenRequest(developerKey = "bad-jwt", clientId = "app"),
+            TokenRequest(serviceKey = "bad-jwt", clientId = "app"),
             CallerContext(transport = "aidl")
         )
         assertTrue(result is TokenResponse.Error)
@@ -321,11 +321,11 @@ class AuthManagerTest {
         verify(exactly = 0) { grantPermissionLauncher.launch(any()) }
     }
 
-    @Test fun `no devKey shows dialog`() = runTest {
+    @Test fun `no serviceKey shows dialog`() = runTest {
         coEvery { showGrantDialog(any(), any()) } returns GrantDecision.AllowPermanent
 
         val result = authManager.requestToken(
-            TokenRequest(developerKey = null, clientId = "app"),
+            TokenRequest(serviceKey = null, clientId = "app"),
             CallerContext(transport = "aidl")
         )
         assertTrue(result is TokenResponse.Success)
@@ -341,7 +341,7 @@ class AuthManagerTest {
 ```kotlin
 class WsProtocolTest {
     @Test fun `parse requestToken message`() {
-        val json = """{"id":"1","type":"requestToken","clientId":"app","developerKey":"jwt"}"""
+        val json = """{"id":"1","type":"requestToken","clientId":"app","serviceKey":"jwt"}"""
         val msg = WsProtocol.parse(json)
         assertTrue(msg is WsMessage.RequestToken)
         assertEquals("1", msg.id)

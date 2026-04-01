@@ -28,8 +28,8 @@ VALIDITY_DAYS=""
 OUTPUT_FILE=""
 TEMP_FILES=()
 
-log() { echo "[make-dev-key] $*" >&2; }
-die() { echo "[make-dev-key] ERROR: $*" >&2; exit 1; }
+log() { echo "[make-service-key] $*" >&2; }
+die() { echo "[make-service-key] ERROR: $*" >&2; exit 1; }
 
 cleanup() {
   for f in "${TEMP_FILES[@]+"${TEMP_FILES[@]}"}"; do
@@ -40,9 +40,9 @@ trap cleanup EXIT
 
 usage() {
   cat >&2 <<'EOF'
-Usage: make-dev-key.sh [OPTIONS]
+Usage: make-service-key.sh [OPTIONS]
 
-Generate a signed HAL developer key JWT.
+Generate a signed HAL service key JWT.
 
 Key source (one of):
   --keystore PATH           Path to JKS/PKCS12 keystore (default: keys.jks in repo root)
@@ -68,22 +68,22 @@ Output:
 
 Examples:
   # Web client key (interactive prompts for missing values)
-  ./scripts/make-dev-key.sh
+  ./scripts/make-service-key.sh
 
   # Web client key (non-interactive)
-  ./scripts/make-dev-key.sh --subject hal-web-demo --client-type web \
+  ./scripts/make-service-key.sh --subject hal-web-demo --client-type web \
     --client-id hal-example --origin https://hal.duma.dev
 
   # Android client key
-  ./scripts/make-dev-key.sh --subject com.partner.app --client-type android \
+  ./scripts/make-service-key.sh --subject com.partner.app --client-type android \
     --package-name com.partner.app --cert-sha256 A1:B2:C3:...
 
   # Using existing PEM file
-  ./scripts/make-dev-key.sh --pem-file /path/to/key.pem --subject test \
+  ./scripts/make-service-key.sh --pem-file /path/to/key.pem --subject test \
     --client-type unrestricted
 
   # Pipe to file
-  ./scripts/make-dev-key.sh --subject demo --client-type web > key.jwt
+  ./scripts/make-service-key.sh --subject demo --client-type web > key.jwt
 EOF
   exit 0
 }
@@ -409,7 +409,7 @@ const pem = fs.readFileSync(process.env.PEM_PATH, "utf8");
 const now = Math.floor(Date.now() / 1000);
 const validityDays = parseInt(process.env.JWT_VALIDITY_DAYS, 10);
 
-const header = { alg: "RS256", typ: "hal-dev-key+jwt" };
+const header = { alg: "RS256", typ: "hal-service-key+jwt" };
 
 const payload = {
   iss: "hal-developer-portal",
@@ -467,7 +467,7 @@ process.stdout.write(h + "." + p + "." + sig);
 
 expiry_date=$(date -d "+${VALIDITY_DAYS} days" "+%Y-%m-%d" 2>/dev/null || date -v "+${VALIDITY_DAYS}d" "+%Y-%m-%d" 2>/dev/null || echo "+${VALIDITY_DAYS} days")
 
-log "Generated developer key JWT:"
+log "Generated service key JWT:"
 log "  Subject:      $SUBJECT"
 log "  Client type:  $CLIENT_TYPE"
 log "  Permissions:  $PERMISSIONS_RAW"

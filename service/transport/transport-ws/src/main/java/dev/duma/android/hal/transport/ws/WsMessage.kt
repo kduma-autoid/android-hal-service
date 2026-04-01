@@ -10,7 +10,7 @@ sealed class WsMessage {
     data class RequestToken(
         override val id: String,
         val clientId: String,
-        val developerKey: String?
+        val serviceKey: String?
     ) : WsMessage()
 
     data class Authenticate(

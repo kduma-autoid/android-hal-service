@@ -10,7 +10,7 @@ i apek które nie chcą utrzymywać połączenia.
 Żądanie tokenu (pierwszy krok autoryzacji).
 
 **Extras wejściowe:**
-- `developerKey` (String, opcjonalnie) — JWT developer key
+- `serviceKey` (String, opcjonalnie) — JWT service key
 - `clientId` (String) — identyfikator klienta
 
 **Result extras:**

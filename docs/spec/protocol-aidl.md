@@ -9,7 +9,7 @@ Umieszczony w module transport-aidl (nie w hal-contract — kontrakt jest dla pl
 interface IHalService {
     // Autoryzacja
     String requestToken(String jsonRequest);
-    // jsonRequest: {"developerKey":"...","clientId":"..."}
+    // jsonRequest: {"serviceKey":"...","clientId":"..."}
     // → {"token":"...","permissions":[...],...}
     // → {"error":"...","message":"..."}
 

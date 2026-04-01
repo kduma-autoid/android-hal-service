@@ -137,7 +137,7 @@ Plugin nie wie skąd przyszła komenda. Format zawsze: `(method, params) → res
 
 ```
 service/hal-service/src/main/java/.../
-├── auth/                 — TokenManager, DeveloperKeyVerifier, AuthManager, GrantPermissionActivity
+├── auth/                 — TokenManager, ServiceKeyVerifier, AuthManager, GrantPermissionActivity
 ├── core/                 — ServiceCommandHandler, TransportBootstrap
 ├── plugin/               — PluginRegistry, PluginContextImpl, EventBus
 ├── config/               — BroadcastConfig, TransportConfig
@@ -146,7 +146,7 @@ service/hal-service/src/main/java/.../
 
 ## Kolejność inicjalizacji w HalService.onCreate
 
-1. Auth (TokenManager, DeveloperKeyVerifier, AuthManager)
+1. Auth (TokenManager, ServiceKeyVerifier, AuthManager)
 2. EventBus
 3. PluginRegistry
 4. Rejestruj vendor-specific pluginy (refleksja per flavor)

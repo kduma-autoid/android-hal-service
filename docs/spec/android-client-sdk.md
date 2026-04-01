@@ -21,7 +21,7 @@ hal-client-auto/        ← AAR, automatyczny wybór najlepszego kanału
 ```kotlin
 interface HalClient {
     // Autoryzacja
-    suspend fun requestToken(developerKey: String? = null, clientId: String): TokenResult
+    suspend fun requestToken(serviceKey: String? = null, clientId: String): TokenResult
     suspend fun authenticate(token: String): Boolean
 
     // Komendy
@@ -137,9 +137,9 @@ class HalModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
     private val client = AutoHalClient(reactContext)
 
     @ReactMethod
-    fun requestToken(developerKey: String?, clientId: String, promise: Promise) {
+    fun requestToken(serviceKey: String?, clientId: String, promise: Promise) {
         scope.launch {
-            val result = client.requestToken(developerKey, clientId)
+            val result = client.requestToken(serviceKey, clientId)
             promise.resolve(result.toWritableMap())
         }
     }

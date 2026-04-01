@@ -45,8 +45,8 @@ class ServiceCommandHandler(
             ?.jsonArray?.map { it.jsonPrimitive.content }
 
         val tokenRequest = TokenRequest(
-            developerKey = json["developerKey"]?.jsonPrimitive?.content
-                ?: json["developer_key"]?.jsonPrimitive?.content,
+            serviceKey = json["serviceKey"]?.jsonPrimitive?.content
+                ?: json["service_key"]?.jsonPrimitive?.content,
             clientId = json["clientId"]?.jsonPrimitive?.content
                 ?: json["client_id"]?.jsonPrimitive?.content
                 ?: "unknown",

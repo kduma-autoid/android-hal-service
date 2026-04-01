@@ -90,7 +90,7 @@ describe('TokenManager', () => {
         undefined,
         {
           clientId: 'default-client',
-          developerKey: 'dev-key',
+          serviceKey: 'dev-key',
           requestedPermissions: ['read'],
         },
       );
@@ -99,7 +99,7 @@ describe('TokenManager', () => {
 
       expect(authTransport.requestToken).toHaveBeenCalledWith({
         clientId: 'default-client',
-        developerKey: 'dev-key',
+        serviceKey: 'dev-key',
         requestedPermissions: ['read'],
       });
     });
@@ -112,7 +112,7 @@ describe('TokenManager', () => {
         undefined,
         {
           clientId: 'default-client',
-          developerKey: 'dev-key',
+          serviceKey: 'dev-key',
         },
       );
 
@@ -123,7 +123,7 @@ describe('TokenManager', () => {
 
       expect(authTransport.requestToken).toHaveBeenCalledWith({
         clientId: 'override-client',
-        developerKey: 'dev-key',
+        serviceKey: 'dev-key',
         requestedPermissions: ['admin'],
       });
     });
@@ -153,7 +153,7 @@ describe('TokenManager', () => {
         slowAuth,
         commandTransport,
         eventTransport,
-        { clientId: 'test', developerKey: 'key' },
+        { clientId: 'test', serviceKey: 'key' },
       );
 
       // Fire off two concurrent ensureValidToken calls
@@ -191,14 +191,14 @@ describe('TokenManager', () => {
         authTransport,
         commandTransport,
         eventTransport,
-        { clientId: 'test', developerKey: 'key' },
+        { clientId: 'test', serviceKey: 'key' },
       );
 
       await manager.ensureValidToken();
       expect(authTransport.requestToken).not.toHaveBeenCalled();
     });
 
-    it('should auto-refresh if expired and developerKey is present', async () => {
+    it('should auto-refresh if expired and serviceKey is present', async () => {
       tokenStore.setToken({
         token: 'expired-token',
         permissions: [],
@@ -210,7 +210,7 @@ describe('TokenManager', () => {
         authTransport,
         commandTransport,
         eventTransport,
-        { clientId: 'test', developerKey: 'key' },
+        { clientId: 'test', serviceKey: 'key' },
       );
 
       await manager.ensureValidToken();
@@ -218,7 +218,7 @@ describe('TokenManager', () => {
       expect(tokenStore.getToken()).toBe('test-token');
     });
 
-    it('should call onTokenExpired and throw if expired without developerKey', async () => {
+    it('should call onTokenExpired and throw if expired without serviceKey', async () => {
       tokenStore.setToken({
         token: 'expired-token',
         permissions: [],

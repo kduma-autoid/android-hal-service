@@ -6,11 +6,11 @@ import dev.duma.android.hal.transport.core.CallerContext
 import java.util.Date
 
 /**
- * Verifies developer key JWTs using an RSA public key. Checks signature validity,
+ * Verifies service key JWTs using an RSA public key. Checks signature validity,
  * expiration, and restriction matching (package name for Android, origins for web).
  * Returns [VerificationResult] with extracted claims or a specific error.
  */
-class DeveloperKeyVerifier(
+class ServiceKeyVerifier(
     private val verifier: JWSVerifier,
     private val requiredIssuer: String? = null
 ) {
@@ -19,12 +19,12 @@ class DeveloperKeyVerifier(
         val signedJwt = try {
             SignedJWT.parse(jwt)
         } catch (_: Exception) {
-            return VerificationResult.Error(DeveloperKeyError.INVALID_SIGNATURE)
+            return VerificationResult.Error(ServiceKeyError.INVALID_SIGNATURE)
         }
 
         // Verify type
-        if (signedJwt.header.type?.type != "hal-dev-key+jwt") {
-            return VerificationResult.Error(DeveloperKeyError.INVALID_SIGNATURE)
+        if (signedJwt.header.type?.type != "hal-service-key+jwt") {
+            return VerificationResult.Error(ServiceKeyError.INVALID_SIGNATURE)
         }
 
         // Verify signature (catch algorithm mismatch, e.g. HS256 JWT vs RSA verifier)
@@ -34,7 +34,7 @@ class DeveloperKeyVerifier(
             false
         }
         if (!signatureValid) {
-            return VerificationResult.Error(DeveloperKeyError.INVALID_SIGNATURE)
+            return VerificationResult.Error(ServiceKeyError.INVALID_SIGNATURE)
         }
 
         val claims = signedJwt.jwtClaimsSet
@@ -43,14 +43,14 @@ class DeveloperKeyVerifier(
         if (requiredIssuer != null) {
             val iss = claims.issuer
             if (iss != null && iss != requiredIssuer) {
-                return VerificationResult.Error(DeveloperKeyError.INVALID_SIGNATURE)
+                return VerificationResult.Error(ServiceKeyError.INVALID_SIGNATURE)
             }
         }
 
         // Check expiration
         val exp = claims.expirationTime
         if (exp != null && exp.before(Date())) {
-            return VerificationResult.Error(DeveloperKeyError.EXPIRED)
+            return VerificationResult.Error(ServiceKeyError.EXPIRED)
         }
 
         // Extract fields
@@ -109,7 +109,7 @@ class DeveloperKeyVerifier(
 
         // Check restrictions
         if (clientId != null && clientId != requestClientId) {
-            return VerificationResult.Error(DeveloperKeyError.RESTRICTION_MISMATCH)
+            return VerificationResult.Error(ServiceKeyError.RESTRICTION_MISMATCH)
         }
 
         // Determine caller's effective type from transport
@@ -122,7 +122,7 @@ class DeveloperKeyVerifier(
         // Check caller type is allowed (skip if unrestricted)
         if ("unrestricted" !in allowedClientTypes) {
             if (callerType == null || callerType !in allowedClientTypes) {
-                return VerificationResult.Error(DeveloperKeyError.RESTRICTION_MISMATCH)
+                return VerificationResult.Error(ServiceKeyError.RESTRICTION_MISMATCH)
             }
         }
 
@@ -131,23 +131,23 @@ class DeveloperKeyVerifier(
             "android" -> {
                 if (packageName != null && callerContext.packageName != null
                     && callerContext.packageName != packageName) {
-                    return VerificationResult.Error(DeveloperKeyError.RESTRICTION_MISMATCH)
+                    return VerificationResult.Error(ServiceKeyError.RESTRICTION_MISMATCH)
                 }
                 if (certHash != null && callerContext.certHash != null
                     && callerContext.certHash != certHash) {
-                    return VerificationResult.Error(DeveloperKeyError.RESTRICTION_MISMATCH)
+                    return VerificationResult.Error(ServiceKeyError.RESTRICTION_MISMATCH)
                 }
             }
             "web" -> {
                 if (origins != null && callerContext.origin != null
                     && callerContext.origin !in origins) {
-                    return VerificationResult.Error(DeveloperKeyError.RESTRICTION_MISMATCH)
+                    return VerificationResult.Error(ServiceKeyError.RESTRICTION_MISMATCH)
                 }
             }
         }
 
         return VerificationResult.Success(
-            DevKeyClaims(
+            ServiceKeyClaims(
                 permissions = permissions,
                 clientTypes = allowedClientTypes,
                 clientId = clientId,

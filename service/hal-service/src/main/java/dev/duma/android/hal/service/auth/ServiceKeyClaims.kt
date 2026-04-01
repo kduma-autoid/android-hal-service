@@ -1,10 +1,10 @@
 package dev.duma.android.hal.service.auth
 
 /**
- * Claims extracted from a valid developer key JWT. Contains the permissions granted,
+ * Claims extracted from a valid service key JWT. Contains the permissions granted,
  * client type, and optional restrictions (package name, cert hash, allowed origins).
  */
-data class DevKeyClaims(
+data class ServiceKeyClaims(
     val permissions: List<String>,
     val clientTypes: List<String>,
     val clientId: String? = null,

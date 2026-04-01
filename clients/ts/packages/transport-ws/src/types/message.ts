@@ -10,7 +10,7 @@ export interface WsRequestTokenMessage {
   id: string;
   type: 'requestToken';
   clientId: string;
-  developerKey?: string;
+  serviceKey?: string;
   requestedPermissions?: string[];
 }
 

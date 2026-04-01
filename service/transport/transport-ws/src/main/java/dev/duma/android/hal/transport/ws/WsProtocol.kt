@@ -29,7 +29,7 @@ object WsProtocol {
                 "requestToken" -> WsMessage.RequestToken(
                     id = id,
                     clientId = obj["clientId"]?.jsonPrimitive?.content ?: "",
-                    developerKey = obj["developerKey"]?.jsonPrimitive?.content
+                    serviceKey = obj["serviceKey"]?.jsonPrimitive?.content
                 )
                 "authenticate" -> WsMessage.Authenticate(
                     id = id,

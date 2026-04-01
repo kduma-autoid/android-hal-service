@@ -10,10 +10,10 @@ Wynik: session token przechowywany w Room database.
 ```
 Klient                          HAL Service
   │                                  │
-  ├─── requestToken(devKey?) ───────►│
+  ├─── requestToken(serviceKey?) ────►│
   │                                  │
-  │    [devKey podany?]              │
-  │    ├─ TAK → weryfikuj JWT:       │
+  │    [serviceKey podany?]          │
+  │    ├─ TAK → weryfikuj JWT:        │
   │    │   ├─ Podpis OK?            │
   │    │   │  ├─ NIE → błąd invalid_key
   │    │   │  └─ TAK ↓              │
@@ -24,7 +24,7 @@ Klient                          HAL Service
   │    │   │  ├─ NIE → błąd restriction_mismatch
   │    │   │  └─ TAK → token ◄──────┤ uprawnienia z JWT
   │    │   │                         │
-  │    ├─ NIE (brak devKey) ────────►│ pokaż dialog użytkownikowi
+  │    ├─ NIE (brak serviceKey) ─────►│ pokaż dialog użytkownikowi
   │    │   [użytkownik decyduje]     │
   │    │   ├─ Na stałe → token ◄────┤ grant_duration="permanent"
   │    │   ├─ Na dzień → token ◄────┤ grant_duration="day"
@@ -39,10 +39,10 @@ Klient                          HAL Service
   │◄── result ───────────────────────┤
 ```
 
-**Ważne:** dialog zgody pojawia się WYŁĄCZNIE gdy klient nie podał devKey.
+**Ważne:** dialog zgody pojawia się WYŁĄCZNIE gdy klient nie podał serviceKey.
 Nieprawidłowy JWT (podpis, expiry, restrictions) → zawsze konkretny błąd, nigdy dialog.
 
-## Developer Key (JWT)
+## Service Key (JWT)
 
 Podpisany JWT wydawany przez dewelopera. HAL Service weryfikuje podpis
 kluczem publicznym ED25519 lub RS256 wkompilowanym w APK (resources/raw/).
@@ -99,7 +99,7 @@ kluczem publicznym ED25519 lub RS256 wkompilowanym w APK (resources/raw/).
 
 ### grant_duration
 
-- `"permanent"` — ważny do odwołania (devKey lub dialog "na stałe")
+- `"permanent"` — ważny do odwołania (serviceKey lub dialog "na stałe")
 - `"day"` — wygasa po 24h (dialog "na dzień")
 - `"session"` — wygasa po zamknięciu połączenia
 
@@ -117,7 +117,7 @@ Każdy token powiązany z kontekstem w którym został wydany:
 Przy każdym użyciu tokenu: sprawdź binding vs CallerContext.
 Token kradziony (inna apka/origin) → unauthorized.
 Przeinstalowana apka (inny cert) → token nieważny.
-Token z unrestricted devKey → brak binding, działa z dowolnego kontekstu.
+Token z unrestricted serviceKey → brak binding, działa z dowolnego kontekstu.
 
 ## Token storage (Room)
 
