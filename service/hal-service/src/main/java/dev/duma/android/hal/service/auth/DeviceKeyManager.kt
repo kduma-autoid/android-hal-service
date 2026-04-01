@@ -1,8 +1,8 @@
 package dev.duma.android.hal.service.auth
 
 import android.content.SharedPreferences
+import android.util.Base64
 import java.security.SecureRandom
-import java.util.Base64
 
 class DeviceKeyManager(private val prefs: SharedPreferences) {
 
@@ -19,11 +19,11 @@ class DeviceKeyManager(private val prefs: SharedPreferences) {
 
     fun getOrCreateSecret(): ByteArray {
         val existing = prefs.getString(KEY_SECRET, null)
-        if (existing != null) return Base64.getUrlDecoder().decode(existing)
+        if (existing != null) return Base64.decode(existing, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
 
         val key = ByteArray(32)
         SecureRandom().nextBytes(key)
-        prefs.edit().putString(KEY_SECRET, Base64.getUrlEncoder().withoutPadding().encodeToString(key)).apply()
+        prefs.edit().putString(KEY_SECRET, Base64.encodeToString(key, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)).apply()
         return key
     }
 
@@ -32,6 +32,6 @@ class DeviceKeyManager(private val prefs: SharedPreferences) {
         if (existing != null) return existing
 
         val key = getOrCreateSecret()
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(key)
+        return Base64.encodeToString(key, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
     }
 }

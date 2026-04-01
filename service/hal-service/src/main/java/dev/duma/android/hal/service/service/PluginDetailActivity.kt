@@ -41,9 +41,11 @@ class PluginDetailActivity : AppCompatActivity() {
     private fun setContentWithToolbar(toolbar: Toolbar, content: View) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isStatusBarContrastEnforced = true
+            window.navigationBarColor = Color.TRANSPARENT
+        } else {
+            window.navigationBarColor = Color.BLACK
         }
         window.statusBarColor = androidx.core.content.ContextCompat.getColor(this, R.color.purple_700)
-        window.navigationBarColor = Color.TRANSPARENT
 
         setSupportActionBar(toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)

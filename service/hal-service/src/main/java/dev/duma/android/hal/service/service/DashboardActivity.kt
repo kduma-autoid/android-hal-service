@@ -68,9 +68,11 @@ class DashboardActivity : AppCompatActivity() {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isStatusBarContrastEnforced = true
+            window.navigationBarColor = Color.TRANSPARENT
+        } else {
+            window.navigationBarColor = Color.BLACK
         }
         window.statusBarColor = ContextCompat.getColor(this, R.color.purple_700)
-        window.navigationBarColor = Color.TRANSPARENT
 
         val toolbar = Toolbar(this).apply {
             val ta = context.obtainStyledAttributes(intArrayOf(androidx.appcompat.R.attr.colorPrimary))

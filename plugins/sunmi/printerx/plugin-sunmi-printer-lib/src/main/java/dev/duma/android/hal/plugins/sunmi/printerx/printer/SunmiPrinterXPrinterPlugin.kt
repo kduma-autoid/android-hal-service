@@ -1,6 +1,7 @@
 package dev.duma.android.hal.plugins.sunmi.printerx.printer
 
 import android.content.Context
+import androidx.core.content.ContextCompat
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
@@ -26,7 +27,7 @@ class SunmiPrinterXPrinterPlugin(context: Context? = null) : BasePrinterXPlugin(
     override fun initialize(pluginContext: PluginContext) {
         super.initialize(pluginContext)
         this.context?.let { ctx ->
-            ctx.registerReceiver(broadcastReceiver, PrinterBroadcastReceiver.buildIntentFilter(), android.content.Context.RECEIVER_NOT_EXPORTED)
+            ContextCompat.registerReceiver(ctx, broadcastReceiver, PrinterBroadcastReceiver.buildIntentFilter(), ContextCompat.RECEIVER_NOT_EXPORTED)
         }
     }
 
