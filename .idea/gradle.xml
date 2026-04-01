@@ -58,6 +58,7 @@
             <option value="$PROJECT_DIR$/service/transport/transport-intent" />
             <option value="$PROJECT_DIR$/service/transport/transport-ktor-core" />
             <option value="$PROJECT_DIR$/service/transport/transport-ws" />
+            <option value="$PROJECT_DIR$/vendor" />
           </set>
         </option>
       </GradleProjectSettings>
