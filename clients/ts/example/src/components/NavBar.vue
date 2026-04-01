@@ -14,9 +14,19 @@ const isDescribeActive = computed(() => route.path.startsWith('/describe'));
     <div class="navbar-inner">
       <div class="navbar-brand">
         <span class="navbar-title">HAL Client Demo</span>
-        <button class="menu-toggle" @click="menuOpen = !menuOpen" aria-label="Toggle menu">
-          <span class="hamburger" :class="{ open: menuOpen }" />
-        </button>
+        <div class="navbar-brand-right">
+          <div class="navbar-right-mobile">
+            <span class="status">
+              <span class="status-dot" :class="isConnected ? 'connected' : 'disconnected'" />
+              {{ isConnected ? 'Connected' : 'Disconnected' }}
+            </span>
+            <button v-if="isConnected" class="btn btn-sm mobile-btn" @click="disconnect">Disconnect</button>
+            <button v-else class="btn btn-sm btn-primary mobile-btn" @click="connect">Connect</button>
+          </div>
+          <button class="menu-toggle" @click="menuOpen = !menuOpen" aria-label="Toggle menu">
+            <span class="hamburger" :class="{ open: menuOpen }" />
+          </button>
+        </div>
       </div>
       <div class="navbar-collapse" :class="{ open: menuOpen }">
         <div class="nav-links">
@@ -27,7 +37,15 @@ const isDescribeActive = computed(() => route.path.startsWith('/describe'));
           <router-link to="/log" class="nav-link" @click="menuOpen = false">Activity Log</router-link>
           <router-link to="/settings" class="nav-link" @click="menuOpen = false">Settings</router-link>
         </div>
-        <div class="navbar-right">
+        <div class="collapse-connection">
+          <span class="status collapse-status">
+            <span class="status-dot" :class="isConnected ? 'connected' : 'disconnected'" />
+            {{ isConnected ? 'Connected' : 'Disconnected' }}
+          </span>
+          <button v-if="isConnected" class="btn btn-sm" @click="disconnect">Disconnect</button>
+          <button v-else class="btn btn-sm btn-primary" @click="connect">Connect</button>
+        </div>
+        <div class="navbar-right-desktop">
           <span class="status">
             <span class="status-dot" :class="isConnected ? 'connected' : 'disconnected'" />
             {{ isConnected ? 'Connected' : 'Disconnected' }}
@@ -120,10 +138,26 @@ const isDescribeActive = computed(() => route.path.startsWith('/describe'));
   align-items: center;
   gap: 16px;
 }
-.navbar-right {
+.navbar-right-desktop {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+.navbar-brand-right {
+  display: none;
+  align-items: center;
+  gap: 8px;
+}
+.navbar-right-mobile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.collapse-connection {
+  display: none;
+}
+.collapse-status {
+  display: none;
 }
 .nav-link {
   color: #0066cc;
@@ -175,7 +209,7 @@ const isDescribeActive = computed(() => route.path.startsWith('/describe'));
   font-size: 13px;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 960px) {
   .navbar-brand {
     width: 100%;
   }
@@ -202,10 +236,33 @@ const isDescribeActive = computed(() => route.path.startsWith('/describe'));
     padding: 8px 0;
     border-top: 1px solid #eee;
   }
-  .navbar-right {
+  .navbar-right-desktop {
+    display: none;
+  }
+  .navbar-brand-right {
+    display: flex;
+  }
+}
+
+@media (max-width: 420px) {
+  .mobile-btn {
+    display: none;
+  }
+  .collapse-connection {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     padding-top: 8px;
     border-top: 1px solid #eee;
-    justify-content: space-between;
+  }
+}
+
+@media (max-width: 340px) {
+  .navbar-right-mobile {
+    display: none;
+  }
+  .collapse-status {
+    display: flex;
   }
 }
 </style>
