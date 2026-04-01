@@ -79,7 +79,12 @@ class DashboardActivity : AppCompatActivity() {
             setBackgroundColor(ta.getColor(0, Color.parseColor("#6200EE")))
             ta.recycle()
             setTitleTextColor(Color.WHITE)
+            setSubtitleTextColor(Color.parseColor("#CCFFFFFF"))
             title = "HAL Service"
+            subtitle = try {
+                val info = context.packageManager.getPackageInfo(context.packageName, 0)
+                "v${info.versionName} (${info.versionCode})"
+            } catch (_: Exception) { null }
             setOnApplyWindowInsetsListener { v, insets ->
                 v.setPadding(v.paddingLeft, insets.systemWindowInsetTop, v.paddingRight, v.paddingBottom)
                 insets
