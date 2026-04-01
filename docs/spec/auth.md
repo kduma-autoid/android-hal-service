@@ -15,10 +15,10 @@ Klient                          HAL Service
   │    [devKey podany?]              │
   │    ├─ TAK → weryfikuj JWT:       │
   │    │   ├─ Podpis OK?            │
-  │    │   │  ├─ NIE → błąd invalid_developer_key
+  │    │   │  ├─ NIE → błąd invalid_key
   │    │   │  └─ TAK ↓              │
   │    │   ├─ Wygasł?              │
-  │    │   │  ├─ TAK → błąd developer_key_expired
+  │    │   │  ├─ TAK → błąd key_expired
   │    │   │  └─ NIE ↓              │
   │    │   ├─ Restrictions pasują?  │
   │    │   │  ├─ NIE → błąd restriction_mismatch
@@ -80,7 +80,7 @@ kluczem publicznym ED25519 lub RS256 wkompilowanym w APK (resources/raw/).
    - web: porównaj Origin z listą origins
    - unrestricted: pomiń
 4. OK → token z uprawnieniami z JWT
-5. NIE → konkretny błąd (invalid_developer_key / developer_key_expired / restriction_mismatch)
+5. NIE → konkretny błąd (invalid_key / key_expired / restriction_mismatch)
 
 ## Token sesyjny
 
@@ -130,7 +130,7 @@ Token z unrestricted devKey → brak binding, działa z dowolnego kontekstu.
 | clientId | String | Identyfikator klienta |
 | clientType | String | android / web / unrestricted |
 | permissions | String | JSON array ["printer","scanner"] |
-| grantedBy | String | developer_key / user_permanent / user_day |
+| grantedBy | String | developer_key / device_key / user |
 | grantedAt | Long | Timestamp |
 | expiresAt | Long? | Nullable — permanent nie wygasa |
 | boundPackageName | String? | Binding AIDL/Intent |
@@ -176,8 +176,8 @@ Wynik przez CompletableDeferred<GrantDecision> w companion object.
 
 - `unauthorized` — brak tokenu / wygasł / binding mismatch / sesja nieautoryzowana
 - `forbidden` — brak uprawnienia do operacji lub eventu
-- `invalid_developer_key` — nieprawidłowy podpis JWT
-- `developer_key_expired` — JWT wygasł
+- `invalid_key` — nieprawidłowy podpis JWT
+- `key_expired` — JWT wygasł
 - `restriction_mismatch` — JWT restrictions nie pasują (zły package/origin/cert)
 - `user_denied` — użytkownik odmówił w dialogu
 - `timeout` — timeout oczekiwania na dialog (60s)

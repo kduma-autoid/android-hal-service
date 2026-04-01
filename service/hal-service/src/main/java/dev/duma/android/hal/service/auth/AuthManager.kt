@@ -10,6 +10,7 @@ import dev.duma.android.hal.transport.core.CallerContext
 class AuthManager(
     private val tokenManager: TokenManager,
     private val developerKeyVerifier: DeveloperKeyVerifier,
+    private val deviceKeyVerifier: (() -> DeveloperKeyVerifier?)? = null,
     private val showGrantDialog: suspend (CallerContext, TokenRequest) -> GrantDecision,
     private val isSuperViaDialogAllowed: () -> Boolean = { false }
 ) {
@@ -21,8 +22,41 @@ class AuthManager(
     }
 
     private suspend fun handleDeveloperKey(request: TokenRequest, callerContext: CallerContext): TokenResponse {
-        val result = developerKeyVerifier.verify(request.developerKey!!, callerContext, request.clientId)
+        val jwt = request.developerKey!!
+        var result = developerKeyVerifier.verify(jwt, callerContext, request.clientId)
+        var keySource = "developer key"
 
+        // If developer key signature doesn't match, try device key as fallback
+        if (result is VerificationResult.Error
+            && result.error == DeveloperKeyError.INVALID_SIGNATURE
+            && deviceKeyVerifier != null) {
+            val deviceVerifier = deviceKeyVerifier.invoke()
+            if (deviceVerifier != null) {
+                val deviceResult = deviceVerifier.verify(jwt, callerContext, request.clientId)
+                if (deviceResult !is VerificationResult.Error
+                    || deviceResult.error != DeveloperKeyError.INVALID_SIGNATURE) {
+                    result = deviceResult
+                    keySource = "device key"
+                }
+            }
+        }
+
+        // Device keys cannot grant unrestricted tokens
+        if (keySource == "device key"
+            && result is VerificationResult.Success
+            && "unrestricted" in result.claims.clientTypes) {
+            return TokenResponse.Error("restriction_mismatch", "Device key cannot grant unrestricted tokens")
+        }
+
+        return handleVerificationResult(result, request, callerContext, keySource)
+    }
+
+    private suspend fun handleVerificationResult(
+        result: VerificationResult,
+        request: TokenRequest,
+        callerContext: CallerContext,
+        keySource: String
+    ): TokenResponse {
         return when (result) {
             is VerificationResult.Success -> {
                 val claims = result.claims
@@ -32,8 +66,10 @@ class AuthManager(
                 val boundCertHash = if (!isUnrestricted) callerContext.certHash else null
                 val boundOrigin = if (!isUnrestricted) callerContext.origin else null
 
+                val grantedBy = keySource.replace(" ", "_")
                 val existing = tokenManager.findExistingToken(
                     clientId = request.clientId,
+                    grantedBy = grantedBy,
                     requiredPermissions = effectivePermissions,
                     boundPackageName = boundPackageName,
                     boundCertHash = boundCertHash,
@@ -43,8 +79,8 @@ class AuthManager(
                 val token = existing ?: tokenManager.createToken(
                     clientId = request.clientId,
                     permissions = effectivePermissions,
-                    grantedBy = "developer_key",
-                    duration = "permanent",
+                    grantedBy = grantedBy,
+                    duration = "day",
                     boundPackageName = boundPackageName,
                     boundCertHash = boundCertHash,
                     boundOrigin = boundOrigin
@@ -57,9 +93,9 @@ class AuthManager(
             }
             is VerificationResult.Error -> {
                 val (code, message) = when (result.error) {
-                    DeveloperKeyError.INVALID_SIGNATURE -> "invalid_developer_key" to "Invalid developer key signature"
-                    DeveloperKeyError.EXPIRED -> "developer_key_expired" to "Developer key has expired"
-                    DeveloperKeyError.RESTRICTION_MISMATCH -> "restriction_mismatch" to "Caller does not match developer key restrictions"
+                    DeveloperKeyError.INVALID_SIGNATURE -> "invalid_key" to "Invalid $keySource signature"
+                    DeveloperKeyError.EXPIRED -> "key_expired" to "The $keySource has expired"
+                    DeveloperKeyError.RESTRICTION_MISMATCH -> "restriction_mismatch" to "Caller does not match $keySource restrictions"
                 }
                 TokenResponse.Error(code, message)
             }
@@ -81,6 +117,7 @@ class AuthManager(
 
         val existing = tokenManager.findExistingToken(
             clientId = request.clientId,
+            grantedBy = "user",
             requiredPermissions = grantedPermissions,
             boundPackageName = callerContext.packageName,
             boundCertHash = callerContext.certHash,
@@ -99,7 +136,7 @@ class AuthManager(
                 val token = tokenManager.createToken(
                     clientId = request.clientId,
                     permissions = grantedPermissions,
-                    grantedBy = "user_permanent",
+                    grantedBy = "user",
                     duration = "permanent",
                     boundPackageName = callerContext.packageName,
                     boundCertHash = callerContext.certHash,
@@ -111,7 +148,7 @@ class AuthManager(
                 val token = tokenManager.createToken(
                     clientId = request.clientId,
                     permissions = grantedPermissions,
-                    grantedBy = "user_day",
+                    grantedBy = "user",
                     duration = "day",
                     boundPackageName = callerContext.packageName,
                     boundCertHash = callerContext.certHash,

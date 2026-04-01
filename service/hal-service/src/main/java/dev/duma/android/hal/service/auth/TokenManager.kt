@@ -87,13 +87,14 @@ class TokenManager(private val dao: TokenDao) {
 
     suspend fun findExistingToken(
         clientId: String,
+        grantedBy: String,
         requiredPermissions: List<String>,
         boundPackageName: String?,
         boundCertHash: String?,
         boundOrigin: String?
     ): TokenEntity? {
         val candidates = dao.findCandidateTokens(
-            clientId, boundPackageName, boundCertHash, boundOrigin,
+            clientId, grantedBy, boundPackageName, boundCertHash, boundOrigin,
             System.currentTimeMillis()
         )
         return candidates.firstOrNull { permissionsAreSufficient(it.permissions, requiredPermissions) }

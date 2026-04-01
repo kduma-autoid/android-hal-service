@@ -28,7 +28,13 @@ async function onSubmit() {
 
     <label class="field">
       <span>Developer Key</span>
-      <input v-model="form.developerKey" type="text" placeholder="Optional JWT" />
+      <input v-model="form.developerKey" type="text" placeholder="Optional JWT" :disabled="!!form.deviceSecret" />
+    </label>
+
+    <label class="field">
+      <span>Device Secret</span>
+      <input v-model="form.deviceSecret" type="text" placeholder="Base64URL-encoded HMAC key" :disabled="!!form.developerKey" />
+      <span class="hint">Used to generate a device key JWT (HS256) when no developer key is set.</span>
     </label>
 
     <label class="field">
@@ -67,6 +73,16 @@ h2 { margin-top: 0; }
   font-size: 13px;
   font-weight: 600;
   color: #444;
+}
+.field .hint {
+  font-size: 11px;
+  font-weight: 400;
+  color: #888;
+}
+.field input:disabled {
+  background: #f5f5f5;
+  color: #999;
+  cursor: not-allowed;
 }
 .field input,
 .field select {

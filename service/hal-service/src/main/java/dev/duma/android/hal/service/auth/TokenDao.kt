@@ -34,6 +34,7 @@ interface TokenDao {
     @Query("""
         SELECT * FROM tokens
         WHERE clientId = :clientId
+        AND grantedBy = :grantedBy
         AND (boundPackageName IS :boundPackageName)
         AND (boundCertHash IS :boundCertHash)
         AND (boundOrigin IS :boundOrigin)
@@ -41,6 +42,7 @@ interface TokenDao {
     """)
     suspend fun findCandidateTokens(
         clientId: String,
+        grantedBy: String,
         boundPackageName: String?,
         boundCertHash: String?,
         boundOrigin: String?,

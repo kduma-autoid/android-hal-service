@@ -1,8 +1,6 @@
 package dev.duma.android.hal.service.auth
 
 import com.nimbusds.jose.JWSVerifier
-import com.nimbusds.jose.crypto.RSASSAVerifier
-import com.nimbusds.jose.jwk.RSAKey
 import com.nimbusds.jwt.SignedJWT
 import dev.duma.android.hal.transport.core.CallerContext
 import java.util.Date
@@ -12,9 +10,10 @@ import java.util.Date
  * expiration, and restriction matching (package name for Android, origins for web).
  * Returns [VerificationResult] with extracted claims or a specific error.
  */
-class DeveloperKeyVerifier(private val publicKey: RSAKey) {
-
-    private val verifier: JWSVerifier = RSASSAVerifier(publicKey)
+class DeveloperKeyVerifier(
+    private val verifier: JWSVerifier,
+    private val requiredIssuer: String? = null
+) {
 
     fun verify(jwt: String, callerContext: CallerContext, requestClientId: String): VerificationResult {
         val signedJwt = try {
@@ -28,12 +27,25 @@ class DeveloperKeyVerifier(private val publicKey: RSAKey) {
             return VerificationResult.Error(DeveloperKeyError.INVALID_SIGNATURE)
         }
 
-        // Verify signature
-        if (!signedJwt.verify(verifier)) {
+        // Verify signature (catch algorithm mismatch, e.g. HS256 JWT vs RSA verifier)
+        val signatureValid = try {
+            signedJwt.verify(verifier)
+        } catch (_: Exception) {
+            false
+        }
+        if (!signatureValid) {
             return VerificationResult.Error(DeveloperKeyError.INVALID_SIGNATURE)
         }
 
         val claims = signedJwt.jwtClaimsSet
+
+        // Check issuer if required
+        if (requiredIssuer != null) {
+            val iss = claims.issuer
+            if (iss != null && iss != requiredIssuer) {
+                return VerificationResult.Error(DeveloperKeyError.INVALID_SIGNATURE)
+            }
+        }
 
         // Check expiration
         val exp = claims.expirationTime

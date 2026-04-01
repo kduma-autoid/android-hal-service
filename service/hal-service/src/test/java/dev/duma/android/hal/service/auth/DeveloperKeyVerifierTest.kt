@@ -3,7 +3,10 @@ package dev.duma.android.hal.service.auth
 import com.nimbusds.jose.JOSEObjectType
 import com.nimbusds.jose.JWSAlgorithm
 import com.nimbusds.jose.JWSHeader
+import com.nimbusds.jose.crypto.MACSigner
+import com.nimbusds.jose.crypto.MACVerifier
 import com.nimbusds.jose.crypto.RSASSASigner
+import com.nimbusds.jose.crypto.RSASSAVerifier
 import com.nimbusds.jose.jwk.RSAKey
 import com.nimbusds.jose.jwk.gen.RSAKeyGenerator
 import com.nimbusds.jwt.JWTClaimsSet
@@ -23,7 +26,7 @@ class DeveloperKeyVerifierTest {
 
     private val keyPair: RSAKey = RSAKeyGenerator(2048).generate()
     private val wrongKeyPair: RSAKey = RSAKeyGenerator(2048).generate()
-    private val verifier = DeveloperKeyVerifier(keyPair.toPublicJWK())
+    private val verifier = DeveloperKeyVerifier(RSASSAVerifier(keyPair.toPublicJWK()))
 
     private fun createTestJwt(
         permissions: List<String> = listOf("printer"),
@@ -288,5 +291,29 @@ class DeveloperKeyVerifierTest {
         ), "test-client")
         assertIs<VerificationResult.Error>(androidResult)
         assertEquals(DeveloperKeyError.RESTRICTION_MISMATCH, androidResult.error)
+    }
+
+    @Test
+    fun `HMAC signed JWT works with MACVerifier`() {
+        val secret = ByteArray(32) { it.toByte() }
+        val hmacVerifier = DeveloperKeyVerifier(MACVerifier(secret))
+
+        val header = JWSHeader.Builder(JWSAlgorithm.HS256)
+            .type(JOSEObjectType("hal-dev-key+jwt"))
+            .build()
+        val claimsBuilder = JWTClaimsSet.Builder()
+            .issuer("hal-developer-portal")
+            .subject("test-client")
+            .issueTime(Date())
+            .expirationTime(Date(System.currentTimeMillis() + 3600_000))
+            .claim("permissions", listOf("printer"))
+            .claim("client_type", "unrestricted")
+            .claim("restrictions", emptyMap<String, Any?>())
+        val signedJwt = SignedJWT(header, claimsBuilder.build())
+        signedJwt.sign(MACSigner(secret))
+
+        val result = hmacVerifier.verify(signedJwt.serialize(), CallerContext(transport = "aidl"), "test-client")
+        assertIs<VerificationResult.Success>(result)
+        assertEquals(listOf("printer"), result.claims.permissions)
     }
 }

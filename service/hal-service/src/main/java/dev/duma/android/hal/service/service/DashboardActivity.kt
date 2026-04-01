@@ -2,6 +2,8 @@ package dev.duma.android.hal.service.service
 
 import android.Manifest
 import android.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
 import dev.duma.android.hal.service.R
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -20,6 +22,8 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
+import android.widget.Toast
+import dev.duma.android.hal.service.auth.DeviceKeyManager
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -729,6 +733,50 @@ class DashboardActivity : AppCompatActivity() {
         })
         layout.addView(TextView(this).apply {
             text = "When disabled, super permissions can only be granted via developer key JWT."
+            textSize = 12f
+            setTextColor(Color.GRAY)
+            setPadding(0, 4, 0, 0)
+        })
+
+        // Device Key
+        layout.addView(sectionHeader("Device Key"))
+        val deviceKeyManager = DeviceKeyManager(getSharedPreferences("hal_device_key", MODE_PRIVATE))
+
+        val keyText = TextView(this).apply {
+            text = deviceKeyManager.getSecretBase64()
+            textSize = 12f
+            typeface = Typeface.MONOSPACE
+            setTextIsSelectable(true)
+            setPadding(0, 8, 0, 4)
+            visibility = if (deviceKeyManager.isEnabled()) View.VISIBLE else View.GONE
+        }
+
+        val copyButton = Button(this).apply {
+            text = "Copy key to clipboard"
+            visibility = if (deviceKeyManager.isEnabled()) View.VISIBLE else View.GONE
+            setOnClickListener {
+                val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("HAL Device Key", deviceKeyManager.getSecretBase64()))
+                Toast.makeText(this@DashboardActivity, "Key copied to clipboard", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        @Suppress("UseSwitchCompatOrMaterialCode")
+        layout.addView(Switch(this).apply {
+            text = "Enable device key authentication"
+            textSize = 14f
+            isChecked = deviceKeyManager.isEnabled()
+            setOnCheckedChangeListener { _, isChecked ->
+                deviceKeyManager.setEnabled(isChecked)
+                val vis = if (isChecked) View.VISIBLE else View.GONE
+                keyText.visibility = vis
+                copyButton.visibility = vis
+            }
+        })
+        layout.addView(keyText)
+        layout.addView(copyButton)
+        layout.addView(TextView(this).apply {
+            text = "When enabled, clients can use JWT tokens signed with this device key (HS256). The key is unique to this device."
             textSize = 12f
             setTextColor(Color.GRAY)
             setPadding(0, 4, 0, 0)

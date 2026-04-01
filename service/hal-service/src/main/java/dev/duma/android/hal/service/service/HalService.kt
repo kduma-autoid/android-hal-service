@@ -10,10 +10,13 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.room.Room
+import com.nimbusds.jose.crypto.MACVerifier
+import com.nimbusds.jose.crypto.RSASSAVerifier
 import com.nimbusds.jose.jwk.RSAKey
 import dev.duma.android.hal.contract.EventBus
 import dev.duma.android.hal.service.auth.AuthManager
 import dev.duma.android.hal.service.auth.DeveloperKeyVerifier
+import dev.duma.android.hal.service.auth.DeviceKeyManager
 import dev.duma.android.hal.service.auth.GrantDecision
 import dev.duma.android.hal.service.auth.GrantOverlayDialog
 import dev.duma.android.hal.service.auth.GrantPermissionActivity
@@ -83,11 +86,19 @@ class HalService : Service() {
         val tokenManager = TokenManager(db.tokenDao())
         val jwkJson = resources.openRawResource(R.raw.developer_portal_public_key)
             .bufferedReader().use { it.readText() }
-        val verifier = DeveloperKeyVerifier(RSAKey.parse(jwkJson))
+        val verifier = DeveloperKeyVerifier(RSASSAVerifier(RSAKey.parse(jwkJson)))
+        val deviceKeyManager = DeviceKeyManager(
+            getSharedPreferences("hal_device_key", MODE_PRIVATE)
+        )
+        deviceKeyManager.getOrCreateSecret()
         val serviceContext = this
         val superPrefs = getSharedPreferences("hal_super", MODE_PRIVATE)
         val authManager = AuthManager(
             tokenManager, verifier,
+            deviceKeyVerifier = {
+                if (!deviceKeyManager.isEnabled()) null
+                else DeveloperKeyVerifier(MACVerifier(deviceKeyManager.getOrCreateSecret()), requiredIssuer = "device-key")
+            },
             showGrantDialog = { callerContext, request ->
             Log.i(TAG, "Grant dialog requested for clientId=${request.clientId}")
             val deferred = CompletableDeferred<GrantDecision>()

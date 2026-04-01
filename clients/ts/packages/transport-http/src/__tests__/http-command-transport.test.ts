@@ -135,7 +135,7 @@ describe('HttpCommandTransport', () => {
         statusText: 'Unauthorized',
         headers: {},
         body: JSON.stringify({
-          error: 'invalid_developer_key',
+          error: 'invalid_key',
           message: 'The developer key is invalid',
         }),
       };
@@ -146,7 +146,7 @@ describe('HttpCommandTransport', () => {
       await expect(
         transport.requestToken({ clientId: 'app', developerKey: 'bad-key' }),
       ).rejects.toMatchObject({
-        code: 'invalid_developer_key',
+        code: 'invalid_key',
       });
     });
   });

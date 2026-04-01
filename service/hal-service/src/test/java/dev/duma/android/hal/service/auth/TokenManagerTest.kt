@@ -80,7 +80,7 @@ class TokenManagerTest {
         val token = manager.createToken(
             clientId = "web-app",
             permissions = listOf("scanner"),
-            grantedBy = "user_permanent",
+            grantedBy = "user",
             duration = "permanent",
             boundPackageName = null,
             boundCertHash = null,
@@ -98,7 +98,7 @@ class TokenManagerTest {
         val token = manager.createToken(
             clientId = "test",
             permissions = listOf("printer"),
-            grantedBy = "user_day",
+            grantedBy = "user",
             duration = "day",
             boundPackageName = null,
             boundCertHash = null,
@@ -154,7 +154,7 @@ class TokenManagerTest {
         val token = manager.createToken(
             clientId = "test-app",
             permissions = listOf("printer"),
-            grantedBy = "user_permanent",
+            grantedBy = "user",
             duration = "permanent",
             boundPackageName = "com.test.app",
             boundCertHash = null,
@@ -163,6 +163,7 @@ class TokenManagerTest {
 
         val result = manager.findExistingToken(
             clientId = "test-app",
+            grantedBy = "user",
             requiredPermissions = listOf("printer"),
             boundPackageName = "com.test.app",
             boundCertHash = null,
@@ -176,6 +177,7 @@ class TokenManagerTest {
     fun `findExistingToken returns null when no match`() = runTest {
         val result = manager.findExistingToken(
             clientId = "nonexistent",
+            grantedBy = "user",
             requiredPermissions = listOf("printer"),
             boundPackageName = null,
             boundCertHash = null,
@@ -189,7 +191,7 @@ class TokenManagerTest {
         val token = manager.createToken(
             clientId = "test",
             permissions = listOf("printer"),
-            grantedBy = "user_day",
+            grantedBy = "user",
             duration = "day",
             boundPackageName = null,
             boundCertHash = null,
@@ -200,6 +202,7 @@ class TokenManagerTest {
 
         val result = manager.findExistingToken(
             clientId = "test",
+            grantedBy = "user",
             requiredPermissions = listOf("printer"),
             boundPackageName = null,
             boundCertHash = null,
@@ -213,7 +216,7 @@ class TokenManagerTest {
         manager.createToken(
             clientId = "test",
             permissions = listOf("*"),
-            grantedBy = "user_permanent",
+            grantedBy = "user",
             duration = "permanent",
             boundPackageName = null,
             boundCertHash = null,
@@ -222,6 +225,7 @@ class TokenManagerTest {
 
         val result = manager.findExistingToken(
             clientId = "test",
+            grantedBy = "user",
             requiredPermissions = listOf("printer"),
             boundPackageName = null,
             boundCertHash = null,
@@ -235,7 +239,7 @@ class TokenManagerTest {
         manager.createToken(
             clientId = "test",
             permissions = listOf("printer"),
-            grantedBy = "user_permanent",
+            grantedBy = "user",
             duration = "permanent",
             boundPackageName = null,
             boundCertHash = null,
@@ -244,6 +248,7 @@ class TokenManagerTest {
 
         val result = manager.findExistingToken(
             clientId = "test",
+            grantedBy = "user",
             requiredPermissions = listOf("printer", "scanner"),
             boundPackageName = null,
             boundCertHash = null,
@@ -257,7 +262,7 @@ class TokenManagerTest {
         manager.createToken(
             clientId = "test",
             permissions = listOf("printer", "scanner"),
-            grantedBy = "user_permanent",
+            grantedBy = "user",
             duration = "permanent",
             boundPackageName = null,
             boundCertHash = null,
@@ -266,6 +271,7 @@ class TokenManagerTest {
 
         val result = manager.findExistingToken(
             clientId = "test",
+            grantedBy = "user",
             requiredPermissions = listOf("printer"),
             boundPackageName = null,
             boundCertHash = null,
@@ -279,7 +285,7 @@ class TokenManagerTest {
         manager.createToken(
             clientId = "test",
             permissions = listOf("printer"),
-            grantedBy = "user_permanent",
+            grantedBy = "user",
             duration = "permanent",
             boundPackageName = "com.test.app",
             boundCertHash = null,
@@ -288,6 +294,7 @@ class TokenManagerTest {
 
         val result = manager.findExistingToken(
             clientId = "test",
+            grantedBy = "user",
             requiredPermissions = listOf("printer"),
             boundPackageName = "com.other.app",
             boundCertHash = null,
@@ -301,7 +308,7 @@ class TokenManagerTest {
         manager.createToken(
             clientId = "test",
             permissions = listOf("printer"),
-            grantedBy = "user_permanent",
+            grantedBy = "user",
             duration = "permanent",
             boundPackageName = null,
             boundCertHash = null,
@@ -310,6 +317,7 @@ class TokenManagerTest {
 
         val result = manager.findExistingToken(
             clientId = "test",
+            grantedBy = "user",
             requiredPermissions = listOf("printer.status"),
             boundPackageName = null,
             boundCertHash = null,

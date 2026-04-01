@@ -7,7 +7,7 @@
       </SelectionState>
       <SelectionState runConfigName="service.hal-service">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2026-03-31T22:55:20.909837Z">
+        <DropdownSelection timestamp="2026-03-31T23:28:04.230980Z">
           <Target type="DEFAULT_BOOT">
             <handle>
               <DeviceId pluginId="LocalEmulator" identifier="path=/Users/kduma/.android/avd/Medium_Phone.avd" />

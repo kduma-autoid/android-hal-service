@@ -5,10 +5,48 @@ import { useToast } from './useToast';
 
 const SETTINGS_KEY = 'hal_example_settings';
 
+function base64urlEncode(data: Uint8Array | string): string {
+  const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : data;
+  let binary = '';
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function base64urlDecode(str: string): Uint8Array {
+  const padded = str.replace(/-/g, '+').replace(/_/g, '/');
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+async function generateDeviceKeyJwt(secret: string, clientId: string): Promise<string> {
+  const keyBytes = base64urlDecode(secret);
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+  );
+
+  const header = base64urlEncode(JSON.stringify({ alg: 'HS256', typ: 'hal-dev-key+jwt' }));
+  const now = Math.floor(Date.now() / 1000);
+  const payload = base64urlEncode(JSON.stringify({
+    iss: 'device-key',
+    sub: clientId,
+    iat: now,
+    exp: now + 3600,
+    client_type: 'web',
+    permissions: ['*'],
+  }));
+
+  const sigInput = `${header}.${payload}`;
+  const sig = await crypto.subtle.sign('HMAC', cryptoKey, new TextEncoder().encode(sigInput));
+  return `${sigInput}.${base64urlEncode(new Uint8Array(sig))}`;
+}
+
 export interface AppSettings {
   baseUrl: string;
   clientId: string;
   developerKey: string;
+  deviceSecret: string;
   transport: 'http' | 'ws';
 }
 
@@ -16,6 +54,7 @@ const defaultSettings: AppSettings = {
   baseUrl: 'http://localhost:8400',
   clientId: 'hal-example',
   developerKey: import.meta.env.VITE_DEVELOPER_KEY ?? '',
+  deviceSecret: '',
   transport: 'http',
 };
 
@@ -52,10 +91,14 @@ async function connect(): Promise<void> {
 
   try {
     const tokenStore = new LocalStorageTokenStore('hal_example_token');
+    let developerKey = settings.developerKey || undefined;
+    if (!developerKey && settings.deviceSecret) {
+      developerKey = await generateDeviceKeyJwt(settings.deviceSecret, settings.clientId);
+    }
     const options = {
       clientId: settings.clientId,
       baseUrl: settings.baseUrl,
-      developerKey: settings.developerKey || undefined,
+      developerKey,
       tokenStore,
     };
 

@@ -49,7 +49,7 @@ class AuthManagerTest {
         every { verifier.verify(any(), any(), any()) } returns VerificationResult.Success(
             DevKeyClaims(permissions = listOf("printer"), clientTypes = listOf("android"))
         )
-        coEvery { tokenManager.findExistingToken(any(), any(), any(), any(), any()) } returns null
+        coEvery { tokenManager.findExistingToken(any(), any(), any(), any(), any(), any()) } returns null
         coEvery { tokenManager.createToken(any(), any(), any(), any(), any(), any(), any()) } returns testTokenEntity
 
         val result = authManager.requestToken(
@@ -72,7 +72,7 @@ class AuthManagerTest {
         )
 
         assertIs<TokenResponse.Error>(result)
-        assertEquals("invalid_developer_key", result.code)
+        assertEquals("invalid_key", result.code)
         assertEquals(false, dialogCalled)
     }
 
@@ -80,7 +80,7 @@ class AuthManagerTest {
     fun `no devKey shows dialog when no existing token`() = runTest {
         dialogCalled = false
         dialogDecision = GrantDecision.AllowPermanent
-        coEvery { tokenManager.findExistingToken(any(), any(), any(), any(), any()) } returns null
+        coEvery { tokenManager.findExistingToken(any(), any(), any(), any(), any(), any()) } returns null
         coEvery { tokenManager.createToken(any(), any(), any(), any(), any(), any(), any()) } returns testTokenEntity
 
         val result = authManager.requestToken(
@@ -95,7 +95,7 @@ class AuthManagerTest {
     @Test
     fun `existing token skips dialog for user grant`() = runTest {
         dialogCalled = false
-        coEvery { tokenManager.findExistingToken(any(), any(), any(), any(), any()) } returns testTokenEntity
+        coEvery { tokenManager.findExistingToken(any(), any(), any(), any(), any(), any()) } returns testTokenEntity
 
         val result = authManager.requestToken(
             TokenRequest(developerKey = null, clientId = "app"),
@@ -112,7 +112,7 @@ class AuthManagerTest {
         every { verifier.verify(any(), any(), any()) } returns VerificationResult.Success(
             DevKeyClaims(permissions = listOf("printer"), clientTypes = listOf("android"))
         )
-        coEvery { tokenManager.findExistingToken(any(), any(), any(), any(), any()) } returns testTokenEntity
+        coEvery { tokenManager.findExistingToken(any(), any(), any(), any(), any(), any()) } returns testTokenEntity
 
         val result = authManager.requestToken(
             TokenRequest(developerKey = "valid-jwt", clientId = "app"),
@@ -134,7 +134,7 @@ class AuthManagerTest {
         )
 
         assertIs<TokenResponse.Error>(result)
-        assertEquals("invalid_developer_key", result.code)
-        coVerify(exactly = 0) { tokenManager.findExistingToken(any(), any(), any(), any(), any()) }
+        assertEquals("invalid_key", result.code)
+        coVerify(exactly = 0) { tokenManager.findExistingToken(any(), any(), any(), any(), any(), any()) }
     }
 }

@@ -13,8 +13,8 @@ Content-Type: application/json
 
 {"developerKey":"eyJhbG...","clientId":"my-pos"}
 → 200 {"token":"abc123...","permissions":["printer","scanner"],"expiresAt":...}
-→ 400 {"error":"invalid_developer_key","message":"..."}
-→ 400 {"error":"developer_key_expired","message":"..."}
+→ 400 {"error":"invalid_key","message":"..."}
+→ 400 {"error":"key_expired","message":"..."}
 → 400 {"error":"restriction_mismatch","message":"..."}
 ```
 

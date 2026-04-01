@@ -302,7 +302,7 @@ class ServiceCommandHandler(
     }
 
     private fun errorTypeForCode(code: String): CommandResult.ErrorType = when (code) {
-        "invalid_developer_key", "developer_key_expired", "restriction_mismatch" -> CommandResult.ErrorType.BAD_REQUEST
+        "invalid_key", "key_expired", "restriction_mismatch" -> CommandResult.ErrorType.BAD_REQUEST
         "user_denied" -> CommandResult.ErrorType.FORBIDDEN
         "timeout" -> CommandResult.ErrorType.TIMEOUT
         else -> CommandResult.ErrorType.INTERNAL

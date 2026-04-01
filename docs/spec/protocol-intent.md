@@ -16,7 +16,7 @@ i apek które nie chcą utrzymywać połączenia.
 **Result extras:**
 - `result` (String) — JSON response:
   - Sukces: `{"token":"abc...","permissions":["printer","scanner"]}`
-  - Błąd: `{"error":"invalid_developer_key","message":"..."}`
+  - Błąd: `{"error":"invalid_key","message":"..."}`
 
 **Result codes:**
 - RESULT_OK — sukces
