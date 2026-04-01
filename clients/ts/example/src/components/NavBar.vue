@@ -24,6 +24,7 @@ const isDescribeActive = computed(() => route.path.startsWith('/describe'));
           <router-link to="/describe" class="nav-link" :class="{ 'router-link-active': isDescribeActive }" @click="menuOpen = false">API Explorer</router-link>
           <router-link to="/statuslight" class="nav-link" @click="menuOpen = false">Status Light</router-link>
           <router-link to="/screens" class="nav-link" @click="menuOpen = false">Screens & NFC</router-link>
+          <router-link to="/log" class="nav-link" @click="menuOpen = false">Activity Log</router-link>
           <router-link to="/settings" class="nav-link" @click="menuOpen = false">Settings</router-link>
         </div>
         <div class="navbar-right">

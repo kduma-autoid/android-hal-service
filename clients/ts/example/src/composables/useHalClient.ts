@@ -2,6 +2,7 @@ import { ref, reactive } from 'vue';
 import type { HalClient } from '@kduma-autoid/hal-client';
 import { LocalStorageTokenStore } from '@kduma-autoid/hal-client-token-store-browser';
 import { useToast } from './useToast';
+import { useActivityLog } from './useActivityLog';
 
 const SETTINGS_KEY = 'hal_example_settings';
 const BUILTIN_SERVICE_KEY = import.meta.env.VITE_SERVICE_KEY ?? '';
@@ -151,6 +152,8 @@ async function connect(): Promise<void> {
     }
 
     await newClient.requestToken();
+    const { startLogging } = useActivityLog();
+    startLogging(newClient);
     client.value = newClient;
     isConnected.value = true;
     toast.success(`Connected via ${settings.transport.toUpperCase()}`);
@@ -164,6 +167,8 @@ async function connect(): Promise<void> {
 
 function disconnect(): void {
   const toast = useToast();
+  const { stopLogging } = useActivityLog();
+  stopLogging();
   if (client.value) {
     client.value.dispose();
     client.value = null;

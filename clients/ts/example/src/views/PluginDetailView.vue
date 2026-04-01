@@ -34,36 +34,43 @@ const backLink = computed(() => {
 });
 
 let unsubscribers: (() => Promise<void>)[] = [];
+let isUnmounted = false;
 
 async function subscribeToEvents() {
-  await cleanupSubscriptions();
+  cleanupSubscriptions();
 
   if (!client.value || !plugin.value) return;
 
   const events = allEvents(plugin.value);
+  const promises: Promise<void>[] = [];
+
   for (const event of events) {
     if (!receivedEvents[event.name]) {
       receivedEvents[event.name] = [];
     }
 
-    try {
-      const off = await client.value.on(event.name, (_name: string, data: unknown) => {
+    promises.push(
+      client.value.on(event.name, (_name: string, data: unknown) => {
+        if (isUnmounted) return;
         receivedEvents[event.name].push({ timestamp: Date.now(), data });
         toast.info(`Event: ${event.name}`);
-      });
-
-      unsubscribers.push(off);
-    } catch {
-      // event transport may not be available (HTTP mode)
-    }
+      }).then(off => {
+        unsubscribers.push(off);
+      }).catch(() => {
+        // event transport may not be available (HTTP mode)
+      })
+    );
   }
+
+  await Promise.all(promises);
 }
 
-async function cleanupSubscriptions() {
-  for (const off of unsubscribers) {
-    await off();
-  }
+function cleanupSubscriptions() {
+  const toCleanup = unsubscribers;
   unsubscribers = [];
+  for (const off of toCleanup) {
+    off().catch(() => { /* ignore */ });
+  }
 }
 
 async function fetchPlugin() {
@@ -96,14 +103,15 @@ onMounted(() => {
   if (isConnected.value) fetchPlugin();
 });
 
-onUnmounted(async () => {
-  await cleanupSubscriptions();
+onUnmounted(() => {
+  isUnmounted = true;
+  cleanupSubscriptions();
 });
 
-watch(isConnected, async (connected) => {
+watch(isConnected, (connected) => {
   if (connected) fetchPlugin();
   else {
-    await cleanupSubscriptions();
+    cleanupSubscriptions();
     plugin.value = null;
   }
 });
