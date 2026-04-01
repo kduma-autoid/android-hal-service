@@ -35,29 +35,29 @@ internal object RfidPayloadSerializer {
         // 6B specific
         params.getString(ParamCts.TAG_UID)?.let { obj.put("uid", it) }
         // Antenna
-        params.getByte(ParamCts.ANT_ID, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("antId", it.toInt()) }
+        params.getByte(ParamCts.ANT_ID, (-1).toByte()).takeIf { it != (-1).toByte() }?.let { obj.put("antId", it.toInt() and 0xFF) }
         // FastTID / lock / tag status
-        params.getByte(ParamCts.TAG_MONZA_STATUS, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("fastTidStatus", it.toInt()) }
-        params.getByte(ParamCts.TAG_STATUS, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("lockStatus", it.toInt()) }
+        params.getByte(ParamCts.TAG_MONZA_STATUS, (-1).toByte()).takeIf { it != (-1).toByte() }?.let { obj.put("fastTidStatus", it.toInt() and 0xFF) }
+        params.getByte(ParamCts.TAG_STATUS, (-1).toByte()).takeIf { it != (-1).toByte() }?.let { obj.put("lockStatus", it.toInt() and 0xFF) }
         // Reader config results
-        params.getByte(ParamCts.WORK_ANTENNA, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("workAntenna", it.toInt()) }
+        params.getByte(ParamCts.WORK_ANTENNA, (-1).toByte()).takeIf { it != (-1).toByte() }?.let { obj.put("workAntenna", it.toInt() and 0xFF) }
         params.getString(ParamCts.ARY_OUTPUT_POWER)?.let { obj.put("outputPower", it) }
-        params.getByte(ParamCts.FREQUENCY_REGION, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("frequencyRegion", it.toInt()) }
-        params.getByte(ParamCts.FREQUENCY_START, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("frequencyStart", it.toInt()) }
-        params.getByte(ParamCts.FREQUENCY_END, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("frequencyEnd", it.toInt()) }
-        params.getByte(ParamCts.USER_DEFINE_CHANNEL_QUANTITY, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("userDefineChannelQuantity", it.toInt()) }
+        params.getByte(ParamCts.FREQUENCY_REGION, (-1).toByte()).takeIf { it != (-1).toByte() }?.let { obj.put("frequencyRegion", it.toInt() and 0xFF) }
+        params.getByte(ParamCts.FREQUENCY_START, (-1).toByte()).takeIf { it != (-1).toByte() }?.let { obj.put("frequencyStart", it.toInt() and 0xFF) }
+        params.getByte(ParamCts.FREQUENCY_END, (-1).toByte()).takeIf { it != (-1).toByte() }?.let { obj.put("frequencyEnd", it.toInt() and 0xFF) }
+        params.getByte(ParamCts.USER_DEFINE_CHANNEL_QUANTITY, (-1).toByte()).takeIf { it != (-1).toByte() }?.let { obj.put("userDefineChannelQuantity", it.toInt() and 0xFF) }
         params.getInt(ParamCts.USER_DEFINE_START_FREQUENCY, -1).takeIf { it >= 0 }?.let { obj.put("userDefineStartFrequency", it) }
-        params.getByte(ParamCts.USER_DEFINE_FREQUENCY_INTERVAL, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("userDefineFrequencyInterval", it.toInt()) }
-        params.getByte(ParamCts.PLUS_MINUS, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("plusMinus", it.toInt()) }
-        params.getByte(ParamCts.TEMPERATURE, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("temperature", it.toInt()) }
-        params.getByte(ParamCts.GP_IO_1_VALUE, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("gpio1", it.toInt()) }
-        params.getByte(ParamCts.GP_IO_2_VALUE, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("gpio2", it.toInt()) }
-        params.getByte(ParamCts.ANT_CONNECTION_DETECTOR, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("antConnectionDetector", it.toInt()) }
+        params.getByte(ParamCts.USER_DEFINE_FREQUENCY_INTERVAL, (-1).toByte()).takeIf { it != (-1).toByte() }?.let { obj.put("userDefineFrequencyInterval", it.toInt() and 0xFF) }
+        params.getByte(ParamCts.PLUS_MINUS, (-1).toByte()).takeIf { it != (-1).toByte() }?.let { obj.put("plusMinus", it.toInt() and 0xFF) }
+        params.getByte(ParamCts.TEMPERATURE, (-1).toByte()).takeIf { it != (-1).toByte() }?.let { obj.put("temperature", it.toInt() and 0xFF) }
+        params.getByte(ParamCts.GP_IO_1_VALUE, (-1).toByte()).takeIf { it != (-1).toByte() }?.let { obj.put("gpio1", it.toInt() and 0xFF) }
+        params.getByte(ParamCts.GP_IO_2_VALUE, (-1).toByte()).takeIf { it != (-1).toByte() }?.let { obj.put("gpio2", it.toInt() and 0xFF) }
+        params.getByte(ParamCts.ANT_CONNECTION_DETECTOR, (-1).toByte()).takeIf { it != (-1).toByte() }?.let { obj.put("antConnectionDetector", it.toInt() and 0xFF) }
         params.getString(ParamCts.READER_IDENTIFIER)?.let { obj.put("readerIdentifier", it) }
-        params.getByte(ParamCts.RF_LINK_PROFILE, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("rfLinkProfile", it.toInt()) }
-        params.getByte(ParamCts.RF_PORT_RETURN_LOSS, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("rfPortReturnLoss", it.toInt()) }
-        params.getByte(ParamCts.BEEP_MODE, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("beepMode", it.toInt()) }
-        params.getByte(ParamCts.SCAN_TYPE, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("scanType", it.toInt()) }
+        params.getByte(ParamCts.RF_LINK_PROFILE, (-1).toByte()).takeIf { it != (-1).toByte() }?.let { obj.put("rfLinkProfile", it.toInt() and 0xFF) }
+        params.getByte(ParamCts.RF_PORT_RETURN_LOSS, (-1).toByte()).takeIf { it != (-1).toByte() }?.let { obj.put("rfPortReturnLoss", it.toInt() and 0xFF) }
+        params.getByte(ParamCts.BEEP_MODE, (-1).toByte()).takeIf { it != (-1).toByte() }?.let { obj.put("beepMode", it.toInt() and 0xFF) }
+        params.getByte(ParamCts.SCAN_TYPE, (-1).toByte()).takeIf { it != (-1).toByte() }?.let { obj.put("scanType", it.toInt() and 0xFF) }
         params.getString(ParamCts.SN)?.let { obj.put("sn", it) }
         params.getString(ParamCts.FIRMWARE_VERSION)?.let { obj.put("firmwareVersion", it) }
         params.getString(ParamCts.FIRMWARE_MAIN_VERSION)?.let { obj.put("firmwareMainVersion", it) }
@@ -67,13 +67,13 @@ internal object RfidPayloadSerializer {
         params.getString(ParamCts.BATTERY_CHARGING)?.let { obj.put("batteryCharging", it) }
         params.getString(ParamCts.BATTERY_CHARGING_NUM_TIMES)?.let { obj.put("batteryChargingNumTimes", it) }
         // Tag mask
-        params.getByte(ParamCts.MASK_ID, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("id", it.toInt()) }
+        params.getByte(ParamCts.MASK_ID, (-1).toByte()).takeIf { it != (-1).toByte() }?.let { obj.put("id", it.toInt() and 0xFF) }
         params.getInt(ParamCts.MASK_COUNT, -1).takeIf { it >= 0 }?.let { obj.put("count", it) }
-        params.getByte(ParamCts.MASK_TARGET, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("target", it.toInt()) }
-        params.getByte(ParamCts.MASK_ACTION, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("action", it.toInt()) }
-        params.getByte(ParamCts.MASK_MEMBANK, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("membank", it.toInt()) }
-        params.getByte(ParamCts.MASK_START_ADD, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("startAddress", it.toInt()) }
-        params.getByte(ParamCts.MASK_LEN, (-1).toByte()).takeIf { it >= 0 }?.let { obj.put("length", it.toInt()) }
+        params.getByte(ParamCts.MASK_TARGET, (-1).toByte()).takeIf { it != (-1).toByte() }?.let { obj.put("target", it.toInt() and 0xFF) }
+        params.getByte(ParamCts.MASK_ACTION, (-1).toByte()).takeIf { it != (-1).toByte() }?.let { obj.put("action", it.toInt() and 0xFF) }
+        params.getByte(ParamCts.MASK_MEMBANK, (-1).toByte()).takeIf { it != (-1).toByte() }?.let { obj.put("membank", it.toInt() and 0xFF) }
+        params.getByte(ParamCts.MASK_START_ADD, (-1).toByte()).takeIf { it != (-1).toByte() }?.let { obj.put("startAddress", it.toInt() and 0xFF) }
+        params.getByte(ParamCts.MASK_LEN, (-1).toByte()).takeIf { it != (-1).toByte() }?.let { obj.put("length", it.toInt() and 0xFF) }
         params.getString(ParamCts.MASK_VALUE)?.let { obj.put("value", it) }
         return obj.toString()
     }

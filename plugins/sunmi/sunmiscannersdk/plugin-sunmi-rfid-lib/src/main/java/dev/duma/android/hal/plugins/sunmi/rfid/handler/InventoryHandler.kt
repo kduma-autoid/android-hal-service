@@ -2,6 +2,7 @@ package dev.duma.android.hal.plugins.sunmi.rfid.handler
 
 import com.sunmi.rfid.RFIDHelper
 import com.sunmi.rfid.RFIDManager
+import com.sunmi.rfid.constant.CMD
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.plugins.sunmi.rfid.RfidOperationBridge
 import dev.duma.android.hal.plugins.sunmi.rfid.hexStringToBytes
@@ -88,10 +89,10 @@ internal class InventoryHandler(private val bridge: RfidOperationBridge) {
             }
 
             // Buffer operations
-            "sunmi.rfid.getInventoryBufferTagCount" -> bridge.awaitResult(com.sunmi.rfid.constant.CMD.GET_INVENTORY_BUFFER_TAG_COUNT) {
+            "sunmi.rfid.getInventoryBufferTagCount" -> bridge.awaitResult(CMD.GET_INVENTORY_BUFFER_TAG_COUNT) {
                 helper.getInventoryBufferTagCount()
             }
-            "sunmi.rfid.resetInventoryBuffer" -> bridge.awaitResult(com.sunmi.rfid.constant.CMD.RESET_INVENTORY_BUFFER) {
+            "sunmi.rfid.resetInventoryBuffer" -> bridge.awaitResult(CMD.RESET_INVENTORY_BUFFER) {
                 helper.resetInventoryBuffer()
             }
 

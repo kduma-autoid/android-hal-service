@@ -59,12 +59,13 @@ internal class RfidOperationBridge(
     suspend fun awaitResult(cmd: Byte, timeout: Long = 5000L, block: () -> Unit): CommandResult {
         val deferred = CompletableDeferred<String>()
         pendingOps[cmd] = deferred
-        try {
+        return try {
             block()
-            return CommandResult.Success(withTimeout(timeout) { deferred.await() })
+            CommandResult.Success(withTimeout(timeout) { deferred.await() })
         } catch (e: TimeoutCancellationException) {
+            CommandResult.timeout("Operation timed out after ${timeout}ms")
+        } finally {
             pendingOps.remove(cmd)
-            return CommandResult.timeout("Operation timed out after ${timeout}ms")
         }
     }
 
