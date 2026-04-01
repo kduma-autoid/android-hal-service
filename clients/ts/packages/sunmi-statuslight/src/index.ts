@@ -1,4 +1,4 @@
-export { SunmiStatusLightClient } from './sunmi-statuslight-client.js';
+export { SunmiStatusLightClient, PLUGIN_ID } from './sunmi-statuslight-client.js';
 export type {
   IExecutor,
   StatusLightColor,

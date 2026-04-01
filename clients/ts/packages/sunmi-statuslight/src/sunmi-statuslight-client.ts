@@ -1,5 +1,7 @@
 import type { IExecutor, StatusLightColor, FlashStep, StatusLightResponse } from './types.js';
 
+export const PLUGIN_ID = 'sunmi.statuslight';
+
 export class SunmiStatusLightClient {
   private readonly executor: IExecutor;
 
