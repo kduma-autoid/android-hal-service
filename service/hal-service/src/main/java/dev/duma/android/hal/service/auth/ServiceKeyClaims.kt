@@ -7,6 +7,7 @@ package dev.duma.android.hal.service.auth
 data class ServiceKeyClaims(
     val permissions: List<String>,
     val clientTypes: List<String>,
+    val subject: String? = null,
     val clientId: String? = null,
     val packageName: String? = null,
     val certHash: String? = null,

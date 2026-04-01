@@ -654,7 +654,12 @@ class DashboardActivity : AppCompatActivity() {
             }
 
             holder.layout.addView(TextView(this@DashboardActivity).apply {
-                text = "Granted by: ${token.grantedBy} at ${dateFormat.format(Date(token.grantedAt))}"
+                val grantedByLabel = token.grantedBy.let {
+                    val parts = it.split(":", limit = 2)
+                    val source = parts[0].replace("_", " ")
+                    if (parts.size > 1) "$source (${parts[1]})" else source
+                }
+                text = "Granted by: $grantedByLabel at ${dateFormat.format(Date(token.grantedAt))}"
                 textSize = 13f
             })
 

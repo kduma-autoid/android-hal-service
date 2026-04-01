@@ -66,7 +66,12 @@ class AuthManager(
                 val boundCertHash = if (!isUnrestricted) callerContext.certHash else null
                 val boundOrigin = if (!isUnrestricted) callerContext.origin else null
 
-                val grantedBy = keySource.replace(" ", "_")
+                val grantedBy = buildString {
+                    append(keySource.replace(" ", "_"))
+                    if (claims.subject != null) {
+                        append(":${claims.subject}")
+                    }
+                }
                 val existing = tokenManager.findExistingToken(
                     clientId = request.clientId,
                     grantedBy = grantedBy,

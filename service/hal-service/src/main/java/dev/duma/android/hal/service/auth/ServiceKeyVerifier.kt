@@ -150,6 +150,7 @@ class ServiceKeyVerifier(
             ServiceKeyClaims(
                 permissions = permissions,
                 clientTypes = allowedClientTypes,
+                subject = claims.subject,
                 clientId = clientId,
                 packageName = packageName,
                 certHash = certHash,
