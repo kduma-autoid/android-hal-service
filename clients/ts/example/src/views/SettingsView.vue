@@ -21,11 +21,6 @@ async function onSubmit() {
       <input v-model="form.baseUrl" type="text" placeholder="http://localhost:8400" />
     </label>
 
-    <label v-if="form.authMode !== 'builtin'" class="field">
-      <span>Client ID</span>
-      <input v-model="form.clientId" type="text" placeholder="hal-example" />
-    </label>
-
     <label class="field">
       <span>Authentication</span>
       <select v-model="form.authMode">
@@ -34,6 +29,11 @@ async function onSubmit() {
         <option value="device-secret">Device Secret (HMAC)</option>
         <option value="none">Permission Dialog</option>
       </select>
+    </label>
+
+    <label v-if="form.authMode !== 'builtin'" class="field">
+      <span>Client ID</span>
+      <input v-model="form.clientId" type="text" placeholder="hal-example" />
     </label>
 
     <label v-if="form.authMode === 'service-key'" class="field">
