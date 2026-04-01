@@ -16,6 +16,7 @@ jobs:
     name: Build and publish NPM packages
     needs: publish-android
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       packages: write
@@ -63,6 +64,7 @@ jobs:
     name: Build and publish example to GitHub Pages
     # needs: publish-npm
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: github.event_name != 'pull_request'
     permissions:
       contents: read
@@ -129,6 +131,7 @@ jobs:
   publish-android:
     name: Build and publish Android packages
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write
       packages: write
