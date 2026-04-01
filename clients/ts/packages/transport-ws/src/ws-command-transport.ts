@@ -89,7 +89,7 @@ export class WsCommandTransport implements ICommandTransport, IAuthTransport {
     const response = await this.connection.send({
       type: 'command',
       method,
-      params: JSON.stringify(params),
+      params: params ?? {},
     });
 
     if (response.type === 'error') {
