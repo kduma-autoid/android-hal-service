@@ -107,10 +107,10 @@ watch(isConnected, (connected) => {
             </thead>
             <tbody>
               <tr v-for="(info, id) in status.plugins" :key="id">
-                <td><code>{{ id }}</code></td>
-                <td>{{ info.version }}</td>
-                <td>{{ info.source }}</td>
-                <td>
+                <td data-label="Plugin ID"><code>{{ id }}</code></td>
+                <td data-label="Version">{{ info.version }}</td>
+                <td data-label="Source">{{ info.source }}</td>
+                <td data-label="Capabilities">
                   <span v-for="cap in info.capabilities" :key="cap" class="badge">{{ cap }}</span>
                 </td>
               </tr>
@@ -130,12 +130,11 @@ watch(isConnected, (connected) => {
             </thead>
             <tbody>
               <tr v-for="(info, id) in status.transports" :key="id">
-                <td>{{ id }}</td>
-                <td>
-                  <span class="dot" :class="info.running ? 'ok' : 'off'" />
-                  {{ info.running ? 'Yes' : 'No' }}
+                <td data-label="Transport">{{ id }}</td>
+                <td data-label="Running">
+                  <span><span class="dot" :class="info.running ? 'ok' : 'off'" />{{ info.running ? 'Yes' : 'No' }}</span>
                 </td>
-                <td>
+                <td data-label="Enabled">
                   <template v-if="info.enabled !== undefined">
                     {{ info.enabled ? 'Yes' : 'No' }}
                   </template>
@@ -237,5 +236,40 @@ code {
   text-align: center;
   padding: 24px;
   color: #888;
+}
+
+@media (max-width: 640px) {
+  table, thead, tbody, tr, th, td {
+    display: block;
+  }
+  thead {
+    display: none;
+  }
+  tbody tr {
+    margin-bottom: 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  td {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 6px 10px;
+    border: none;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  td:last-child {
+    border-bottom: none;
+  }
+  td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    font-size: 11px;
+    color: #666;
+    min-width: 80px;
+    margin-right: 8px;
+    flex-shrink: 0;
+  }
 }
 </style>

@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
+import { useRoute } from 'vue-router';
 import { useHalClient } from '../composables/useHalClient';
 
+const route = useRoute();
 const { isConnected, error, connect, disconnect } = useHalClient();
 const menuOpen = ref(false);
+const isDescribeActive = computed(() => route.path.startsWith('/describe'));
 </script>
 
 <template>
@@ -18,7 +21,7 @@ const menuOpen = ref(false);
       <div class="navbar-collapse" :class="{ open: menuOpen }">
         <div class="nav-links">
           <router-link to="/" class="nav-link" @click="menuOpen = false">Dashboard</router-link>
-          <router-link to="/describe" class="nav-link" @click="menuOpen = false">API Explorer</router-link>
+          <router-link to="/describe" class="nav-link" :class="{ 'router-link-active': isDescribeActive }" @click="menuOpen = false">API Explorer</router-link>
           <router-link to="/statuslight" class="nav-link" @click="menuOpen = false">Status Light</router-link>
           <router-link to="/screens" class="nav-link" @click="menuOpen = false">Screens & NFC</router-link>
           <router-link to="/settings" class="nav-link" @click="menuOpen = false">Settings</router-link>

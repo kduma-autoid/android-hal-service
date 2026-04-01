@@ -1,9 +1,19 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import type { PluginDescriptor } from '@kduma-autoid/hal-client-common';
 import { allMethods, allEvents } from '@kduma-autoid/hal-client-common';
+import MethodExecutor from './MethodExecutor.vue';
+import EventMonitor from './EventMonitor.vue';
 
-const props = defineProps<{ plugin: PluginDescriptor }>();
+interface ReceivedEvent {
+  timestamp: number;
+  data: unknown;
+}
+
+const props = defineProps<{
+  plugin: PluginDescriptor;
+  receivedEvents?: Record<string, ReceivedEvent[]>;
+}>();
 
 const methodCount = computed(() => allMethods(props.plugin).length);
 const eventCount = computed(() => allEvents(props.plugin).length);
@@ -11,6 +21,32 @@ const hasActiveExperimental = computed(() =>
   allMethods(props.plugin).some(m => m.experimental && m.experimentalActive) ||
   allEvents(props.plugin).some(e => e.experimental && e.experimentalActive)
 );
+
+const expandedMethods = ref<Set<string>>(new Set());
+function toggleMethod(name: string) {
+  if (expandedMethods.value.has(name)) {
+    expandedMethods.value.delete(name);
+  } else {
+    expandedMethods.value.add(name);
+  }
+}
+
+const expandedEvents = ref<Set<string>>(new Set());
+function toggleEvent(name: string) {
+  if (expandedEvents.value.has(name)) {
+    expandedEvents.value.delete(name);
+  } else {
+    expandedEvents.value.add(name);
+  }
+}
+
+function getReceivedEvents(eventName: string): ReceivedEvent[] {
+  return props.receivedEvents?.[eventName] ?? [];
+}
+
+function breakableName(name: string): string {
+  return name.replace(/\./g, '.\u200B');
+}
 </script>
 
 <template>
@@ -45,16 +81,21 @@ const hasActiveExperimental = computed(() =>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="m in group.methods" :key="m.name">
-                  <td><code>{{ m.name }}</code></td>
-                  <td>{{ m.description }}</td>
-                  <td><code>{{ m.requiredPermission }}</code></td>
-                  <td>
-                    <span v-if="m.superRequired" class="badge badge-super">super</span>
-                    <span v-if="m.experimental && m.experimentalActive" class="badge badge-experimental-active">exp</span>
-                    <span v-else-if="m.experimental" class="badge badge-experimental">exp</span>
-                  </td>
-                </tr>
+                <template v-for="m in group.methods" :key="m.name">
+                  <tr class="method-row" :class="{ expanded: expandedMethods.has(m.name) }" @click="toggleMethod(m.name)">
+                    <td data-label="Name"><span class="name-cell"><span class="expand-icon">{{ expandedMethods.has(m.name) ? '▼' : '▶' }}</span> <code>{{ breakableName(m.name) }}</code></span></td>
+                    <td data-label="Description">{{ m.description }}</td>
+                    <td data-label="Permission"><code>{{ breakableName(m.requiredPermission) }}</code></td>
+                    <td data-label="Flags" class="flags-cell">
+                      <span v-if="m.superRequired" class="badge badge-super">super</span>
+                      <span v-if="m.experimental && m.experimentalActive" class="badge badge-experimental-active">exp</span>
+                      <span v-else-if="m.experimental" class="badge badge-experimental">exp</span>
+                    </td>
+                  </tr>
+                  <tr v-if="expandedMethods.has(m.name)" class="executor-row">
+                    <td colspan="4"><MethodExecutor :method="m" /></td>
+                  </tr>
+                </template>
               </tbody>
             </table>
           </div>
@@ -73,15 +114,25 @@ const hasActiveExperimental = computed(() =>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="e in group.events" :key="e.name">
-                  <td><code>{{ e.name }}</code></td>
-                  <td>{{ e.description }}</td>
-                  <td><code>{{ e.requiredPermission }}</code></td>
-                  <td>
-                    <span v-if="e.experimental && e.experimentalActive" class="badge badge-experimental-active">exp</span>
-                    <span v-else-if="e.experimental" class="badge badge-experimental">exp</span>
-                  </td>
-                </tr>
+                <template v-for="e in group.events" :key="e.name">
+                  <tr class="event-row" :class="{ expanded: expandedEvents.has(e.name) }" @click="toggleEvent(e.name)">
+                    <td data-label="Name">
+                      <span class="name-cell"><span class="expand-icon">{{ expandedEvents.has(e.name) ? '▼' : '▶' }}</span> <code>{{ breakableName(e.name) }}</code></span>
+                      <span v-if="getReceivedEvents(e.name).length" class="badge badge-event-count">{{ getReceivedEvents(e.name).length }}</span>
+                    </td>
+                    <td data-label="Description">{{ e.description }}</td>
+                    <td data-label="Permission"><code>{{ breakableName(e.requiredPermission) }}</code></td>
+                    <td data-label="Flags" class="flags-cell">
+                      <span v-if="e.experimental && e.experimentalActive" class="badge badge-experimental-active">exp</span>
+                      <span v-else-if="e.experimental" class="badge badge-experimental">exp</span>
+                    </td>
+                  </tr>
+                  <tr v-if="expandedEvents.has(e.name)" class="executor-row">
+                    <td colspan="4">
+                      <EventMonitor :event="e" :received-events="getReceivedEvents(e.name)" />
+                    </td>
+                  </tr>
+                </template>
               </tbody>
             </table>
           </div>
@@ -175,5 +226,94 @@ code {
   color: #999;
   font-size: 13px;
   font-style: italic;
+}
+.method-row {
+  cursor: pointer;
+}
+.method-row:hover {
+  background: #f0f7ff;
+}
+.method-row.expanded {
+  background: #e8f0fe;
+}
+.name-cell {
+  display: inline-flex;
+  align-items: flex-start;
+}
+.expand-icon {
+  font-size: 10px;
+  margin-right: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  flex-shrink: 0;
+  align-self: center;
+}
+.event-row {
+  cursor: pointer;
+}
+.event-row:hover {
+  background: #f0f7ff;
+}
+.event-row.expanded {
+  background: #e8f0fe;
+}
+.badge-event-count {
+  background: #dbeafe;
+  color: #1e40af;
+  margin-left: 6px;
+}
+.executor-row td {
+  padding: 0 !important;
+  border-top: none !important;
+}
+
+@media (max-width: 640px) {
+  table, thead, tbody, tr, th, td {
+    display: block;
+  }
+  thead {
+    display: none;
+  }
+  tbody tr {
+    margin-bottom: 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  td {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 6px 10px;
+    border: none;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  td:last-child {
+    border-bottom: none;
+  }
+  td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    font-size: 11px;
+    color: #666;
+    min-width: 80px;
+    margin-right: 8px;
+    flex-shrink: 0;
+  }
+  .expand-icon {
+    display: none;
+  }
+  .flags-cell:not(:has(.badge)) {
+    display: none;
+  }
+  .executor-row td {
+    display: block;
+    border-bottom: none;
+  }
+  .executor-row td::before {
+    display: none;
+  }
 }
 </style>

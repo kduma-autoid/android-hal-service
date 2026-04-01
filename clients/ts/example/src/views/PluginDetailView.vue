@@ -1,16 +1,26 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import type { PluginDescriptor } from '@kduma-autoid/hal-client-common';
+import { allEvents } from '@kduma-autoid/hal-client-common';
 import { useHalClient } from '../composables/useHalClient';
+import { useToast } from '../composables/useToast';
 import PluginCard from '../components/PluginCard.vue';
 
 const route = useRoute();
 const { client, isConnected } = useHalClient();
+const toast = useToast();
 
 const plugin = ref<PluginDescriptor | null>(null);
 const loading = ref(false);
 const error = ref<string | null>(null);
+
+interface ReceivedEvent {
+  timestamp: number;
+  data: unknown;
+}
+
+const receivedEvents = reactive<Record<string, ReceivedEvent[]>>({});
 
 const pluginId = computed(() => route.params.pluginId as string);
 const withSuper = computed(() => route.query.withSuper === 'true');
@@ -22,6 +32,39 @@ const backLink = computed(() => {
   if (withExperimental.value) query.withExperimental = 'true';
   return { name: 'describe', query };
 });
+
+let unsubscribers: (() => Promise<void>)[] = [];
+
+async function subscribeToEvents() {
+  await cleanupSubscriptions();
+
+  if (!client.value || !plugin.value) return;
+
+  const events = allEvents(plugin.value);
+  for (const event of events) {
+    if (!receivedEvents[event.name]) {
+      receivedEvents[event.name] = [];
+    }
+
+    try {
+      const off = await client.value.on(event.name, (_name: string, data: unknown) => {
+        receivedEvents[event.name].push({ timestamp: Date.now(), data });
+        toast.info(`Event: ${event.name}`);
+      });
+
+      unsubscribers.push(off);
+    } catch {
+      // event transport may not be available (HTTP mode)
+    }
+  }
+}
+
+async function cleanupSubscriptions() {
+  for (const off of unsubscribers) {
+    await off();
+  }
+  unsubscribers = [];
+}
 
 async function fetchPlugin() {
   if (!client.value || !isConnected.value) return;
@@ -36,6 +79,7 @@ async function fetchPlugin() {
     const found = result.plugins.find(p => p.pluginId === pluginId.value);
     if (found) {
       plugin.value = found;
+      await subscribeToEvents();
     } else {
       error.value = `Plugin not found: ${pluginId.value}`;
       plugin.value = null;
@@ -52,12 +96,20 @@ onMounted(() => {
   if (isConnected.value) fetchPlugin();
 });
 
-watch(isConnected, (connected) => {
+onUnmounted(async () => {
+  await cleanupSubscriptions();
+});
+
+watch(isConnected, async (connected) => {
   if (connected) fetchPlugin();
-  else plugin.value = null;
+  else {
+    await cleanupSubscriptions();
+    plugin.value = null;
+  }
 });
 
 watch(pluginId, () => {
+  Object.keys(receivedEvents).forEach(k => delete receivedEvents[k]);
   fetchPlugin();
 });
 </script>
@@ -77,7 +129,7 @@ watch(pluginId, () => {
 
       <div v-if="loading && !plugin" class="loading">Loading plugin details...</div>
 
-      <PluginCard v-if="plugin" :plugin="plugin" />
+      <PluginCard v-if="plugin" :plugin="plugin" :received-events="receivedEvents" />
     </template>
   </div>
 </template>
