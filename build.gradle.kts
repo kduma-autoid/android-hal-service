@@ -27,6 +27,8 @@ subprojects {
             buildTypes {
                 getByName("release") {
                     signingConfig = signingConfigs.getByName("release")
+                    signingConfig?.enableV1Signing = true
+                    signingConfig?.enableV2Signing = true
                 }
             }
         }
