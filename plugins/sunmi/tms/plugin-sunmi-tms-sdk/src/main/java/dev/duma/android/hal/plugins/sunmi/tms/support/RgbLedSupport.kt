@@ -69,6 +69,13 @@ object RgbLedSupport {
     fun isSupported(deviceManager: IDeviceManager): Boolean = status(deviceManager) == CODE_SUPPORTED
 
     /**
+     * Property-only support check — synchronous and requires no TMS connection, so it can be used as a
+     * static registration gate ([dev.duma.android.hal.contract.HalPlugin.isSupported]). The built-in
+     * RGB LED is a fixed hardware attribute; a device either has it or never will.
+     */
+    fun hasBuiltinLedByProperty(): Boolean = readProp(PROP_BUILTIN_LED) == "1"
+
+    /**
      * Reads a system property, layering to avoid the hidden-API greylist concern:
      *  1) `android.os.SystemProperties.get(key, "")` via reflection — trusted when it does not throw
      *     (including an empty value, e.g. on FLEX; no extra process fork);

@@ -4,7 +4,6 @@ import android.content.Context
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.DescriptorGroup
 import dev.duma.android.hal.contract.MethodDescriptor
-import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
 import dev.duma.android.hal.plugins.sunmi.tms.base.BaseTmsPlugin
 import dev.duma.android.hal.plugins.sunmi.tms.led.handler.RgbLedHandler
@@ -15,6 +14,9 @@ import dev.duma.android.hal.plugins.sunmi.tms.support.RgbLedSupport
  *
  * Backed by the Sunmi Customer API (TMS) SDK's [com.sunmi.tmsmaster.aidl.devicemanager.IDeviceManager]
  * RGB LED methods (available from SDK 1.3.48). Currently compatible with CPad running Android 14.
+ *
+ * The built-in RGB LED is a fixed hardware attribute, so support is a static registration gate
+ * ([isSupported]) rather than dynamic availability — a device either has the LED or it never will.
  */
 class SunmiTmsLedPlugin(context: Context? = null) : BaseTmsPlugin(context) {
 
@@ -22,6 +24,8 @@ class SunmiTmsLedPlugin(context: Context? = null) : BaseTmsPlugin(context) {
     override val version = 1
 
     private val rgbLedHandler by lazy { RgbLedHandler(tmsApi) }
+
+    override fun isSupported(): Boolean = super.isSupported() && RgbLedSupport.hasBuiltinLedByProperty()
 
     override fun getCapabilities() = listOf("sunmi.tms.led")
 
@@ -37,25 +41,6 @@ class SunmiTmsLedPlugin(context: Context? = null) : BaseTmsPlugin(context) {
             ),
         )
     )
-
-    override fun initialize(pluginContext: PluginContext) {
-        // Pessimistic until the TMS connection confirms the device actually has an RGB LED.
-        pluginContext.setPluginAvailable(false)
-        super.initialize(pluginContext)
-    }
-
-    override fun onTmsConnected() {
-        val supported = try {
-            RgbLedSupport.isSupported(tmsApi.deviceManager)
-        } catch (_: Exception) {
-            false
-        }
-        pluginContext?.setPluginAvailable(supported)
-    }
-
-    override fun onTmsDisconnected() {
-        pluginContext?.setPluginAvailable(false)
-    }
 
     override suspend fun execute(method: String, params: String): CommandResult = guardedExecute {
         rgbLedHandler.handle(method, params)
