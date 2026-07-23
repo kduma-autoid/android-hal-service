@@ -1,53 +1,51 @@
-import type { IHalClient } from '@kduma-autoid/hal-client-common';
-import type { TmsLedColor, TmsLedOpenOptions } from './types.js';
+import type {
+  IHalClient,
+  ILight,
+  LightCapabilities,
+  LightColor,
+  LightOptions,
+} from '@kduma-autoid/hal-client-common';
 
 export const PLUGIN_ID = 'sunmi.tms.led';
 
 /**
  * Client for the CPad built-in RGB LED indicator (Sunmi TMS `sunmi.tms.led`).
  * Available on CPad running Android 14 with the Sunmi Customer API service.
+ *
+ * Implements the unified {@link ILight} surface. Supports the `timeoutMs` option
+ * (native auto-release); does not support `multiFlash`.
  */
-export class SunmiTmsLedClient {
+export class SunmiTmsLedClient implements ILight {
+  readonly capabilities: LightCapabilities = { multiFlash: false, timeout: true };
+
   private readonly client: IHalClient;
 
   constructor(client: IHalClient) {
     this.client = client;
   }
 
-  /** Returns true if the device supports the RGB LED indicator. */
   async isSupported(): Promise<boolean> {
     const res = await this.client.execute<{ result: boolean }>('sunmi.tms.led.isSupported', {});
     return res?.result === true;
   }
 
-  /** Turns on the LED with full control over mode, timing and auto-release timeout. */
-  async open(options: TmsLedOpenOptions): Promise<void> {
-    await this.client.execute('sunmi.tms.led.open', {
-      color: options.color,
-      lightMode: options.lightMode ?? 0,
-      onMs: options.onMs ?? 0,
-      offMs: options.offMs ?? 0,
-      timeoutMs: options.timeoutMs ?? 0,
+  async off(): Promise<void> {
+    await this.client.execute('sunmi.tms.led.off', {});
+  }
+
+  async on(color: LightColor, options?: LightOptions): Promise<void> {
+    await this.client.execute('sunmi.tms.led.on', {
+      color,
+      timeoutMs: options?.timeoutMs ?? 0,
     });
   }
 
-  /** Turns off the LED indicator. */
-  async close(): Promise<void> {
-    await this.client.execute('sunmi.tms.led.close', {});
-  }
-
-  /** Convenience: steady-on in the given color. */
-  async setColor(color: TmsLedColor | number, timeoutMs = 0): Promise<void> {
-    await this.open({ color, lightMode: 0, timeoutMs });
-  }
-
-  /** Convenience: blink the given color. */
-  async setFlashing(
-    color: TmsLedColor | number,
-    onMs: number,
-    offMs: number,
-    timeoutMs = 0,
-  ): Promise<void> {
-    await this.open({ color, lightMode: 1, onMs, offMs, timeoutMs });
+  async flash(color: LightColor, onMs: number, offMs: number, options?: LightOptions): Promise<void> {
+    await this.client.execute('sunmi.tms.led.flash', {
+      color,
+      onMs,
+      offMs,
+      timeoutMs: options?.timeoutMs ?? 0,
+    });
   }
 }

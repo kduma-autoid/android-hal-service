@@ -1,7 +1,3 @@
 export { SunmiStatusLightClient, PLUGIN_ID } from './sunmi-statuslight-client.js';
-export type {
-  StatusLightColor,
-  FlashStep,
-  StatusLightErrorCode,
-} from './types.js';
-export { STATUS_LIGHT_COLORS } from './types.js';
+export type { LightColor, FlashStep, LightOptions, LightCapabilities } from './types.js';
+export { LIGHT_COLORS } from './types.js';

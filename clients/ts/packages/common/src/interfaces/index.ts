@@ -14,3 +14,4 @@ export type { IEventSubscriber } from './event-subscriber.js';
 export type { IHalClient } from './hal-client.js';
 export type { ITokenStore } from './token-store.js';
 export type { ILogger } from './logger.js';
+export type { ILight, MultiFlash } from './light.js';

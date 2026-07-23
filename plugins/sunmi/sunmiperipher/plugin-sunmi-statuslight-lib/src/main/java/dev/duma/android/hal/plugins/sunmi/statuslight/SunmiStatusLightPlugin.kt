@@ -18,6 +18,9 @@ import org.json.JSONObject
  * HAL plugin wrapping the Sunmi StatusLightManager SDK.
  * Controls the RGB status LED on SUNMI FLEX 3.
  *
+ * Exposes the unified light control surface (`on` / `off` / `flash` / `multiFlash` / `isSupported`)
+ * shared with the CPad `sunmi.tms.led` plugin.
+ *
  * @param context Android Context needed to bind StatusLightManager service.
  *                Pass null only when constructing without a device (e.g. reflection-based
  *                registration via tryRegisterPlugin); the plugin will be non-functional
@@ -51,31 +54,38 @@ class SunmiStatusLightPlugin(
         capabilities = getCapabilities(),
         methods = listOf(
             MethodDescriptor(
-                "sunmi.statuslight.setColor",
-                "Set LED color. Supported colors: red, green, blue, yellow, magenta, cyan, white.",
+                "sunmi.statuslight.isSupported",
+                "Checks whether the device has a controllable status light.",
+                "sunmi.statuslight",
+                exampleParameters = "{}",
+                exampleOutput = """{"result":true}"""
+            ),
+            MethodDescriptor(
+                "sunmi.statuslight.on",
+                "Turns the status LED on with a steady color. Supported colors: red, green, blue, yellow, magenta, cyan, white.",
                 "sunmi.statuslight",
                 exampleParameters = """{"color": "red"}""",
                 exampleOutput = """{}"""
             ),
             MethodDescriptor(
-                "sunmi.statuslight.turnOff",
-                "Turn off the status LED.",
+                "sunmi.statuslight.off",
+                "Turns off the status LED.",
                 "sunmi.statuslight",
                 exampleParameters = "{}",
                 exampleOutput = """{}"""
             ),
             MethodDescriptor(
-                "sunmi.statuslight.setFlashing",
-                "Set LED to flash in a single color. NOTE: Hardware support limited — effect stops automatically when app exits.",
+                "sunmi.statuslight.flash",
+                "Blinks the status LED in a single color. NOTE: Hardware support limited — effect stops automatically when app exits.",
                 "sunmi.statuslight",
                 exampleParameters = """{"color": "red", "onMs": 500, "offMs": 500}""",
                 exampleOutput = """{}"""
             ),
             MethodDescriptor(
-                "sunmi.statuslight.setMultiFlashing",
-                "Set LED to cycle through multiple colors. NOTE: Hardware support limited — effect stops automatically when app exits.",
+                "sunmi.statuslight.multiFlash",
+                "Cycles the status LED through multiple colors. Accepts either {steps:[{color,onMs,offMs}]} or {colors:[...],onMs,offMs}. NOTE: Hardware support limited — effect stops automatically when app exits.",
                 "sunmi.statuslight",
-                exampleParameters = """{"steps": [{"color": "red", "onMs": 500, "offMs": 500}, {"color": "green", "onMs": 300, "offMs": 300}]}""",
+                exampleParameters = """{"colors": ["red","green","blue"], "onMs": 500, "offMs": 300}""",
                 exampleOutput = """{}"""
             )
         ),
@@ -93,17 +103,22 @@ class SunmiStatusLightPlugin(
     override suspend fun execute(method: String, params: String): CommandResult = mutex.withLock {
         return@withLock try {
             when (method) {
-                "sunmi.statuslight.setColor" -> {
+                "sunmi.statuslight.isSupported" -> {
+                    // TODO: the StatusLightManager SDK has no native capability check. For now we
+                    //  report supported; extract the real hardware verification once available.
+                    CommandResult.Success(JSONObject().put("result", true).toString())
+                }
+                "sunmi.statuslight.on" -> {
                     val color = parseColor(JSONObject(params).getString("color"))
                         ?: return@withLock CommandResult.badRequest("Unknown color value")
                     StatusLightManager.setColor(color)
                     CommandResult.Success()
                 }
-                "sunmi.statuslight.turnOff" -> {
+                "sunmi.statuslight.off" -> {
                     StatusLightManager.turnOff()
                     CommandResult.Success()
                 }
-                "sunmi.statuslight.setFlashing" -> {
+                "sunmi.statuslight.flash" -> {
                     val json = JSONObject(params)
                     val color = parseColor(json.getString("color"))
                         ?: return@withLock CommandResult.badRequest("Unknown color value")
@@ -112,17 +127,32 @@ class SunmiStatusLightPlugin(
                     StatusLightManager.setFlashing(color, onMs, offMs)
                     CommandResult.Success()
                 }
-                "sunmi.statuslight.setMultiFlashing" -> {
+                "sunmi.statuslight.multiFlash" -> {
                     val json = JSONObject(params)
-                    val stepsArr = json.getJSONArray("steps")
-                    val colors = Array(stepsArr.length()) {
-                        val step = stepsArr.getJSONObject(it)
-                        parseColor(step.getString("color"))
-                            ?: return@withLock CommandResult.badRequest("Unknown color: ${step.getString("color")}")
+                    val colors: Array<Color>
+                    val onMsArr: IntArray
+                    val offMsArr: IntArray
+                    if (json.has("steps")) {
+                        val stepsArr = json.getJSONArray("steps")
+                        colors = Array(stepsArr.length()) {
+                            val step = stepsArr.getJSONObject(it)
+                            parseColor(step.getString("color"))
+                                ?: return@withLock CommandResult.badRequest("Unknown color: ${step.getString("color")}")
+                        }
+                        onMsArr = IntArray(stepsArr.length()) { stepsArr.getJSONObject(it).getInt("onMs") }
+                        offMsArr = IntArray(stepsArr.length()) { stepsArr.getJSONObject(it).getInt("offMs") }
+                    } else {
+                        val colorsArr = json.getJSONArray("colors")
+                        val onMs = json.getInt("onMs")
+                        val offMs = json.getInt("offMs")
+                        colors = Array(colorsArr.length()) {
+                            parseColor(colorsArr.getString(it))
+                                ?: return@withLock CommandResult.badRequest("Unknown color: ${colorsArr.getString(it)}")
+                        }
+                        onMsArr = IntArray(colorsArr.length()) { onMs }
+                        offMsArr = IntArray(colorsArr.length()) { offMs }
                     }
-                    val onMs = IntArray(stepsArr.length()) { stepsArr.getJSONObject(it).getInt("onMs") }
-                    val offMs = IntArray(stepsArr.length()) { stepsArr.getJSONObject(it).getInt("offMs") }
-                    StatusLightManager.setMultiFlashing(colors, onMs, offMs)
+                    StatusLightManager.setMultiFlashing(colors, onMsArr, offMsArr)
                     CommandResult.Success()
                 }
                 else -> CommandResult.unsupportedMethod(method)

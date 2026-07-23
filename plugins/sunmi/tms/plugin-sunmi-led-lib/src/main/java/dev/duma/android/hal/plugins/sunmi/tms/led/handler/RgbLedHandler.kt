@@ -22,19 +22,23 @@ internal class RgbLedHandler(private val api: TMSApi) {
                 // 0 = supported, anything else = not supported / unavailable
                 CommandResult.Success(JSONObject().put("result", code == 0).toString())
             }
-            "open" -> {
+            "on" -> {
                 val rgb = parseColor(json.opt("color"))
                     ?: return CommandResult.badRequest("Invalid or missing 'color' (expected 1-7 or a color name)")
-                val lightMode = json.optInt("lightMode", 0)
-                if (lightMode != 0 && lightMode != 1) {
-                    return CommandResult.badRequest("Invalid 'lightMode' (expected 0=steady or 1=blink)")
-                }
+                val timeoutMs = json.optLong("timeoutMs", 0L)
+                // lightMode 0 = steady on; onMs/offMs ignored in steady mode
+                mapResult(api.deviceManager.openRgbLed(rgb, 0, 0, 0, timeoutMs))
+            }
+            "flash" -> {
+                val rgb = parseColor(json.opt("color"))
+                    ?: return CommandResult.badRequest("Invalid or missing 'color' (expected 1-7 or a color name)")
                 val onMs = json.optInt("onMs", 0)
                 val offMs = json.optInt("offMs", 0)
                 val timeoutMs = json.optLong("timeoutMs", 0L)
-                mapResult(api.deviceManager.openRgbLed(rgb, onMs, offMs, lightMode, timeoutMs))
+                // lightMode 1 = blink
+                mapResult(api.deviceManager.openRgbLed(rgb, onMs, offMs, 1, timeoutMs))
             }
-            "close" -> mapResult(api.deviceManager.closeRgbLed())
+            "off" -> mapResult(api.deviceManager.closeRgbLed())
             else -> CommandResult.unsupportedMethod(method)
         }
     }

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { IHalClient } from '@kduma-autoid/hal-client-common';
 import { SunmiTmsLedClient } from '../sunmi-tms-led-client.js';
-import { TMS_LED_COLORS } from '../types.js';
+import { LIGHT_COLORS } from '../types.js';
 
 function createMockClient(result: unknown = { status: 'ok' }): IHalClient {
   const unsub = vi.fn().mockResolvedValue(undefined);
@@ -18,6 +18,11 @@ describe('SunmiTmsLedClient', () => {
   beforeEach(() => {
     mockClient = createMockClient();
     client = new SunmiTmsLedClient(mockClient);
+  });
+
+  it('advertises capabilities (timeout yes, multiFlash no)', () => {
+    expect(client.capabilities).toEqual({ multiFlash: false, timeout: true });
+    expect(client.multiFlash).toBeUndefined();
   });
 
   describe('isSupported', () => {
@@ -37,62 +42,44 @@ describe('SunmiTmsLedClient', () => {
     });
   });
 
-  describe('open', () => {
-    it('fills defaults for optional fields', async () => {
-      await client.open({ color: 'green' });
-
-      expect(mockClient.execute).toHaveBeenCalledWith('sunmi.tms.led.open', {
-        color: 'green',
-        lightMode: 0,
-        onMs: 0,
-        offMs: 0,
-        timeoutMs: 0,
-      });
+  describe('on', () => {
+    it.each(LIGHT_COLORS)('turns on steady color "%s" with default timeout 0', async (color) => {
+      await client.on(color);
+      expect(mockClient.execute).toHaveBeenCalledWith('sunmi.tms.led.on', { color, timeoutMs: 0 });
     });
 
-    it('passes through all provided fields', async () => {
-      await client.open({ color: 3, lightMode: 1, onMs: 500, offMs: 300, timeoutMs: 10000 });
-
-      expect(mockClient.execute).toHaveBeenCalledWith('sunmi.tms.led.open', {
-        color: 3,
-        lightMode: 1,
-        onMs: 500,
-        offMs: 300,
-        timeoutMs: 10000,
-      });
+    it('passes through timeoutMs', async () => {
+      await client.on('green', { timeoutMs: 10000 });
+      expect(mockClient.execute).toHaveBeenCalledWith('sunmi.tms.led.on', { color: 'green', timeoutMs: 10000 });
     });
   });
 
-  describe('close', () => {
-    it('calls execute with empty params', async () => {
-      await client.close();
-      expect(mockClient.execute).toHaveBeenCalledWith('sunmi.tms.led.close', {});
-    });
-  });
-
-  describe('setColor (steady)', () => {
-    it.each(TMS_LED_COLORS)('opens steady for color "%s"', async (color) => {
-      await client.setColor(color);
-      expect(mockClient.execute).toHaveBeenCalledWith('sunmi.tms.led.open', {
-        color,
-        lightMode: 0,
-        onMs: 0,
-        offMs: 0,
-        timeoutMs: 0,
-      });
-    });
-  });
-
-  describe('setFlashing (blink)', () => {
-    it('opens blink with timings', async () => {
-      await client.setFlashing('blue', 500, 300);
-      expect(mockClient.execute).toHaveBeenCalledWith('sunmi.tms.led.open', {
+  describe('flash', () => {
+    it('blinks with timings and default timeout 0', async () => {
+      await client.flash('blue', 500, 300);
+      expect(mockClient.execute).toHaveBeenCalledWith('sunmi.tms.led.flash', {
         color: 'blue',
-        lightMode: 1,
         onMs: 500,
         offMs: 300,
         timeoutMs: 0,
       });
+    });
+
+    it('passes through timeoutMs', async () => {
+      await client.flash('red', 200, 200, { timeoutMs: 5000 });
+      expect(mockClient.execute).toHaveBeenCalledWith('sunmi.tms.led.flash', {
+        color: 'red',
+        onMs: 200,
+        offMs: 200,
+        timeoutMs: 5000,
+      });
+    });
+  });
+
+  describe('off', () => {
+    it('calls execute with empty params', async () => {
+      await client.off();
+      expect(mockClient.execute).toHaveBeenCalledWith('sunmi.tms.led.off', {});
     });
   });
 
@@ -101,8 +88,8 @@ describe('SunmiTmsLedClient', () => {
       const error = new Error('unavailable');
       (mockClient.execute as ReturnType<typeof vi.fn>).mockRejectedValue(error);
 
-      await expect(client.setColor('red')).rejects.toThrow('unavailable');
-      await expect(client.close()).rejects.toThrow('unavailable');
+      await expect(client.on('red')).rejects.toThrow('unavailable');
+      await expect(client.off()).rejects.toThrow('unavailable');
     });
   });
 });

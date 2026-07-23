@@ -1,15 +1,3 @@
-export const STATUS_LIGHT_COLORS = ['red', 'green', 'blue', 'yellow', 'magenta', 'cyan', 'white'] as const;
-
-export type StatusLightColor = typeof STATUS_LIGHT_COLORS[number];
-
-export interface FlashStep {
-  color: StatusLightColor;
-  onMs: number;
-  offMs: number;
-}
-
-export type StatusLightErrorCode =
-  | 'bad_request'
-  | 'unavailable'
-  | 'unsupported_method'
-  | 'internal_error';
+// The Sunmi light types are shared across both light backends and live in common.
+export type { LightColor, FlashStep, LightOptions, LightCapabilities } from '@kduma-autoid/hal-client-common';
+export { LIGHT_COLORS } from '@kduma-autoid/hal-client-common';

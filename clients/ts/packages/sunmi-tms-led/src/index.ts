@@ -1,8 +1,3 @@
 export { SunmiTmsLedClient, PLUGIN_ID } from './sunmi-tms-led-client.js';
-export type {
-  TmsLedColor,
-  TmsLedLightMode,
-  TmsLedOpenOptions,
-  TmsLedErrorCode,
-} from './types.js';
-export { TMS_LED_COLORS } from './types.js';
+export type { LightColor, FlashStep, LightOptions, LightCapabilities } from './types.js';
+export { LIGHT_COLORS } from './types.js';

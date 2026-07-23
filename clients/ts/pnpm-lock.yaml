@@ -29,6 +29,9 @@ importers:
       '@kduma-autoid/hal-client-common':
         specifier: workspace:*
         version: link:../packages/common
+      '@kduma-autoid/hal-client-plugin-sunmi-light-facade':
+        specifier: workspace:*
+        version: link:../packages/sunmi-light-facade
       '@kduma-autoid/hal-client-plugin-sunmi-nfc':
         specifier: workspace:*
         version: link:../packages/sunmi-nfc
@@ -84,6 +87,18 @@ importers:
       '@kduma-autoid/hal-client-transport-ws':
         specifier: workspace:*
         version: link:../transport-ws
+
+  packages/sunmi-light-facade:
+    dependencies:
+      '@kduma-autoid/hal-client-common':
+        specifier: workspace:*
+        version: link:../common
+      '@kduma-autoid/hal-client-plugin-sunmi-statuslight':
+        specifier: workspace:*
+        version: link:../sunmi-statuslight
+      '@kduma-autoid/hal-client-plugin-sunmi-tms-led':
+        specifier: workspace:*
+        version: link:../sunmi-tms-led
 
   packages/sunmi-nfc:
     dependencies:
