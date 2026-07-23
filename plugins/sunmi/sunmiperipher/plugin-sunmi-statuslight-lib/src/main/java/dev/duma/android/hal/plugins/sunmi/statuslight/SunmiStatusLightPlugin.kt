@@ -107,7 +107,7 @@ class SunmiStatusLightPlugin(
                 "sunmi.statuslight.multiFlash",
                 "Cycles the status LED through multiple colors. Accepts either {steps:[{color,onMs,offMs}]} or {colors:[...],onMs,offMs}. NOTE: Hardware support limited — effect stops automatically when app exits.",
                 "sunmi.statuslight",
-                exampleParameters = """{"colors": ["red","green","blue"], "onMs": 500, "offMs": 300}""",
+                exampleParameters = """{"steps": [{"color":"red","onMs":500,"offMs":300},{"color":"green","onMs":500,"offMs":300}]}""",
                 exampleOutput = """{}"""
             )
         ),

@@ -81,32 +81,6 @@ describe('SunmiStatusLightClient', () => {
       await client.multiFlash(steps);
       expect(mockClient.execute).toHaveBeenCalledWith('sunmi.statuslight.multiFlash', { steps });
     });
-
-    it('accepts per-step [color, onMs, offMs] tuples', async () => {
-      await client.multiFlash([
-        ['red', 300, 100],
-        ['green', 500, 200],
-      ]);
-      expect(mockClient.execute).toHaveBeenCalledWith('sunmi.statuslight.multiFlash', {
-        steps: [
-          { color: 'red', onMs: 300, offMs: 100 },
-          { color: 'green', onMs: 500, offMs: 200 },
-        ],
-      });
-    });
-
-    it('accepts a mix of objects and tuples', async () => {
-      await client.multiFlash([
-        { color: 'blue', onMs: 100, offMs: 100 },
-        ['white', 200, 50],
-      ]);
-      expect(mockClient.execute).toHaveBeenCalledWith('sunmi.statuslight.multiFlash', {
-        steps: [
-          { color: 'blue', onMs: 100, offMs: 100 },
-          { color: 'white', onMs: 200, offMs: 50 },
-        ],
-      });
-    });
   });
 
   describe('error propagation', () => {

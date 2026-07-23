@@ -1,17 +1,16 @@
 import type {
+  FlashStep,
   LightCapabilities,
   LightColor,
   LightOptions,
-  MultiFlashStep,
 } from '../types/light.js';
 
 /**
  * Overloaded signature for {@link ILight.multiFlash}: accept either an explicit list of
- * per-step entries (each an object `{color, onMs, offMs}` or a `[color, onMs, offMs]` tuple),
- * or a list of colors with uniform timing.
+ * per-step objects `{color, onMs, offMs}`, or a list of colors with uniform timing.
  */
 export interface MultiFlash {
-  (steps: MultiFlashStep[]): Promise<void>;
+  (steps: FlashStep[]): Promise<void>;
   (colors: LightColor[], onMs: number, offMs: number): Promise<void>;
 }
 
