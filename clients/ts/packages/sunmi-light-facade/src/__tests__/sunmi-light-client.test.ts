@@ -69,17 +69,29 @@ describe('SunmiLightClient (facade)', () => {
       });
     });
 
-    it('exposes onConnectionChanged only for the statuslight backend', async () => {
-      const tms = await SunmiLightClient.create(clientWithStatus({ 'sunmi.tms.led': ['sunmi.tms.led'] }));
-      expect(tms.onConnectionChanged).toBeUndefined();
-
-      const flex = await SunmiLightClient.create(clientWithStatus({ 'sunmi.statuslight': ['sunmi.statuslight'] }));
-      expect(flex.onConnectionChanged).toBeTypeOf('function');
-    });
-
     it('propagates the timeout-unsupported error from statuslight', async () => {
       const flex = await SunmiLightClient.create(clientWithStatus({ 'sunmi.statuslight': ['sunmi.statuslight'] }));
       await expect(flex.on('red', { timeoutMs: 1000 })).rejects.toThrow(/not supported/);
+    });
+  });
+
+  describe('onChanged', () => {
+    it('subscribes to system.plugins.changed and invokes the handler', async () => {
+      let captured: (() => void) | null = null;
+      const unsub = vi.fn().mockResolvedValue(undefined);
+      const on = vi.fn(async (_event: string, handler: () => void) => {
+        captured = handler;
+        return unsub;
+      });
+      const client = { execute: vi.fn(), on } as unknown as IHalClient;
+
+      const handler = vi.fn();
+      const off = await SunmiLightClient.onChanged(client, handler);
+
+      expect(on).toHaveBeenCalledWith('system.plugins.changed', expect.any(Function));
+      captured!();
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(off).toBe(unsub);
     });
   });
 });

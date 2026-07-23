@@ -3,11 +3,13 @@ import type {
   ILight,
   LightCapabilities,
   LightColor,
-  LightConnectionHandler,
   LightOptions,
   MultiFlash,
   StatusResponse,
 } from '@kduma-autoid/hal-client-common';
+
+/** System event emitted when a plugin's dynamic availability changes. */
+export const PLUGINS_CHANGED_EVENT = 'system.plugins.changed';
 import {
   SunmiTmsLedClient,
   PLUGIN_ID as TMS_LED_PLUGIN_ID,
@@ -68,12 +70,17 @@ export class SunmiLightClient implements ILight {
     return BACKEND_PREFERENCE.find((b) => caps.has(b)) ?? null;
   }
 
-  get capabilities(): LightCapabilities {
-    return this.delegate.capabilities;
+  /**
+   * Subscribes to plugin availability changes (e.g. a light being plugged in/out or a CPad LED
+   * being confirmed after the TMS connection). Call `create()`/`detect()` again from the handler
+   * to pick up the new backend. Resolves to an unsubscribe function.
+   */
+  static onChanged(client: IHalClient, handler: () => void): Promise<() => Promise<void>> {
+    return client.on(PLUGINS_CHANGED_EVENT, () => handler());
   }
 
-  isSupported(): Promise<boolean> {
-    return this.delegate.isSupported();
+  get capabilities(): LightCapabilities {
+    return this.delegate.capabilities;
   }
 
   off(): Promise<void> {
@@ -92,13 +99,5 @@ export class SunmiLightClient implements ILight {
   get multiFlash(): MultiFlash | undefined {
     const fn = this.delegate.multiFlash;
     return fn ? (fn.bind(this.delegate) as MultiFlash) : undefined;
-  }
-
-  /** Present (non-undefined) only when the active backend reports hot-plug state. */
-  get onConnectionChanged():
-    | ((handler: LightConnectionHandler) => Promise<() => Promise<void>>)
-    | undefined {
-    const fn = this.delegate.onConnectionChanged;
-    return fn ? fn.bind(this.delegate) : undefined;
   }
 }

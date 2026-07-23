@@ -4,7 +4,6 @@ import type {
   ILight,
   LightCapabilities,
   LightColor,
-  LightConnectionHandler,
   LightOptions,
 } from '@kduma-autoid/hal-client-common';
 
@@ -16,6 +15,9 @@ export const PLUGIN_ID = 'sunmi.statuslight';
  * Implements the unified {@link ILight} surface. Supports `multiFlash` (cycling
  * multiple colors); does NOT support the `timeoutMs` option — passing a positive
  * `timeoutMs` throws.
+ *
+ * Availability (whether the USB dongle is connected) is reflected by whether the
+ * `sunmi.statuslight` capability is advertised in `system.status`, not by a client call.
  */
 export class SunmiStatusLightClient implements ILight {
   readonly capabilities: LightCapabilities = { multiFlash: true, timeout: false };
@@ -24,11 +26,6 @@ export class SunmiStatusLightClient implements ILight {
 
   constructor(client: IHalClient) {
     this.client = client;
-  }
-
-  async isSupported(): Promise<boolean> {
-    const res = await this.client.execute<{ result: boolean }>('sunmi.statuslight.isSupported', {});
-    return res?.result === true;
   }
 
   async off(): Promise<void> {
@@ -63,16 +60,6 @@ export class SunmiStatusLightClient implements ILight {
         steps: stepsOrColors as FlashStep[],
       });
     }
-  }
-
-  /**
-   * Subscribes to USB dongle attach/detach events. Resolves to an unsubscribe function.
-   */
-  async onConnectionChanged(handler: LightConnectionHandler): Promise<() => Promise<void>> {
-    return this.client.on<{ connected: boolean }>(
-      'sunmi.statuslight.connectionChanged',
-      (_eventName, data) => handler(data?.connected === true),
-    );
   }
 
   private assertNoTimeout(options?: LightOptions): void {

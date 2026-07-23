@@ -25,23 +25,6 @@ describe('SunmiTmsLedClient', () => {
     expect(client.multiFlash).toBeUndefined();
   });
 
-  describe('isSupported', () => {
-    it('returns true when result is true', async () => {
-      mockClient = createMockClient({ result: true });
-      client = new SunmiTmsLedClient(mockClient);
-
-      await expect(client.isSupported()).resolves.toBe(true);
-      expect(mockClient.execute).toHaveBeenCalledWith('sunmi.tms.led.isSupported', {});
-    });
-
-    it('returns false when result is not true', async () => {
-      mockClient = createMockClient({ result: false });
-      client = new SunmiTmsLedClient(mockClient);
-
-      await expect(client.isSupported()).resolves.toBe(false);
-    });
-  });
-
   describe('on', () => {
     it.each(LIGHT_COLORS)('turns on steady color "%s" with default timeout 0', async (color) => {
       await client.on(color);

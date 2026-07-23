@@ -24,14 +24,6 @@ describe('SunmiStatusLightClient', () => {
     expect(client.capabilities).toEqual({ multiFlash: true, timeout: false });
   });
 
-  describe('isSupported', () => {
-    it('maps result to boolean', async () => {
-      (mockClient.execute as ReturnType<typeof vi.fn>).mockResolvedValue({ result: true });
-      await expect(client.isSupported()).resolves.toBe(true);
-      expect(mockClient.execute).toHaveBeenCalledWith('sunmi.statuslight.isSupported', {});
-    });
-  });
-
   describe('on', () => {
     it.each(LIGHT_COLORS)('turns on color "%s"', async (color) => {
       await client.on(color);
@@ -88,28 +80,6 @@ describe('SunmiStatusLightClient', () => {
       ];
       await client.multiFlash(steps);
       expect(mockClient.execute).toHaveBeenCalledWith('sunmi.statuslight.multiFlash', { steps });
-    });
-  });
-
-  describe('onConnectionChanged', () => {
-    it('subscribes to the event and maps the payload to a boolean', async () => {
-      let captured: ((eventName: string, data: unknown) => void) | null = null;
-      const unsub = vi.fn().mockResolvedValue(undefined);
-      const on = vi.fn(async (_event: string, handler: (n: string, d: unknown) => void) => {
-        captured = handler;
-        return unsub;
-      });
-      const c = { execute: vi.fn().mockResolvedValue({ status: 'ok' }), on } as unknown as IHalClient;
-      const cl = new SunmiStatusLightClient(c);
-
-      const received: boolean[] = [];
-      const off = await cl.onConnectionChanged((v) => received.push(v));
-
-      expect(on).toHaveBeenCalledWith('sunmi.statuslight.connectionChanged', expect.any(Function));
-      captured!('sunmi.statuslight.connectionChanged', { connected: true });
-      captured!('sunmi.statuslight.connectionChanged', { connected: false });
-      expect(received).toEqual([true, false]);
-      expect(off).toBe(unsub);
     });
   });
 

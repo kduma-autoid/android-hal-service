@@ -69,6 +69,7 @@ internal class DeviceManagerHandler(private val api: TMSApi) {
             "getDeviceDockStatus" -> CommandResult.Success(JSONObject().put("result", api.deviceManager.getDeviceDockStatus()).toString())
             "getDefaultUsbMode" -> CommandResult.Success(JSONObject().put("result", api.deviceManager.getDefaultUsbMode()).toString())
             "setDefaultUsbMode" -> CommandResult.Success(JSONObject().put("result", api.deviceManager.setDefaultUsbMode(json.getLong("mode"))).toString())
+            "supportsBuiltinLed" -> CommandResult.Success(JSONObject().put("result", api.deviceManager.isSupportRgbLed() == 0).toString())
             "getNfcReaderCardemulationStatus" -> CommandResult.Success(JSONObject().put("result", api.deviceManager.getNfcReaderCardemulationStatus()).toString())
             "setNfcReaderCardemulationStatus" -> CommandResult.Success(JSONObject().put("result", api.deviceManager.setNfcReaderCardemulationStatus(json.getInt("status"))).toString())
             "deleteTTSVoicePackageCache" -> {

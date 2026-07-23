@@ -12,28 +12,15 @@ const { client, isConnected } = useHalClient();
 const toast = useToast();
 
 // The facade detects the available backend (prefers CPad sunmi.tms.led, falls back
-// to FLEX sunmi.statuslight) and exposes the unified ILight surface.
+// to FLEX sunmi.statuslight) and exposes the unified ILight surface. Backend availability
+// is dynamic (light plugged/unplugged, CPad LED confirmed after connect), so we re-detect
+// whenever the service reports a plugin availability change.
 const light = shallowRef<SunmiLightClient | null>(null);
 const detecting = ref(false);
 const detectError = ref<string | null>(null);
-// Live hardware connection state (null = unknown / backend without hot-plug reporting).
-const connected = ref<boolean | null>(null);
-let unsubscribeConn: (() => Promise<void>) | null = null;
-
-async function teardownConn() {
-  if (unsubscribeConn) {
-    try {
-      await unsubscribeConn();
-    } catch {
-      /* ignore */
-    }
-    unsubscribeConn = null;
-  }
-}
+let unsubscribeChanges: (() => Promise<void>) | null = null;
 
 async function detect() {
-  await teardownConn();
-  connected.value = null;
   if (!client.value || !isConnected.value) {
     light.value = null;
     return;
@@ -41,16 +28,7 @@ async function detect() {
   detecting.value = true;
   detectError.value = null;
   try {
-    const facade = await SunmiLightClient.create(client.value);
-    light.value = facade;
-    connected.value = await facade.isSupported();
-    // Subscribe to live attach/detach when the backend reports it (FLEX USB dongle).
-    if (facade.onConnectionChanged) {
-      unsubscribeConn = await facade.onConnectionChanged((isConn) => {
-        connected.value = isConn;
-        toast.success(`Status light ${isConn ? 'connected' : 'disconnected'}`);
-      });
-    }
+    light.value = await SunmiLightClient.create(client.value);
   } catch (e) {
     light.value = null;
     detectError.value = e instanceof Error ? e.message : String(e);
@@ -59,18 +37,37 @@ async function detect() {
   }
 }
 
-onUnmounted(teardownConn);
+async function teardownChanges() {
+  if (unsubscribeChanges) {
+    try {
+      await unsubscribeChanges();
+    } catch {
+      /* ignore */
+    }
+    unsubscribeChanges = null;
+  }
+}
+
+async function connectAndWatch() {
+  await detect();
+  if (client.value && isConnected.value && !unsubscribeChanges) {
+    unsubscribeChanges = await SunmiLightClient.onChanged(client.value, () => {
+      detect();
+    });
+  }
+}
+
+onUnmounted(teardownChanges);
 
 watch(
   isConnected,
   (isConn) => {
     if (isConn) {
-      detect();
+      connectAndWatch();
     } else {
-      teardownConn();
+      teardownChanges();
       light.value = null;
       detectError.value = null;
-      connected.value = null;
     }
   },
   { immediate: true },
@@ -156,7 +153,6 @@ function textColor(color: LightColor): string {
   </div>
   <div v-else class="banner banner-info">
     Active backend: <code>{{ backendLabel }}</code>
-    <span v-if="connected !== null"> — light {{ connected ? 'connected' : 'disconnected' }}</span>
   </div>
 
   <div class="card">

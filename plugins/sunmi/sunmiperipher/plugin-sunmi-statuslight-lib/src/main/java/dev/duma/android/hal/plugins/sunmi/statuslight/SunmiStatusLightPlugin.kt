@@ -10,7 +10,6 @@ import androidx.core.content.ContextCompat
 import com.sunmi.peripheralsdk.Color
 import com.sunmi.peripheralsdk.StatusLightManager
 import dev.duma.android.hal.contract.CommandResult
-import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.MethodDescriptor
@@ -24,8 +23,9 @@ import org.json.JSONObject
  * HAL plugin wrapping the Sunmi StatusLightManager SDK.
  * Controls the RGB status LED on SUNMI FLEX 3.
  *
- * Exposes the unified light control surface (`on` / `off` / `flash` / `multiFlash` / `isSupported`)
- * shared with the CPad `sunmi.tms.led` plugin.
+ * Exposes the unified light control surface (`on` / `off` / `flash` / `multiFlash`) shared with the
+ * CPad `sunmi.tms.led` plugin. Availability is dynamic: the plugin advertises its capability only
+ * while the USB status-light dongle is connected (via [PluginContext.setPluginAvailable]).
  *
  * @param context Android Context needed to bind StatusLightManager service.
  *                Pass null only when constructing without a device (e.g. reflection-based
@@ -40,6 +40,7 @@ class SunmiStatusLightPlugin(
     override val version = 1
 
     private var callback: HalPluginEventCallback? = null
+    private var pluginContext: PluginContext? = null
     private val mutex = Mutex()
     private var receiverRegistered = false
 
@@ -53,10 +54,8 @@ class SunmiStatusLightPlugin(
                 UsbManager.ACTION_USB_DEVICE_DETACHED -> false
                 else -> return
             }
-            callback?.onEvent(
-                "sunmi.statuslight.connectionChanged",
-                JSONObject().put("connected", connected).toString()
-            )
+            // Advertise / retract the capability live as the dongle is plugged / unplugged.
+            pluginContext?.setPluginAvailable(connected)
         }
     }
 
@@ -83,13 +82,6 @@ class SunmiStatusLightPlugin(
         version = version,
         capabilities = getCapabilities(),
         methods = listOf(
-            MethodDescriptor(
-                "sunmi.statuslight.isSupported",
-                "Checks whether the device has a controllable status light.",
-                "sunmi.statuslight",
-                exampleParameters = "{}",
-                exampleOutput = """{"result":true}"""
-            ),
             MethodDescriptor(
                 "sunmi.statuslight.on",
                 "Turns the status LED on with a steady color. Supported colors: red, green, blue, yellow, magenta, cyan, white.",
@@ -119,28 +111,24 @@ class SunmiStatusLightPlugin(
                 exampleOutput = """{}"""
             )
         ),
-        events = listOf(
-            EventDescriptor(
-                "sunmi.statuslight.connectionChanged",
-                "Emitted when the USB status light dongle is attached or detached.",
-                "sunmi.statuslight",
-                exampleEvent = """{"connected":true}"""
-            )
-        )
+        events = emptyList()
     )
 
     override fun initialize(pluginContext: PluginContext) {
+        this.pluginContext = pluginContext
         this.context?.let { ctx ->
             StatusLightManager.init(ctx) { success ->
                 if (success) StatusLightManager.openDevice()
             }
-            // Watch USB attach/detach so clients get live connection updates.
+            // Watch USB attach/detach and toggle capability availability accordingly.
             val filter = IntentFilter().apply {
                 addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
                 addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
             }
             ContextCompat.registerReceiver(ctx, usbReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
             receiverRegistered = true
+            // Reflect the current connection state immediately.
+            pluginContext.setPluginAvailable(isStatusLightConnected())
         }
     }
 
@@ -158,9 +146,6 @@ class SunmiStatusLightPlugin(
     override suspend fun execute(method: String, params: String): CommandResult = mutex.withLock {
         return@withLock try {
             when (method) {
-                "sunmi.statuslight.isSupported" -> {
-                    CommandResult.Success(JSONObject().put("result", isStatusLightConnected()).toString())
-                }
                 "sunmi.statuslight.on" -> {
                     val color = parseColor(JSONObject(params).getString("color"))
                         ?: return@withLock CommandResult.badRequest("Unknown color value")

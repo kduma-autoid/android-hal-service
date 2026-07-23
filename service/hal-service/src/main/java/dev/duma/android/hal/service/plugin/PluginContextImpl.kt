@@ -40,4 +40,8 @@ class PluginContextImpl(
             callback = callback
         )
     }
+
+    override fun setPluginAvailable(available: Boolean) {
+        registry.setPluginAvailability(ownerPluginId, available)
+    }
 }

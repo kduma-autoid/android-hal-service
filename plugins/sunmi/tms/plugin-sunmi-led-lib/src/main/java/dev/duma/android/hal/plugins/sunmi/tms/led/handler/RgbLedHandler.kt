@@ -17,11 +17,6 @@ internal class RgbLedHandler(private val api: TMSApi) {
         val op = method.removePrefix("sunmi.tms.led.")
         val json = if (params.isBlank() || params == "{}") JSONObject() else JSONObject(params)
         return when (op) {
-            "isSupported" -> {
-                val code = api.deviceManager.isSupportRgbLed()
-                // 0 = supported, anything else = not supported / unavailable
-                CommandResult.Success(JSONObject().put("result", code == 0).toString())
-            }
             "on" -> {
                 val rgb = parseColor(json.opt("color"))
                     ?: return CommandResult.badRequest("Invalid or missing 'color' (expected 1-7 or a color name)")

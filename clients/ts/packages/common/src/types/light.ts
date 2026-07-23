@@ -26,6 +26,3 @@ export interface LightCapabilities {
   /** Supports the `timeoutMs` option on `on()` / `flash()`. */
   timeout: boolean;
 }
-
-/** Handler for live light connection changes (e.g. USB dongle attach/detach). */
-export type LightConnectionHandler = (connected: boolean) => void;

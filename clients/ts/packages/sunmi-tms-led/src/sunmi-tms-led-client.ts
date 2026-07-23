@@ -14,6 +14,9 @@ export const PLUGIN_ID = 'sunmi.tms.led';
  *
  * Implements the unified {@link ILight} surface. Supports the `timeoutMs` option
  * (native auto-release); does not support `multiFlash`.
+ *
+ * Availability (whether the CPad actually has an RGB LED) is reflected by whether the
+ * `sunmi.tms.led` capability is advertised in `system.status`, not by a client call.
  */
 export class SunmiTmsLedClient implements ILight {
   readonly capabilities: LightCapabilities = { multiFlash: false, timeout: true };
@@ -22,11 +25,6 @@ export class SunmiTmsLedClient implements ILight {
 
   constructor(client: IHalClient) {
     this.client = client;
-  }
-
-  async isSupported(): Promise<boolean> {
-    const res = await this.client.execute<{ result: boolean }>('sunmi.tms.led.isSupported', {});
-    return res?.result === true;
   }
 
   async off(): Promise<void> {

@@ -17,6 +17,7 @@ abstract class BaseTmsPlugin(
     protected val tmsApi = TMSApi()
     protected var connected = false
     private var _eventCallback: HalPluginEventCallback? = null
+    protected var pluginContext: PluginContext? = null
     protected val mutex = Mutex()
 
     override fun isSupported(): Boolean {
@@ -30,13 +31,20 @@ abstract class BaseTmsPlugin(
     }
 
     override fun initialize(pluginContext: PluginContext) {
+        this.pluginContext = pluginContext
         this.context?.let { ctx ->
             tmsApi.connect(ctx, object : TMSServiceConnection {
-                override fun onServiceConnected() { connected = true }
-                override fun onServiceDisconnected() { connected = false }
+                override fun onServiceConnected() { connected = true; onTmsConnected() }
+                override fun onServiceDisconnected() { connected = false; onTmsDisconnected() }
             })
         }
     }
+
+    /** Called once the TMS service connection is established. Override to run post-connect checks. */
+    protected open fun onTmsConnected() {}
+
+    /** Called when the TMS service connection is lost. */
+    protected open fun onTmsDisconnected() {}
 
     override fun setEventCallback(callback: HalPluginEventCallback?) {
         _eventCallback = callback

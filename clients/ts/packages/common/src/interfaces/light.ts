@@ -2,7 +2,6 @@ import type {
   FlashStep,
   LightCapabilities,
   LightColor,
-  LightConnectionHandler,
   LightOptions,
 } from '../types/light.js';
 
@@ -24,13 +23,13 @@ export interface MultiFlash {
  * diverging method sets:
  *  - `timeoutMs` is honoured only when `capabilities.timeout` is true (else throws).
  *  - `multiFlash()` is present only when `capabilities.multiFlash` is true.
+ *
+ * Availability of a backend (whether the hardware is present) is not queried here — it is
+ * reflected by whether the plugin's capability is advertised in `system.status`.
  */
 export interface ILight {
   /** Static description of what this backend supports. */
   readonly capabilities: LightCapabilities;
-
-  /** Returns true if the device actually has a controllable light/LED. */
-  isSupported(): Promise<boolean>;
 
   /** Turns the light off. */
   off(): Promise<void>;
@@ -47,11 +46,4 @@ export interface ILight {
    * color list with uniform timing.
    */
   multiFlash?: MultiFlash;
-
-  /**
-   * Subscribes to live connection changes (e.g. a USB light dongle being attached
-   * or detached). Present only on backends that report hot-plug state. Resolves to
-   * an unsubscribe function.
-   */
-  onConnectionChanged?(handler: LightConnectionHandler): Promise<() => Promise<void>>;
 }

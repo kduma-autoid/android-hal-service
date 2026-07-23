@@ -23,7 +23,6 @@ export type {
   FlashStep,
   LightOptions,
   LightCapabilities,
-  LightConnectionHandler,
 } from './types/index.js';
 
 export {
