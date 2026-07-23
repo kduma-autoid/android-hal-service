@@ -8,6 +8,7 @@ import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
 import dev.duma.android.hal.plugins.sunmi.tms.base.BaseTmsPlugin
 import dev.duma.android.hal.plugins.sunmi.tms.led.handler.RgbLedHandler
+import dev.duma.android.hal.plugins.sunmi.tms.support.RgbLedSupport
 
 /**
  * HAL plugin for the CPad built-in RGB LED indicator.
@@ -45,7 +46,7 @@ class SunmiTmsLedPlugin(context: Context? = null) : BaseTmsPlugin(context) {
 
     override fun onTmsConnected() {
         val supported = try {
-            tmsApi.deviceManager.isSupportRgbLed() == 0
+            RgbLedSupport.isSupported(tmsApi.deviceManager)
         } catch (_: Exception) {
             false
         }

@@ -3,6 +3,7 @@ package dev.duma.android.hal.plugins.sunmi.tms.device.handler
 import android.os.Bundle
 import com.sunmi.tms.api.TMSApi
 import com.sunmi.tmsmaster.aidl.result.IResultCallback
+import dev.duma.android.hal.plugins.sunmi.tms.support.RgbLedSupport
 import dev.duma.android.hal.contract.CommandResult
 import kotlinx.coroutines.suspendCancellableCoroutine
 import org.json.JSONObject
@@ -70,7 +71,7 @@ internal class DeviceManagerHandler(private val api: TMSApi) {
             "getDefaultUsbMode" -> CommandResult.Success(JSONObject().put("result", api.deviceManager.getDefaultUsbMode()).toString())
             "setDefaultUsbMode" -> CommandResult.Success(JSONObject().put("result", api.deviceManager.setDefaultUsbMode(json.getLong("mode"))).toString())
             "supportsBuiltinLed" -> {
-                val code = api.deviceManager.isSupportRgbLed()
+                val code = RgbLedSupport.status(api.deviceManager)
                 CommandResult.Success(
                     JSONObject().put("result", code == 0).put("status", mapRgbLedStatus(code)).toString()
                 )
