@@ -21,6 +21,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
@@ -128,9 +129,27 @@ class ServiceCommandHandler(
                     }
                 }
 
-                pluginRegistry.executeOnPlugin(method, params)
+                val interfaceId = pluginRegistry.interfaceIdForMethod(method)
+                if (interfaceId != null) {
+                    val (provider, cleanParams) = extractProviderSelector(params)
+                    pluginRegistry.executeInterface(interfaceId, provider, method, cleanParams)
+                } else {
+                    pluginRegistry.executeOnPlugin(method, params)
+                }
             }
         }
+    }
+
+    /**
+     * Extracts the reserved `__provider` selector from an interface call's params and returns
+     * (providerPluginId, paramsWithoutSelector). Absent/malformed selector -> (null, params) so the
+     * interface's default provider is used and the plugin receives clean params.
+     */
+    private fun extractProviderSelector(params: String): Pair<String?, String> {
+        val obj = try { Json.parseToJsonElement(params) as? JsonObject } catch (_: Exception) { null }
+            ?: return null to params
+        val provider = obj["__provider"]?.jsonPrimitive?.contentOrNull ?: return null to params
+        return provider to JsonObject(obj - "__provider").toString()
     }
 
     override suspend fun subscribe(token: String, events: String, callerContext: CallerContext): CommandResult {
@@ -308,6 +327,61 @@ class ServiceCommandHandler(
                                             })
                                         }
                                     }
+                                })
+                            }
+                        }
+                    })
+                }
+            }
+            putJsonArray("interfaces") {
+                pluginRegistry.getRegisteredInterfaces().forEach { contract ->
+                    val methods = if ("*" in permissions) contract.methods
+                        else contract.methods.filter { m -> permissions.any { m.requiredPermission.startsWith(it) } }
+                    val events = if ("*" in permissions) contract.events
+                        else contract.events.filter { e -> permissions.any { e.requiredPermission.startsWith(it) } }
+                    if (methods.isEmpty() && events.isEmpty()) return@forEach
+                    add(buildJsonObject {
+                        put("kind", "interface")
+                        put("interfaceId", contract.interfaceId)
+                        put("version", contract.version)
+                        putJsonArray("features") {
+                            contract.features.forEach { f ->
+                                add(buildJsonObject {
+                                    put("key", f.key)
+                                    put("description", f.description)
+                                    putJsonArray("methods") { f.methods.forEach { add(JsonPrimitive(it)) } }
+                                })
+                            }
+                        }
+                        putJsonArray("methods") {
+                            methods.forEach { m ->
+                                add(buildJsonObject {
+                                    put("name", m.name)
+                                    put("description", m.description)
+                                    put("requiredPermission", m.requiredPermission)
+                                    put("exampleParameters", m.exampleParameters)
+                                    put("exampleOutput", m.exampleOutput)
+                                })
+                            }
+                        }
+                        putJsonArray("events") {
+                            events.forEach { e ->
+                                add(buildJsonObject {
+                                    put("name", e.name)
+                                    put("description", e.description)
+                                    put("requiredPermission", e.requiredPermission)
+                                    put("exampleEvent", e.exampleEvent)
+                                })
+                            }
+                        }
+                        putJsonArray("providers") {
+                            pluginRegistry.getInterfaceProviders(contract.interfaceId).forEach { p ->
+                                add(buildJsonObject {
+                                    put("pluginId", p.pluginId)
+                                    put("source", p.source?.name?.lowercase() ?: "unknown")
+                                    put("priority", p.priority)
+                                    put("isDefault", p.isDefault)
+                                    putJsonArray("features") { p.features.forEach { add(JsonPrimitive(it)) } }
                                 })
                             }
                         }

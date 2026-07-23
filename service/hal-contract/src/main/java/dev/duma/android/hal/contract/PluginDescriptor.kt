@@ -14,7 +14,11 @@ data class PluginDescriptor(
     val version: Int,
     val experimental: Boolean = false,
     val capabilities: List<String>,
-    val groups: List<DescriptorGroup>
+    val groups: List<DescriptorGroup>,
+    /** Interfaces this plugin registers (defines). Usually a dedicated definer plugin. */
+    val definesInterfaces: List<InterfaceContract> = emptyList(),
+    /** Interfaces this plugin provides (implements). Each is an explicit provider opt-in. */
+    val interfaces: List<InterfaceBinding> = emptyList()
 ) {
     companion object {
         fun withFlatLists(
@@ -24,14 +28,18 @@ data class PluginDescriptor(
             experimental: Boolean = false,
             capabilities: List<String>,
             methods: List<MethodDescriptor> = emptyList(),
-            events: List<EventDescriptor> = emptyList()
+            events: List<EventDescriptor> = emptyList(),
+            definesInterfaces: List<InterfaceContract> = emptyList(),
+            interfaces: List<InterfaceBinding> = emptyList()
         ) = PluginDescriptor(
             pluginId = pluginId,
             name = name,
             version = version,
             experimental = experimental,
             capabilities = capabilities,
-            groups = listOf(DescriptorGroup(methods = methods, events = events))
+            groups = listOf(DescriptorGroup(methods = methods, events = events)),
+            definesInterfaces = definesInterfaces,
+            interfaces = interfaces
         )
     }
 }
