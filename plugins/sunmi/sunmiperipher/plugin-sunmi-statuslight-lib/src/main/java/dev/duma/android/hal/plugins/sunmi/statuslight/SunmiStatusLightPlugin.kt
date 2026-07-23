@@ -1,11 +1,16 @@
 package dev.duma.android.hal.plugins.sunmi.statuslight
 
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
+import androidx.core.content.ContextCompat
 import com.sunmi.peripheralsdk.Color
 import com.sunmi.peripheralsdk.StatusLightManager
 import dev.duma.android.hal.contract.CommandResult
+import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.MethodDescriptor
@@ -36,6 +41,24 @@ class SunmiStatusLightPlugin(
 
     private var callback: HalPluginEventCallback? = null
     private val mutex = Mutex()
+    private var receiverRegistered = false
+
+    private val usbReceiver = object : BroadcastReceiver() {
+        override fun onReceive(c: Context, i: Intent) {
+            @Suppress("DEPRECATION")
+            val dev = i.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE) ?: return
+            if (dev.vendorId != LIGHT_VID || dev.productId != LIGHT_PID) return
+            val connected = when (i.action) {
+                UsbManager.ACTION_USB_DEVICE_ATTACHED -> true
+                UsbManager.ACTION_USB_DEVICE_DETACHED -> false
+                else -> return
+            }
+            callback?.onEvent(
+                "sunmi.statuslight.connectionChanged",
+                JSONObject().put("connected", connected).toString()
+            )
+        }
+    }
 
     companion object {
         // The FLEX status light is a USB dongle (WCH CH9101UH serial bridge).
@@ -96,7 +119,14 @@ class SunmiStatusLightPlugin(
                 exampleOutput = """{}"""
             )
         ),
-        events = emptyList()
+        events = listOf(
+            EventDescriptor(
+                "sunmi.statuslight.connectionChanged",
+                "Emitted when the USB status light dongle is attached or detached.",
+                "sunmi.statuslight",
+                exampleEvent = """{"connected":true}"""
+            )
+        )
     )
 
     override fun initialize(pluginContext: PluginContext) {
@@ -104,6 +134,24 @@ class SunmiStatusLightPlugin(
             StatusLightManager.init(ctx) { success ->
                 if (success) StatusLightManager.openDevice()
             }
+            // Watch USB attach/detach so clients get live connection updates.
+            val filter = IntentFilter().apply {
+                addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
+                addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
+            }
+            ContextCompat.registerReceiver(ctx, usbReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+            receiverRegistered = true
+        }
+    }
+
+    override fun dispose() {
+        if (receiverRegistered) {
+            try {
+                context?.unregisterReceiver(usbReceiver)
+            } catch (_: Exception) {
+                // Receiver already unregistered
+            }
+            receiverRegistered = false
         }
     }
 

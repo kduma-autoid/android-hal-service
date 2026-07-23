@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, shallowRef, computed, watch } from 'vue';
+import { ref, shallowRef, computed, watch, onUnmounted } from 'vue';
 import { useHalClient } from '../composables/useHalClient';
 import { useToast } from '../composables/useToast';
 import {
@@ -16,8 +16,24 @@ const toast = useToast();
 const light = shallowRef<SunmiLightClient | null>(null);
 const detecting = ref(false);
 const detectError = ref<string | null>(null);
+// Live hardware connection state (null = unknown / backend without hot-plug reporting).
+const connected = ref<boolean | null>(null);
+let unsubscribeConn: (() => Promise<void>) | null = null;
+
+async function teardownConn() {
+  if (unsubscribeConn) {
+    try {
+      await unsubscribeConn();
+    } catch {
+      /* ignore */
+    }
+    unsubscribeConn = null;
+  }
+}
 
 async function detect() {
+  await teardownConn();
+  connected.value = null;
   if (!client.value || !isConnected.value) {
     light.value = null;
     return;
@@ -25,7 +41,16 @@ async function detect() {
   detecting.value = true;
   detectError.value = null;
   try {
-    light.value = await SunmiLightClient.create(client.value);
+    const facade = await SunmiLightClient.create(client.value);
+    light.value = facade;
+    connected.value = await facade.isSupported();
+    // Subscribe to live attach/detach when the backend reports it (FLEX USB dongle).
+    if (facade.onConnectionChanged) {
+      unsubscribeConn = await facade.onConnectionChanged((isConn) => {
+        connected.value = isConn;
+        toast.success(`Status light ${isConn ? 'connected' : 'disconnected'}`);
+      });
+    }
   } catch (e) {
     light.value = null;
     detectError.value = e instanceof Error ? e.message : String(e);
@@ -34,14 +59,18 @@ async function detect() {
   }
 }
 
+onUnmounted(teardownConn);
+
 watch(
   isConnected,
-  (connected) => {
-    if (connected) {
+  (isConn) => {
+    if (isConn) {
       detect();
     } else {
+      teardownConn();
       light.value = null;
       detectError.value = null;
+      connected.value = null;
     }
   },
   { immediate: true },
@@ -127,6 +156,7 @@ function textColor(color: LightColor): string {
   </div>
   <div v-else class="banner banner-info">
     Active backend: <code>{{ backendLabel }}</code>
+    <span v-if="connected !== null"> — light {{ connected ? 'connected' : 'disconnected' }}</span>
   </div>
 
   <div class="card">

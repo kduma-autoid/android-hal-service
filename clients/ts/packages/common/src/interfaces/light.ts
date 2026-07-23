@@ -1,4 +1,10 @@
-import type { FlashStep, LightCapabilities, LightColor, LightOptions } from '../types/light.js';
+import type {
+  FlashStep,
+  LightCapabilities,
+  LightColor,
+  LightConnectionHandler,
+  LightOptions,
+} from '../types/light.js';
 
 /**
  * Overloaded signature for {@link ILight.multiFlash}: accept either an explicit
@@ -41,4 +47,11 @@ export interface ILight {
    * color list with uniform timing.
    */
   multiFlash?: MultiFlash;
+
+  /**
+   * Subscribes to live connection changes (e.g. a USB light dongle being attached
+   * or detached). Present only on backends that report hot-plug state. Resolves to
+   * an unsubscribe function.
+   */
+  onConnectionChanged?(handler: LightConnectionHandler): Promise<() => Promise<void>>;
 }

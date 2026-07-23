@@ -83,6 +83,8 @@ class PluginRegistry {
 
             if (existingInfo.source == PluginSource.BUILT_IN) {
                 displacedPlugins[id] = existing to existingInfo
+                // Release the displaced built-in's resources; it is re-initialized if restored.
+                safeDispose(existing)
             }
             existing.getCapabilities().forEach { capabilityToPlugin.remove(it, existing) }
             Log.i(TAG, "Plugin $id: replacing v${existing.version} (${existingInfo.source}) with v${plugin.version} (${info.source})")
@@ -130,6 +132,7 @@ class PluginRegistry {
                     pluginInfo.remove(pluginId)
                     if (removed != null) {
                         removed.getCapabilities().forEach { capabilityToPlugin.remove(it, removed) }
+                        safeDispose(removed)
                     }
 
                     val fallback = displacedPlugins.remove(pluginId)
@@ -138,6 +141,10 @@ class PluginRegistry {
                         plugins[pluginId] = builtInPlugin
                         pluginInfo[pluginId] = builtInInfo
                         builtInPlugin.getCapabilities().forEach { capabilityToPlugin[it] = builtInPlugin }
+                        // Re-initialize so the restored built-in re-acquires resources released on displacement.
+                        pendingInit?.let { (appContext, eventBus) ->
+                            initializePlugin(builtInPlugin, eventBus, appContext)
+                        }
                         Log.i(TAG, "Restored built-in plugin: $pluginId v${builtInPlugin.version}")
                     }
                 }
@@ -231,10 +238,21 @@ class PluginRegistry {
             } catch (_: Exception) { }
         }
         serviceConnections.clear()
+        // Tear down initialized plugins (active + displaced) so they release resources.
+        plugins.values.forEach { safeDispose(it) }
+        displacedPlugins.values.forEach { (plugin, _) -> safeDispose(plugin) }
         plugins.clear()
         pluginInfo.clear()
         displacedPlugins.clear()
         capabilityToPlugin.clear()
         pendingInit = null
+    }
+
+    private fun safeDispose(plugin: HalPlugin) {
+        try {
+            plugin.dispose()
+        } catch (e: Exception) {
+            Log.w(TAG, "dispose() failed for ${plugin.pluginId}: ${e.message}")
+        }
     }
 }

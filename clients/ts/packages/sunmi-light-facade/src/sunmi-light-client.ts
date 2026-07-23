@@ -3,6 +3,7 @@ import type {
   ILight,
   LightCapabilities,
   LightColor,
+  LightConnectionHandler,
   LightOptions,
   MultiFlash,
   StatusResponse,
@@ -91,5 +92,13 @@ export class SunmiLightClient implements ILight {
   get multiFlash(): MultiFlash | undefined {
     const fn = this.delegate.multiFlash;
     return fn ? (fn.bind(this.delegate) as MultiFlash) : undefined;
+  }
+
+  /** Present (non-undefined) only when the active backend reports hot-plug state. */
+  get onConnectionChanged():
+    | ((handler: LightConnectionHandler) => Promise<() => Promise<void>>)
+    | undefined {
+    const fn = this.delegate.onConnectionChanged;
+    return fn ? fn.bind(this.delegate) : undefined;
   }
 }

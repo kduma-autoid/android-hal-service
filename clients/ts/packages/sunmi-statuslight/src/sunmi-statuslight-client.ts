@@ -4,6 +4,7 @@ import type {
   ILight,
   LightCapabilities,
   LightColor,
+  LightConnectionHandler,
   LightOptions,
 } from '@kduma-autoid/hal-client-common';
 
@@ -62,6 +63,16 @@ export class SunmiStatusLightClient implements ILight {
         steps: stepsOrColors as FlashStep[],
       });
     }
+  }
+
+  /**
+   * Subscribes to USB dongle attach/detach events. Resolves to an unsubscribe function.
+   */
+  async onConnectionChanged(handler: LightConnectionHandler): Promise<() => Promise<void>> {
+    return this.client.on<{ connected: boolean }>(
+      'sunmi.statuslight.connectionChanged',
+      (_eventName, data) => handler(data?.connected === true),
+    );
   }
 
   private assertNoTimeout(options?: LightOptions): void {
