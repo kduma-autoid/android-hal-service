@@ -69,7 +69,12 @@ internal class DeviceManagerHandler(private val api: TMSApi) {
             "getDeviceDockStatus" -> CommandResult.Success(JSONObject().put("result", api.deviceManager.getDeviceDockStatus()).toString())
             "getDefaultUsbMode" -> CommandResult.Success(JSONObject().put("result", api.deviceManager.getDefaultUsbMode()).toString())
             "setDefaultUsbMode" -> CommandResult.Success(JSONObject().put("result", api.deviceManager.setDefaultUsbMode(json.getLong("mode"))).toString())
-            "supportsBuiltinLed" -> CommandResult.Success(JSONObject().put("result", api.deviceManager.isSupportRgbLed() == 0).toString())
+            "supportsBuiltinLed" -> {
+                val code = api.deviceManager.isSupportRgbLed()
+                CommandResult.Success(
+                    JSONObject().put("result", code == 0).put("status", mapRgbLedStatus(code)).toString()
+                )
+            }
             "getNfcReaderCardemulationStatus" -> CommandResult.Success(JSONObject().put("result", api.deviceManager.getNfcReaderCardemulationStatus()).toString())
             "setNfcReaderCardemulationStatus" -> CommandResult.Success(JSONObject().put("result", api.deviceManager.setNfcReaderCardemulationStatus(json.getInt("status"))).toString())
             "deleteTTSVoicePackageCache" -> {
@@ -90,6 +95,15 @@ internal class DeviceManagerHandler(private val api: TMSApi) {
             }
             else -> CommandResult.unsupportedMethod(method)
         }
+    }
+
+    /** Maps the isSupportRgbLed() status code to a stable enum string (unknown codes → the code). */
+    private fun mapRgbLedStatus(code: Int): String = when (code) {
+        0 -> "supported"
+        -1 -> "unsupported"
+        -40 -> "invalid_rom"
+        -41 -> "no_service"
+        else -> code.toString()
     }
 
     private fun bundleToJson(bundle: Bundle?): JSONObject {

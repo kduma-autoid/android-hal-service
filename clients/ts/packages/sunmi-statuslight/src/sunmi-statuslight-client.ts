@@ -5,6 +5,7 @@ import type {
   LightCapabilities,
   LightColor,
   LightOptions,
+  MultiFlashStep,
 } from '@kduma-autoid/hal-client-common';
 
 export const PLUGIN_ID = 'sunmi.statuslight';
@@ -42,10 +43,10 @@ export class SunmiStatusLightClient implements ILight {
     await this.client.execute('sunmi.statuslight.flash', { color, onMs, offMs });
   }
 
-  multiFlash(steps: FlashStep[]): Promise<void>;
+  multiFlash(steps: MultiFlashStep[]): Promise<void>;
   multiFlash(colors: LightColor[], onMs: number, offMs: number): Promise<void>;
   async multiFlash(
-    stepsOrColors: FlashStep[] | LightColor[],
+    stepsOrColors: MultiFlashStep[] | LightColor[],
     onMs?: number,
     offMs?: number,
   ): Promise<void> {
@@ -56,9 +57,11 @@ export class SunmiStatusLightClient implements ILight {
         offMs,
       });
     } else {
-      await this.client.execute('sunmi.statuslight.multiFlash', {
-        steps: stepsOrColors as FlashStep[],
-      });
+      // Normalize each step: accept both {color, onMs, offMs} objects and [color, onMs, offMs] tuples.
+      const steps: FlashStep[] = (stepsOrColors as MultiFlashStep[]).map((s) =>
+        Array.isArray(s) ? { color: s[0], onMs: s[1], offMs: s[2] } : s,
+      );
+      await this.client.execute('sunmi.statuslight.multiFlash', { steps });
     }
   }
 

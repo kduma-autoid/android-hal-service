@@ -21,6 +21,8 @@ export type {
   HealthResponse,
   LightColor,
   FlashStep,
+  FlashTuple,
+  MultiFlashStep,
   LightOptions,
   LightCapabilities,
 } from './types/index.js';

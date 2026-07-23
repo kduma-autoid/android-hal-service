@@ -12,6 +12,12 @@ export interface FlashStep {
   offMs: number;
 }
 
+/** Compact per-step form for multiFlash: [color, onMs, offMs]. */
+export type FlashTuple = [LightColor, number, number];
+
+/** A single multiFlash step, as either an object or a [color, onMs, offMs] tuple. */
+export type MultiFlashStep = FlashStep | FlashTuple;
+
 export interface LightOptions {
   /**
    * Auto-release the light after this many milliseconds (0 / omitted = stay until turned off).

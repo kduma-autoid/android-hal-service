@@ -21,5 +21,5 @@ export type {
 export { allMethods, allEvents } from './describe.js';
 export type { StatusResponse, PluginStatus, TransportStatus } from './status.js';
 export type { HealthResponse } from './health.js';
-export type { LightColor, FlashStep, LightOptions, LightCapabilities } from './light.js';
+export type { LightColor, FlashStep, FlashTuple, MultiFlashStep, LightOptions, LightCapabilities } from './light.js';
 export { LIGHT_COLORS } from './light.js';
