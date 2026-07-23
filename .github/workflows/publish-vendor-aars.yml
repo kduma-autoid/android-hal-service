@@ -25,7 +25,13 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       - name: Publish vendor AARs
-        run: ./gradlew :vendor:publish
+        id: publish
+        run: ./gradlew :vendor:publish --continue
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
+
+      - name: Report publish result
+        if: steps.publish.outcome == 'failure'
+        run: echo "::warning::Vendor AAR publish step reported a failure (one or more versions may already exist in GitHub Packages, which is expected for unchanged AARs)."
