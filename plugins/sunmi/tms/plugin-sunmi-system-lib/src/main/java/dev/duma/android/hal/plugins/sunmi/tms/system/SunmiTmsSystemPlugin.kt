@@ -152,5 +152,14 @@ class SunmiTmsSystemPlugin(context: Context? = null) : BaseTmsPlugin(context) {
         MethodDescriptor("sunmi.tms.system.system_ui.setAirplaneModeBarClickable", "Sets airplane mode button clickable state", "sunmi.tms.system",
             exampleParameters = """{"clickable":true}""",
             exampleOutput = """{}"""),
+        MethodDescriptor("sunmi.tms.system.system_ui.getSettingsPPPCommunicationVisible", "Gets whether the PPP communication settings entry is visible", "sunmi.tms.system",
+            experimental = true,
+            exampleParameters = "{}",
+            exampleOutput = """{"result":0}"""),
+        MethodDescriptor("sunmi.tms.system.system_ui.setSettingsPPPCommunicationVisible", "Sets whether the PPP communication settings entry is visible", "sunmi.tms.system",
+            experimental = true,
+            superRequired = true,
+            exampleParameters = """{"visible":true}""",
+            exampleOutput = """{"result":0}"""),
     )
 }

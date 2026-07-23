@@ -64,6 +64,14 @@ class PluginServiceWrapper(
         }
     }
 
+    /**
+     * Tears down the wrapped plugin. Call from the hosting Service's onDestroy so that
+     * plugins holding resources (e.g. a BroadcastReceiver) can release them.
+     */
+    fun dispose() {
+        plugin.dispose()
+    }
+
     private fun broadcastEvent(eventName: String, jsonData: String) {
         val count = callbackList.beginBroadcast()
         try {

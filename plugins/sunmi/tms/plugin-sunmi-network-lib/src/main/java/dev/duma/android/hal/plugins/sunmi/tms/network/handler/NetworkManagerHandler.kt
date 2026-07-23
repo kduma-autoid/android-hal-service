@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.util.Base64
 import com.sunmi.tms.api.TMSApi
 import com.sunmi.tmsmaster.aidl.networkmanager.IUnifiedCallback
+import com.sunmi.tmsmaster.aidl.networkmanager.SunmiApnSetting
 import com.sunmi.tmsmaster.aidl.networkmanager.WifiConfigurationInfo
 import dev.duma.android.hal.contract.CommandResult
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -148,7 +149,103 @@ internal class NetworkManagerHandler(private val api: TMSApi) {
                     }).toString())
                 }
             }
+            "getCurrentApnV3" -> {
+                val apn = api.networkManager.getCurrentApnV3()
+                CommandResult.Success((if (apn == null) JSONObject() else JSONObject().put("result", apnToJson(apn))).toString())
+            }
+            "queryPreferApnBySlotIndex" -> {
+                val apn = api.networkManager.queryPreferApnBySlotIndex(json.getInt("slotIndex"))
+                CommandResult.Success((if (apn == null) JSONObject() else JSONObject().put("result", apnToJson(apn))).toString())
+            }
+            "getApnListV3" -> {
+                val filter = if (json.has("filter")) apnFromJson(json.getJSONObject("filter")) else SunmiApnSetting()
+                val list = api.networkManager.getApnListV3(filter)
+                val arr = JSONArray()
+                list?.forEach { arr.put(apnToJson(it)) }
+                CommandResult.Success(JSONObject().put("result", arr).toString())
+            }
+            "addApnV3" -> {
+                val arr = json.getJSONArray("apns")
+                val apns = (0 until arr.length()).map { apnFromJson(arr.getJSONObject(it)) }
+                CommandResult.Success(JSONObject().put("result", api.networkManager.addApnV3(apns)).toString())
+            }
+            "updateApnV3" -> CommandResult.Success(JSONObject().put("result", api.networkManager.updateApnV3(apnFromJson(json.getJSONObject("apn")))).toString())
+            "deleteApnV3" -> CommandResult.Success(JSONObject().put("result", api.networkManager.deleteApnV3(apnFromJson(json.getJSONObject("apn")))).toString())
+            "setApnV3" -> CommandResult.Success(JSONObject().put("result", api.networkManager.setApnV3(json.getInt("apnId"))).toString())
+            "setPreferApnBySlotIndex" -> CommandResult.Success(JSONObject().put("result", api.networkManager.setPreferApnBySlotIndex(json.getInt("slotIndex"), json.getInt("apnId"))).toString())
+            "addSsidToWifiSsidWhiteList" -> CommandResult.Success(JSONObject().put("result", api.networkManager.addSsidToWifiSsidWhiteList(stringList(json, "ssids"))).toString())
+            "removeSsidFromWifiSsidWhiteList" -> CommandResult.Success(JSONObject().put("result", api.networkManager.removeSsidFromWifiSsidWhiteList(stringList(json, "ssids"))).toString())
+            "getWifiSsidWhiteList" -> CommandResult.Success(JSONObject().put("result", JSONArray(api.networkManager.getWifiSsidWhiteList() ?: emptyList<String>())).toString())
+            "enableWifiSsidWhiteList" -> CommandResult.Success(JSONObject().put("result", api.networkManager.enableWifiSsidWhiteList(json.getBoolean("enable"))).toString())
+            "isWifiSsidWhiteListEnabled" -> CommandResult.Success(JSONObject().put("result", api.networkManager.isWifiSsidWhiteListEnabled()).toString())
+            "requestRouteToIp" -> CommandResult.Success(JSONObject().put("result", api.networkManager.requestRouteToIp(json.getString("ip"), json.getInt("type"), json.getBoolean("enable"))).toString())
+            "getRequestRouteIps" -> {
+                val map = api.networkManager.getRequestRouteIps()
+                val obj = JSONObject()
+                map?.forEach { (k, v) -> obj.put(k.toString(), v) }
+                CommandResult.Success(JSONObject().put("result", obj).toString())
+            }
+            "setDataAutoSwitch" -> CommandResult.Success(JSONObject().put("result", api.networkManager.setDataAutoSwitch(json.getBoolean("enable"))).toString())
             else -> CommandResult.unsupportedMethod(method)
         }
+    }
+
+    private fun stringList(json: JSONObject, key: String): List<String> {
+        val arr = json.getJSONArray(key)
+        return (0 until arr.length()).map { arr.getString(it) }
+    }
+
+    /** Serializes the commonly-used subset of a [SunmiApnSetting] to JSON (null fields omitted). */
+    private fun apnToJson(apn: SunmiApnSetting): JSONObject = JSONObject().apply {
+        putOpt("_id", apn._id)
+        putOpt("name", apn.name)
+        putOpt("apn", apn.apn)
+        putOpt("numeric", apn.numeric)
+        putOpt("mcc", apn.mcc)
+        putOpt("mnc", apn.mnc)
+        putOpt("user", apn.user)
+        putOpt("password", apn.password)
+        putOpt("server", apn.server)
+        putOpt("proxy", apn.proxy)
+        putOpt("port", apn.port)
+        putOpt("mmsc", apn.mmsc)
+        putOpt("mmsproxy", apn.mmsproxy)
+        putOpt("mmsport", apn.mmsport)
+        putOpt("authtype", apn.authtype)
+        putOpt("type", apn.type)
+        putOpt("protocol", apn.protocol)
+        putOpt("roaming_protocol", apn.roaming_protocol)
+        putOpt("carrier_enabled", apn.carrier_enabled)
+        putOpt("bearer", apn.bearer)
+        putOpt("mvno_type", apn.mvno_type)
+        putOpt("mvno_match_data", apn.mvno_match_data)
+        putOpt("current", apn.current)
+    }
+
+    /** Builds a [SunmiApnSetting] from JSON, setting only the fields present. */
+    private fun apnFromJson(json: JSONObject): SunmiApnSetting = SunmiApnSetting().apply {
+        if (json.has("_id")) _id = json.getInt("_id")
+        if (json.has("name")) name = json.getString("name")
+        if (json.has("apn")) apn = json.getString("apn")
+        if (json.has("numeric")) numeric = json.getString("numeric")
+        if (json.has("mcc")) mcc = json.getString("mcc")
+        if (json.has("mnc")) mnc = json.getString("mnc")
+        if (json.has("user")) user = json.getString("user")
+        if (json.has("password")) password = json.getString("password")
+        if (json.has("server")) server = json.getString("server")
+        if (json.has("proxy")) proxy = json.getString("proxy")
+        if (json.has("port")) port = json.getString("port")
+        if (json.has("mmsc")) mmsc = json.getString("mmsc")
+        if (json.has("mmsproxy")) mmsproxy = json.getString("mmsproxy")
+        if (json.has("mmsport")) mmsport = json.getString("mmsport")
+        if (json.has("authtype")) authtype = json.getInt("authtype")
+        if (json.has("type")) type = json.getString("type")
+        if (json.has("protocol")) protocol = json.getString("protocol")
+        if (json.has("roaming_protocol")) roaming_protocol = json.getString("roaming_protocol")
+        if (json.has("carrier_enabled")) carrier_enabled = json.getBoolean("carrier_enabled")
+        if (json.has("bearer")) bearer = json.getInt("bearer")
+        if (json.has("mvno_type")) mvno_type = json.getString("mvno_type")
+        if (json.has("mvno_match_data")) mvno_match_data = json.getString("mvno_match_data")
+        if (json.has("current")) current = json.getInt("current")
     }
 }

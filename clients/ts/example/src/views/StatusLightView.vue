@@ -1,33 +1,98 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, shallowRef, computed, watch, onUnmounted } from 'vue';
 import { useHalClient } from '../composables/useHalClient';
-import { usePluginAvailability } from '../composables/usePluginAvailability';
 import { useToast } from '../composables/useToast';
 import {
-  SunmiStatusLightClient,
-  PLUGIN_ID,
-  STATUS_LIGHT_COLORS,
-  type StatusLightColor,
-} from '@kduma-autoid/hal-client-plugin-sunmi-statuslight';
+  SunmiLightClient,
+  LIGHT_COLORS,
+  type LightColor,
+} from '@kduma-autoid/hal-client-plugin-sunmi-light-facade';
 
 const { client, isConnected } = useHalClient();
 const toast = useToast();
-const { isAvailable, plugins: pluginStatuses, loading: pluginLoading } = usePluginAvailability({
-  pluginId: PLUGIN_ID,
-  capabilities: ['sunmi.statuslight'],
-});
 
-const isReady = computed(() => isConnected.value && isAvailable.value === true);
+// The facade detects the available backend (prefers CPad sunmi.tms.led, falls back
+// to FLEX sunmi.statuslight) and exposes the unified ILight surface. Backend availability
+// is dynamic (light plugged/unplugged, CPad LED confirmed after connect), so we re-detect
+// whenever the service reports a plugin availability change.
+const light = shallowRef<SunmiLightClient | null>(null);
+const detecting = ref(false);
+const detectError = ref<string | null>(null);
+let unsubscribeChanges: (() => Promise<void>) | null = null;
 
-const light = computed(() =>
-  client.value ? new SunmiStatusLightClient(client.value) : null,
+async function detect() {
+  if (!client.value || !isConnected.value) {
+    light.value = null;
+    return;
+  }
+  detecting.value = true;
+  detectError.value = null;
+  try {
+    light.value = await SunmiLightClient.create(client.value);
+  } catch (e) {
+    light.value = null;
+    detectError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    detecting.value = false;
+  }
+}
+
+async function teardownChanges() {
+  if (unsubscribeChanges) {
+    try {
+      await unsubscribeChanges();
+    } catch {
+      /* ignore */
+    }
+    unsubscribeChanges = null;
+  }
+}
+
+async function connectAndWatch() {
+  await detect();
+  if (client.value && isConnected.value && !unsubscribeChanges) {
+    unsubscribeChanges = await SunmiLightClient.onChanged(client.value, () => {
+      detect();
+    });
+  }
+}
+
+onUnmounted(teardownChanges);
+
+watch(
+  isConnected,
+  (isConn) => {
+    if (isConn) {
+      connectAndWatch();
+    } else {
+      teardownChanges();
+      light.value = null;
+      detectError.value = null;
+    }
+  },
+  { immediate: true },
 );
 
-const flashColor = ref<StatusLightColor>('red');
+const isReady = computed(() => isConnected.value && light.value !== null);
+const caps = computed(() => light.value?.capabilities ?? { multiFlash: false, timeout: false });
+const backendLabel = computed(() => {
+  if (!light.value) return null;
+  return light.value.backend === 'sunmi.tms.led'
+    ? 'sunmi.tms.led (CPad)'
+    : 'sunmi.statuslight (FLEX 3)';
+});
+
+const flashColor = ref<LightColor>('red');
 const flashOnMs = ref(500);
 const flashOffMs = ref(500);
 const rainbowOnMs = ref(400);
 const rainbowOffMs = ref(100);
+// Auto-release timeout (ms); only used when the active backend supports it. 0 = no timeout.
+const timeoutMs = ref(0);
+
+function timeoutOpts() {
+  return caps.value.timeout ? { timeoutMs: timeoutMs.value } : undefined;
+}
 
 async function exec(fn: () => Promise<unknown>) {
   if (!light.value) return;
@@ -39,31 +104,23 @@ async function exec(fn: () => Promise<unknown>) {
   }
 }
 
-function setColor(color: StatusLightColor) {
-  exec(() => light.value!.setColor(color));
+function setColor(color: LightColor) {
+  exec(() => light.value!.on(color, timeoutOpts()));
 }
 
 function turnOff() {
-  exec(() => light.value!.turnOff());
+  exec(() => light.value!.off());
 }
 
 function startFlash() {
-  exec(() => light.value!.setFlashing(flashColor.value, flashOnMs.value, flashOffMs.value));
+  exec(() => light.value!.flash(flashColor.value, flashOnMs.value, flashOffMs.value, timeoutOpts()));
 }
 
 function startRainbow() {
-  exec(() =>
-    light.value!.setMultiFlashing(
-      STATUS_LIGHT_COLORS.map((color) => ({
-        color,
-        onMs: rainbowOnMs.value,
-        offMs: rainbowOffMs.value,
-      })),
-    ),
-  );
+  exec(() => light.value!.multiFlash!([...LIGHT_COLORS], rainbowOnMs.value, rainbowOffMs.value));
 }
 
-const colorStyles: Record<StatusLightColor, string> = {
+const colorStyles: Record<LightColor, string> = {
   red: '#e53935',
   green: '#43a047',
   blue: '#1e88e5',
@@ -73,7 +130,7 @@ const colorStyles: Record<StatusLightColor, string> = {
   white: '#eeeeee',
 };
 
-function textColor(color: StatusLightColor): string {
+function textColor(color: LightColor): string {
   return color === 'yellow' || color === 'white' ? '#333' : '#fff';
 }
 </script>
@@ -86,25 +143,23 @@ function textColor(color: StatusLightColor): string {
     <router-link to="/settings">Go to Settings</router-link>
     to configure and connect.
   </div>
-  <div v-else-if="pluginLoading" class="banner banner-info">
-    Checking plugin availability...
+  <div v-else-if="detecting" class="banner banner-info">
+    Detecting light backend...
   </div>
-  <template v-else-if="isAvailable === false">
-    <div
-      v-for="(p, i) in pluginStatuses.filter(p => p.available === false)"
-      :key="p.pluginId ?? i"
-      class="banner banner-warning"
-    >
-      Plugin <code>{{ p.pluginId }}</code> is not available on the connected service.
-      <router-link to="/">Go to Dashboard</router-link> to see available plugins.
-    </div>
-  </template>
+  <div v-else-if="!light" class="banner banner-warning">
+    No light backend is available on the connected service.
+    Neither <code>sunmi.tms.led</code> nor <code>sunmi.statuslight</code> is present.
+    <router-link to="/">Go to Dashboard</router-link> to see available plugins.
+  </div>
+  <div v-else class="banner banner-info">
+    Active backend: <code>{{ backendLabel }}</code>
+  </div>
 
   <div class="card">
     <h3>Set Color</h3>
     <div class="colors">
       <button
-        v-for="color in STATUS_LIGHT_COLORS"
+        v-for="color in LIGHT_COLORS"
         :key="color"
         class="color-btn"
         :disabled="!isReady"
@@ -113,6 +168,11 @@ function textColor(color: StatusLightColor): string {
       >
         {{ color }}
       </button>
+    </div>
+    <div v-if="caps.timeout" class="flash-row timeout-row">
+      <label class="timing-label">AUTO-OFF</label>
+      <input v-model.number="timeoutMs" type="number" min="0" step="1000" :disabled="!isReady" /> ms
+      <span class="hint">(0 = stay on until turned off)</span>
     </div>
   </div>
 
@@ -125,7 +185,7 @@ function textColor(color: StatusLightColor): string {
     <h3>Single Color Flash</h3>
     <div class="flash-row">
       <select v-model="flashColor" :disabled="!isReady">
-        <option v-for="c in STATUS_LIGHT_COLORS" :key="c" :value="c">{{ c }}</option>
+        <option v-for="c in LIGHT_COLORS" :key="c" :value="c">{{ c }}</option>
       </select>
       <label class="timing-label">ON</label>
       <input v-model.number="flashOnMs" type="number" min="50" step="50" :disabled="!isReady" /> ms
@@ -135,7 +195,7 @@ function textColor(color: StatusLightColor): string {
     </div>
   </div>
 
-  <div class="card">
+  <div v-if="caps.multiFlash" class="card">
     <h3>Rainbow Flash</h3>
     <div class="flash-row">
       <label class="timing-label">ON</label>
@@ -144,6 +204,9 @@ function textColor(color: StatusLightColor): string {
       <input v-model.number="rainbowOffMs" type="number" min="50" step="50" :disabled="!isReady" /> ms
       <button class="btn btn-rainbow" :disabled="!isReady" @click="startRainbow">Start</button>
     </div>
+  </div>
+  <div v-else-if="light" class="banner banner-muted">
+    Multi-color (rainbow) flashing is not supported by the <code>{{ backendLabel }}</code> backend.
   </div>
 </template>
 
@@ -196,6 +259,7 @@ h3 { margin: 0 0 12px; font-size: 14px; color: #444; text-transform: uppercase; 
   gap: 8px;
   flex-wrap: wrap;
 }
+.timeout-row { margin-top: 12px; }
 .flash-row select,
 .flash-row input[type="number"] {
   padding: 6px 8px;
@@ -206,6 +270,7 @@ h3 { margin: 0 0 12px; font-size: 14px; color: #444; text-transform: uppercase; 
 .flash-row select { width: 100px; }
 .flash-row input[type="number"] { width: 70px; }
 .timing-label { font-size: 12px; color: #888; }
+.hint { font-size: 12px; color: #aaa; }
 
 .btn {
   padding: 6px 14px;
@@ -238,6 +303,11 @@ h3 { margin: 0 0 12px; font-size: 14px; color: #444; text-transform: uppercase; 
   background: #fffbeb;
   border: 1px solid #fde68a;
   color: #92400e;
+}
+.banner-muted {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  color: #6b7280;
 }
 
 .color-btn:disabled,

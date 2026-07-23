@@ -10,7 +10,16 @@ import dev.duma.android.hal.plugins.sunmi.card.SunmiCardPlugin
  * Android Service exposing [SunmiCardPlugin] via AIDL for out-of-process usage.
  */
 class SunmiCardService : Service() {
+    private var wrapper: PluginServiceWrapper? = null
+
     override fun onBind(intent: Intent): IBinder {
         return PluginServiceWrapper(SunmiCardPlugin(applicationContext), applicationContext)
+            .also { wrapper = it }
+    }
+
+    override fun onDestroy() {
+        wrapper?.dispose()
+        wrapper = null
+        super.onDestroy()
     }
 }

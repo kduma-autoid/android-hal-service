@@ -86,6 +86,7 @@ dependencies {
     "sunmiImplementation"(project(":plugins:sunmi:sunmiperipher:plugin-sunmi-screen-lib"))
     "sunmiImplementation"(project(":plugins:sunmi:sunmiperipher:plugin-sunmi-docker-lib"))
     "sunmiImplementation"(project(":plugins:sunmi:tms:plugin-sunmi-device-lib"))
+    "sunmiImplementation"(project(":plugins:sunmi:tms:plugin-sunmi-led-lib"))
     "sunmiImplementation"(project(":plugins:sunmi:tms:plugin-sunmi-software-lib"))
     "sunmiImplementation"(project(":plugins:sunmi:tms:plugin-sunmi-system-lib"))
     "sunmiImplementation"(project(":plugins:sunmi:tms:plugin-sunmi-network-lib"))

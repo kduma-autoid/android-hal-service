@@ -1,7 +1,12 @@
 package dev.duma.android.hal.plugins.sunmi.card
 
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.hardware.usb.UsbDevice
+import android.hardware.usb.UsbManager
+import androidx.core.content.ContextCompat
 import com.sunmi.card.IDataListener
 import com.sunmi.peripheralsdk.CardManager
 import dev.duma.android.hal.contract.CommandResult
@@ -29,7 +34,30 @@ class SunmiCardPlugin(
     override val version = 1
 
     private var callback: HalPluginEventCallback? = null
+    private var pluginContext: PluginContext? = null
     private val mutex = Mutex()
+    private var receiverRegistered = false
+
+    companion object {
+        // The FLEX magnetic card reader is a USB device (WCH bridge).
+        private const val CARD_READER_VID = 0x1A86 // 6790  – WCH
+        private const val CARD_READER_PID = 0x7523 // 29987 – MSR
+    }
+
+    private val usbReceiver = object : BroadcastReceiver() {
+        override fun onReceive(c: Context, i: Intent) {
+            @Suppress("DEPRECATION")
+            val dev = i.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE) ?: return
+            if (dev.vendorId != CARD_READER_VID || dev.productId != CARD_READER_PID) return
+            val connected = when (i.action) {
+                UsbManager.ACTION_USB_DEVICE_ATTACHED -> true
+                UsbManager.ACTION_USB_DEVICE_DETACHED -> false
+                else -> return
+            }
+            // Advertise / retract the capability live as the reader is plugged / unplugged.
+            pluginContext?.setPluginAvailable(connected)
+        }
+    }
 
     private val dataListener = object : IDataListener.Stub() {
         override fun onResult(data: String?) {
@@ -74,11 +102,42 @@ class SunmiCardPlugin(
     )
 
     override fun initialize(pluginContext: PluginContext) {
+        this.pluginContext = pluginContext
         this.context?.let { ctx ->
             CardManager.init(ctx) { success ->
                 if (success) CardManager.registerDataListener(dataListener)
             }
+            // Watch USB attach/detach and toggle capability availability accordingly.
+            val filter = IntentFilter().apply {
+                addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
+                addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
+            }
+            ContextCompat.registerReceiver(ctx, usbReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+            receiverRegistered = true
+            // Reflect the current connection state immediately.
+            pluginContext.setPluginAvailable(isCardReaderConnected())
         }
+    }
+
+    override fun dispose() {
+        if (receiverRegistered) {
+            try {
+                context?.unregisterReceiver(usbReceiver)
+            } catch (_: Exception) {
+                // Receiver already unregistered
+            }
+            receiverRegistered = false
+        }
+    }
+
+    /**
+     * The card reader is a USB device. It can be hot-plugged, so this reflects the live
+     * connection state rather than a one-time capability flag.
+     */
+    private fun isCardReaderConnected(): Boolean {
+        val ctx = context ?: return false
+        val usb = ctx.getSystemService(Context.USB_SERVICE) as? UsbManager ?: return false
+        return usb.deviceList.values.any { it.vendorId == CARD_READER_VID && it.productId == CARD_READER_PID }
     }
 
     override suspend fun execute(method: String, params: String): CommandResult = mutex.withLock {

@@ -60,6 +60,7 @@ include(":plugins:sunmi:sunmiperipher:plugin-sunmi-sunmiperipher-bundle")
 
 include(":plugins:sunmi:tms:plugin-sunmi-tms-sdk")
 include(":plugins:sunmi:tms:plugin-sunmi-device-lib")
+include(":plugins:sunmi:tms:plugin-sunmi-led-lib")
 include(":plugins:sunmi:tms:plugin-sunmi-software-lib")
 include(":plugins:sunmi:tms:plugin-sunmi-system-lib")
 include(":plugins:sunmi:tms:plugin-sunmi-network-lib")

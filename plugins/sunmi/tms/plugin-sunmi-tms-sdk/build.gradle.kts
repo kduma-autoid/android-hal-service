@@ -31,7 +31,7 @@ android {
 }
 
 dependencies {
-    api("dev.duma.android.hal.vendor:sunmi-customer-api:1.3.33")
+    api("dev.duma.android.hal.vendor:sunmi-customer-api:1.3.48")
     api(project(":service:hal-contract"))
     implementation(libs.kotlinx.coroutines.core)
 }

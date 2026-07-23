@@ -127,6 +127,7 @@ internal class SoftwareManagerHandler(
                 api.softwareManager.setNotificationsEnabledForPackage(json.getString("packageName"), json.getBoolean("enabled"))
                 CommandResult.Success()
             }
+            "removeAllRecentTasks" -> CommandResult.Success(JSONObject().put("result", api.softwareManager.removeAllRecentTasks()).toString())
             else -> CommandResult.unsupportedMethod(method)
         }
     }

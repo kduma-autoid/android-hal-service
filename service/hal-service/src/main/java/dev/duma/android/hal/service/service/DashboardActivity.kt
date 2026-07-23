@@ -421,12 +421,17 @@ class DashboardActivity : AppCompatActivity() {
 
         val descriptors = pluginReg.getAllDescriptors()
         val unsupportedIds = pluginReg.getUnsupportedPluginIds()
+        val unavailableIds = pluginReg.getUnavailablePluginIds()
         val experimentalIds = pluginReg.getExperimentalPluginIds()
 
-        val normal = descriptors.filter { it.pluginId !in unsupportedIds && it.pluginId !in experimentalIds }.sortedBy { it.name }
-        val experimental = descriptors.filter { it.pluginId in experimentalIds && it.pluginId !in unsupportedIds }.sortedBy { it.name }
+        // Unsupported (never supported) and unavailable (registered but hardware absent now) are both hidden.
+        val hiddenNonExpIds = unsupportedIds + unavailableIds
+
+        val normal = descriptors.filter { it.pluginId !in hiddenNonExpIds && it.pluginId !in experimentalIds }.sortedBy { it.name }
+        val experimental = descriptors.filter { it.pluginId in experimentalIds && it.pluginId !in hiddenNonExpIds }.sortedBy { it.name }
+        val unavailable = descriptors.filter { it.pluginId in unavailableIds && it.pluginId !in unsupportedIds }.sortedBy { it.name }
         val unsupported = descriptors.filter { it.pluginId in unsupportedIds }.sortedBy { it.name }
-        val hidden = experimental + unsupported
+        val hidden = experimental + unavailable + unsupported
 
         if (normal.isEmpty() && hidden.isEmpty()) {
             layout.addView(TextView(this).apply {
@@ -436,7 +441,7 @@ class DashboardActivity : AppCompatActivity() {
             })
         } else {
             for (desc in normal) {
-                layout.addView(buildPluginBlock(desc, pluginReg, isUnsupported = false, isExperimental = false))
+                layout.addView(buildPluginBlock(desc, pluginReg, isUnsupported = false, isUnavailable = false, isExperimental = false))
                 layout.addView(divider())
             }
 
@@ -447,16 +452,21 @@ class DashboardActivity : AppCompatActivity() {
                 }
 
                 for (desc in experimental) {
-                    hiddenContainer.addView(buildPluginBlock(desc, pluginReg, isUnsupported = false, isExperimental = true))
+                    hiddenContainer.addView(buildPluginBlock(desc, pluginReg, isUnsupported = false, isUnavailable = false, isExperimental = true))
+                    hiddenContainer.addView(divider())
+                }
+                for (desc in unavailable) {
+                    hiddenContainer.addView(buildPluginBlock(desc, pluginReg, isUnsupported = false, isUnavailable = true, isExperimental = desc.pluginId in experimentalIds))
                     hiddenContainer.addView(divider())
                 }
                 for (desc in unsupported) {
-                    hiddenContainer.addView(buildPluginBlock(desc, pluginReg, isUnsupported = true, isExperimental = desc.pluginId in experimentalIds))
+                    hiddenContainer.addView(buildPluginBlock(desc, pluginReg, isUnsupported = true, isUnavailable = false, isExperimental = desc.pluginId in experimentalIds))
                     hiddenContainer.addView(divider())
                 }
 
                 val parts = mutableListOf<String>()
                 if (experimental.isNotEmpty()) parts.add("${experimental.size} experimental")
+                if (unavailable.isNotEmpty()) parts.add("${unavailable.size} unavailable")
                 if (unsupported.isNotEmpty()) parts.add("${unsupported.size} unsupported")
                 val collapsedLabel = parts.joinToString(" + ") + " plugin${if (hidden.size != 1) "s" else ""}"
 
@@ -481,12 +491,12 @@ class DashboardActivity : AppCompatActivity() {
         return wrapInScrollView(layout)
     }
 
-    private fun buildPluginBlock(desc: dev.duma.android.hal.contract.PluginDescriptor, pluginReg: PluginRegistry, isUnsupported: Boolean, isExperimental: Boolean): LinearLayout {
+    private fun buildPluginBlock(desc: dev.duma.android.hal.contract.PluginDescriptor, pluginReg: PluginRegistry, isUnsupported: Boolean, isUnavailable: Boolean, isExperimental: Boolean): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(0, 8, 0, 8)
             val isExperimentalEnabled = isExperimental && HalService.experimentalConfig?.isPluginEnabled(desc.pluginId) == true
-            if (isUnsupported || (isExperimental && !isExperimentalEnabled)) alpha = 0.5f
+            if (isUnsupported || isUnavailable || (isExperimental && !isExperimentalEnabled)) alpha = 0.5f
             isClickable = true
             isFocusable = true
             setBackgroundResource(android.R.attr.selectableItemBackground.let { attr ->
@@ -540,6 +550,7 @@ class DashboardActivity : AppCompatActivity() {
             if (methodCount > 0) infoParts.add("$methodCount methods")
             if (eventCount > 0) infoParts.add("$eventCount events")
             if (isUnsupported) infoParts.add("UNSUPPORTED")
+            if (isUnavailable) infoParts.add("UNAVAILABLE")
             if (isExperimental) infoParts.add("EXPERIMENTAL")
 
             if (infoParts.isNotEmpty()) {
@@ -550,6 +561,10 @@ class DashboardActivity : AppCompatActivity() {
                         isUnsupported -> {
                             setTypeface(null, Typeface.BOLD)
                             setTextColor(Color.parseColor("#C62828"))
+                        }
+                        isUnavailable -> {
+                            setTypeface(null, Typeface.BOLD)
+                            setTextColor(Color.parseColor("#8E24AA"))
                         }
                         isExperimental -> {
                             setTypeface(null, Typeface.BOLD)

@@ -30,6 +30,7 @@ class PluginRegistry {
     companion object {
         private const val TAG = "PluginRegistry"
         private const val ACTION_HARDWARE_PLUGIN = "dev.duma.android.hal.HARDWARE_PLUGIN"
+        const val EVENT_PLUGINS_CHANGED = "system.plugins.changed"
     }
 
     enum class PluginSource { BUILT_IN, EXTERNAL }
@@ -43,6 +44,9 @@ class PluginRegistry {
     private val unsupportedPlugins = ConcurrentHashMap<String, HalPlugin>()
     private val capabilityToPlugin = ConcurrentHashMap<String, HalPlugin>()
     private val serviceConnections = mutableListOf<ServiceConnection>()
+    // Dynamic availability: a registered plugin whose value is false is loaded but its
+    // capabilities are not routable/advertised (e.g. hardware currently absent).
+    private val available = ConcurrentHashMap<String, Boolean>()
 
     private val pluginInfo = ConcurrentHashMap<String, PluginInfo>()
     private val displacedPlugins = ConcurrentHashMap<String, Pair<HalPlugin, PluginInfo>>()
@@ -83,6 +87,8 @@ class PluginRegistry {
 
             if (existingInfo.source == PluginSource.BUILT_IN) {
                 displacedPlugins[id] = existing to existingInfo
+                // Release the displaced built-in's resources; it is re-initialized if restored.
+                safeDispose(existing)
             }
             existing.getCapabilities().forEach { capabilityToPlugin.remove(it, existing) }
             Log.i(TAG, "Plugin $id: replacing v${existing.version} (${existingInfo.source}) with v${plugin.version} (${info.source})")
@@ -90,9 +96,35 @@ class PluginRegistry {
 
         plugins[id] = plugin
         pluginInfo[id] = info
+        available[id] = true
         plugin.getCapabilities().forEach { capabilityToPlugin[it] = plugin }
         return true
     }
+
+    /**
+     * Toggles a registered plugin's dynamic availability. When unavailable, its capabilities are
+     * removed from routing and excluded from [getSupportedDescriptors] (so system.status/describe
+     * hide it); when available again they are restored. Emits [EVENT_PLUGINS_CHANGED] on change.
+     */
+    fun setPluginAvailability(pluginId: String, isAvailable: Boolean) {
+        val plugin = plugins[pluginId] ?: return
+        val previous = available[pluginId] ?: true
+        if (previous == isAvailable) return
+        available[pluginId] = isAvailable
+        if (isAvailable) {
+            plugin.getCapabilities().forEach { capabilityToPlugin[it] = plugin }
+        } else {
+            plugin.getCapabilities().forEach { capabilityToPlugin.remove(it, plugin) }
+        }
+        Log.i(TAG, "Plugin $pluginId availability -> $isAvailable")
+        pendingInit?.second?.emit(
+            EVENT_PLUGINS_CHANGED,
+            """{"pluginId":"$pluginId","available":$isAvailable}""",
+            sourcePluginId = "system"
+        )
+    }
+
+    private fun isAvailable(pluginId: String): Boolean = available[pluginId] ?: true
 
     fun discoverExternal(context: Context) {
         val intent = Intent(ACTION_HARDWARE_PLUGIN)
@@ -128,8 +160,10 @@ class PluginRegistry {
                     Log.w(TAG, "Disconnected external plugin: $pluginId")
                     val removed = plugins.remove(pluginId)
                     pluginInfo.remove(pluginId)
+                    available.remove(pluginId)
                     if (removed != null) {
                         removed.getCapabilities().forEach { capabilityToPlugin.remove(it, removed) }
+                        safeDispose(removed)
                     }
 
                     val fallback = displacedPlugins.remove(pluginId)
@@ -137,7 +171,12 @@ class PluginRegistry {
                         val (builtInPlugin, builtInInfo) = fallback
                         plugins[pluginId] = builtInPlugin
                         pluginInfo[pluginId] = builtInInfo
+                        available[pluginId] = true
                         builtInPlugin.getCapabilities().forEach { capabilityToPlugin[it] = builtInPlugin }
+                        // Re-initialize so the restored built-in re-acquires resources released on displacement.
+                        pendingInit?.let { (appContext, eventBus) ->
+                            initializePlugin(builtInPlugin, eventBus, appContext)
+                        }
                         Log.i(TAG, "Restored built-in plugin: $pluginId v${builtInPlugin.version}")
                     }
                 }
@@ -206,7 +245,7 @@ class PluginRegistry {
     }
 
     fun getSupportedDescriptors(): List<PluginDescriptor> {
-        return plugins.values.map { it.getDescriptor() }
+        return plugins.filterKeys { isAvailable(it) }.values.map { it.getDescriptor() }
     }
 
     fun getAllDescriptors(): List<PluginDescriptor> {
@@ -215,6 +254,11 @@ class PluginRegistry {
 
     fun getUnsupportedPluginIds(): Set<String> {
         return unsupportedPlugins.keys.toSet()
+    }
+
+    /** Registered plugins that are currently unavailable (loaded, but hardware/service absent right now). */
+    fun getUnavailablePluginIds(): Set<String> {
+        return plugins.keys.filter { available[it] == false }.toSet()
     }
 
     fun getExperimentalPluginIds(): Set<String> {
@@ -231,10 +275,22 @@ class PluginRegistry {
             } catch (_: Exception) { }
         }
         serviceConnections.clear()
+        // Tear down initialized plugins (active + displaced) so they release resources.
+        plugins.values.forEach { safeDispose(it) }
+        displacedPlugins.values.forEach { (plugin, _) -> safeDispose(plugin) }
         plugins.clear()
         pluginInfo.clear()
         displacedPlugins.clear()
         capabilityToPlugin.clear()
+        available.clear()
         pendingInit = null
+    }
+
+    private fun safeDispose(plugin: HalPlugin) {
+        try {
+            plugin.dispose()
+        } catch (e: Exception) {
+            Log.w(TAG, "dispose() failed for ${plugin.pluginId}: ${e.message}")
+        }
     }
 }

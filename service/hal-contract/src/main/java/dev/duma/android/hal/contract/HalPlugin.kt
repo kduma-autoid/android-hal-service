@@ -14,4 +14,12 @@ interface HalPlugin {
     fun initialize(pluginContext: PluginContext)
     suspend fun execute(method: String, params: String): CommandResult
     fun setEventCallback(callback: HalPluginEventCallback?)
+
+    /**
+     * Releases resources acquired in [initialize] (e.g. registered BroadcastReceivers,
+     * bound services). Called when the plugin is torn down — on hal-service shutdown,
+     * when displaced by a higher-priority plugin, or from a bundle Service's onDestroy.
+     * Default is a no-op; override only if the plugin holds releasable resources.
+     */
+    fun dispose() {}
 }

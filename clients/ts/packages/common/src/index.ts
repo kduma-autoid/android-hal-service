@@ -19,6 +19,10 @@ export type {
   PluginStatus,
   TransportStatus,
   HealthResponse,
+  LightColor,
+  FlashStep,
+  LightOptions,
+  LightCapabilities,
 } from './types/index.js';
 
 export {
@@ -31,6 +35,8 @@ export {
   allMethods,
   allEvents,
 } from './types/index.js';
+
+export { LIGHT_COLORS } from './types/index.js';
 
 // Interfaces
 export type {
@@ -48,6 +54,8 @@ export type {
   IHalClient,
   ITokenStore,
   ILogger,
+  ILight,
+  MultiFlash,
 } from './interfaces/index.js';
 
 // Implementations

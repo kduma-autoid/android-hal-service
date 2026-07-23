@@ -16,6 +16,8 @@
     "@kduma-autoid/hal-client-transport-ws": "workspace:*",
     "@kduma-autoid/hal-client-token-store-browser": "workspace:*",
     "@kduma-autoid/hal-client-plugin-sunmi-statuslight": "workspace:*",
+    "@kduma-autoid/hal-client-plugin-sunmi-tms-led": "workspace:*",
+    "@kduma-autoid/hal-client-plugin-sunmi-light-facade": "workspace:*",
     "@kduma-autoid/hal-client-plugin-sunmi-nfc": "workspace:*",
     "@kduma-autoid/hal-client-plugin-sunmi-screen": "workspace:*"
   },

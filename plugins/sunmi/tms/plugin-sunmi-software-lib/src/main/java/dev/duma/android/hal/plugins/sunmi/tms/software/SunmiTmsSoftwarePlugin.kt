@@ -139,5 +139,9 @@ class SunmiTmsSoftwarePlugin(context: Context? = null) : BaseTmsPlugin(context) 
         MethodDescriptor("sunmi.tms.software.packages.getSystemAllPackageInfo", "Gets all installed app info as JSON array. Blocking.", "sunmi.tms.software",
             exampleParameters = "{}",
             exampleOutput = """{"result":"[{\"packageName\":\"com.example.app\",\"versionName\":\"1.0\"}]"}"""),
+        MethodDescriptor("sunmi.tms.software.removeAllRecentTasks", "Removes all tasks from the recent apps list", "sunmi.tms.software",
+            superRequired = true,
+            exampleParameters = "{}",
+            exampleOutput = """{"result":0}"""),
     )
 }
