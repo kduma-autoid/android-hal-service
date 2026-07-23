@@ -19,6 +19,16 @@
         </service>
 
         <service
+            android:name=".SunmiTmsLedService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="dev.duma.android.hal.HARDWARE_PLUGIN" />
+            </intent-filter>
+            <meta-data android:name="plugin.id" android:value="sunmi.tms.led" />
+            <meta-data android:name="plugin.label" android:value="Sunmi TMS LED" />
+        </service>
+
+        <service
             android:name=".SunmiTmsSoftwareService"
             android:exported="true">
             <intent-filter>

@@ -1,6 +1,7 @@
 package dev.duma.android.hal.plugins.sunmi.tms.device.handler
 
 import com.sunmi.tms.api.TMSApi
+import com.sunmi.tmsmaster.aidl.deviceinfo.BatteryInfo
 import dev.duma.android.hal.contract.CommandResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -46,7 +47,34 @@ internal class DeviceInfoHandler(private val api: TMSApi) {
             }
             "getCrpType"          -> CommandResult.Success(JSONObject().put("result", api.deviceInfo.getCrpType(json.getString("filePath"))).toString())
             "getCrpVersion"       -> CommandResult.Success(JSONObject().put("result", api.deviceInfo.getCrpVersion(json.getInt("crpType"))).toString())
+            "getPciHardwareVersion" -> CommandResult.Success(JSONObject().put("result", api.deviceInfo.getPciHardwareVersion()).toString())
+            "getBatteryInfo"      -> CommandResult.Success(JSONObject().put("result", batteryInfoToJson(api.deviceInfo.getBatteryInfo())).toString())
             else -> CommandResult.unsupportedMethod(method)
         }
+    }
+
+    private fun batteryInfoToJson(info: BatteryInfo?): JSONObject {
+        val obj = JSONObject()
+        if (info == null) return obj
+        return obj
+            .put("batteryLevel", info.batteryLevel)
+            .put("batteryStatus", info.batteryStatus)
+            .put("batteryVoltage", info.batteryVoltage)
+            .put("batteryCurrent", info.batteryCurrent)
+            .put("batteryTemperature", info.batteryTemperature)
+            .put("batteryFullCharge", info.batteryFullCharge)
+            .put("batteryModelName", info.batteryModelName)
+            .put("batterySn", info.batterySn)
+            .put("batteryPartNumber", info.batteryPartNumber)
+            .put("batteryProductionTime", info.batteryProductionTime)
+            .put("batteryFirstUseTime", info.batteryFirstUseTime)
+            .put("batteryMaxCapacity", info.batteryMaxCapacity)
+            .put("batteryCurrentCapacityFCC", info.batteryCurrentCapacityFCC)
+            .put("batteryCurrentCapacity", info.batteryCurrentCapacity)
+            .put("batteryHealth", info.batteryHealth)
+            .put("batteryCycleCount", info.batteryCycleCount)
+            .put("batteryManufacturer", info.batteryManufacturer)
+            .put("isSupportBattery", info.isSupportBattery)
+            .put("batteryChargeVoltage", info.batteryChargeVoltage)
     }
 }

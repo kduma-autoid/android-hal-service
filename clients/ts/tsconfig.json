@@ -6,6 +6,7 @@
     { "path": "packages/transport-ws" },
     { "path": "packages/hal-client" },
     { "path": "packages/token-store-browser" },
-    { "path": "packages/sunmi-statuslight" }
+    { "path": "packages/sunmi-statuslight" },
+    { "path": "packages/sunmi-tms-led" }
   ]
 }

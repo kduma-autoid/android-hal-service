@@ -24,6 +24,8 @@ internal class SystemUiManagerHandler(private val api: TMSApi) {
             "enableNotificationPanel" -> { api.systemUIManager.enableNotificationPanel(json.getBoolean("enable")); CommandResult.Success() }
             "clickableNavigationBar" -> { api.systemUIManager.clickableNavigationBar(json.getBoolean("clickable")); CommandResult.Success() }
             "setAirplaneModeBarClickable" -> { api.systemUIManager.setAirplaneModeBarClickable(json.getBoolean("clickable")); CommandResult.Success() }
+            "getSettingsPPPCommunicationVisible" -> CommandResult.Success(JSONObject().put("result", api.systemUIManager.getSettingsPPPCommunicationVisible()).toString())
+            "setSettingsPPPCommunicationVisible" -> CommandResult.Success(JSONObject().put("result", api.systemUIManager.setSettingsPPPCommunicationVisible(json.getBoolean("visible"))).toString())
             else -> CommandResult.unsupportedMethod(method)
         }
     }

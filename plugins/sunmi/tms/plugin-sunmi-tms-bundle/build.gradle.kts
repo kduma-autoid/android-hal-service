@@ -38,6 +38,7 @@ android {
 dependencies {
     implementation(project(":service:hal-contract"))
     implementation(project(":plugins:sunmi:tms:plugin-sunmi-device-lib"))
+    implementation(project(":plugins:sunmi:tms:plugin-sunmi-led-lib"))
     implementation(project(":plugins:sunmi:tms:plugin-sunmi-software-lib"))
     implementation(project(":plugins:sunmi:tms:plugin-sunmi-system-lib"))
     implementation(project(":plugins:sunmi:tms:plugin-sunmi-network-lib"))

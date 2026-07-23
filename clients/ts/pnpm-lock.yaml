@@ -38,6 +38,9 @@ importers:
       '@kduma-autoid/hal-client-plugin-sunmi-statuslight':
         specifier: workspace:*
         version: link:../packages/sunmi-statuslight
+      '@kduma-autoid/hal-client-plugin-sunmi-tms-led':
+        specifier: workspace:*
+        version: link:../packages/sunmi-tms-led
       '@kduma-autoid/hal-client-token-store-browser':
         specifier: workspace:*
         version: link:../packages/token-store-browser
@@ -95,6 +98,12 @@ importers:
         version: link:../common
 
   packages/sunmi-statuslight:
+    dependencies:
+      '@kduma-autoid/hal-client-common':
+        specifier: workspace:*
+        version: link:../common
+
+  packages/sunmi-tms-led:
     dependencies:
       '@kduma-autoid/hal-client-common':
         specifier: workspace:*

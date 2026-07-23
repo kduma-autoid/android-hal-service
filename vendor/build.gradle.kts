@@ -16,8 +16,8 @@ val vendorAars = listOf(
     ),
     VendorAar(
         artifactId = "sunmi-customer-api",
-        version = "1.3.33",
-        filePath = "libs/SUNMI_CUSTOMER_API_v1.3.33_release.aar",
+        version = "1.3.48",
+        filePath = "libs/SUNMI_CUSTOMER_API_v1.3.48_release.aar",
     ),
     VendorAar(
         artifactId = "sunmi-scanner-sdk",

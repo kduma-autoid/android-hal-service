@@ -1,8 +1,12 @@
 package dev.duma.android.hal.plugins.sunmi.tms.device.handler
 
+import android.os.Bundle
 import com.sunmi.tms.api.TMSApi
+import com.sunmi.tmsmaster.aidl.result.IResultCallback
 import dev.duma.android.hal.contract.CommandResult
+import kotlinx.coroutines.suspendCancellableCoroutine
 import org.json.JSONObject
+import kotlin.coroutines.resume
 
 internal class DeviceManagerHandler(private val api: TMSApi) {
 
@@ -62,7 +66,38 @@ internal class DeviceManagerHandler(private val api: TMSApi) {
             "enableGPS" -> { api.deviceManager.enableGPS(json.getBoolean("isEnable")); CommandResult.Success() }
             "enableWIFI" -> { api.deviceManager.enableWIFI(json.getBoolean("isEnable")); CommandResult.Success() }
             "enableNFC" -> { api.deviceManager.enableNFC(json.getBoolean("enable")); CommandResult.Success() }
+            "getDeviceDockStatus" -> CommandResult.Success(JSONObject().put("result", api.deviceManager.getDeviceDockStatus()).toString())
+            "getDefaultUsbMode" -> CommandResult.Success(JSONObject().put("result", api.deviceManager.getDefaultUsbMode()).toString())
+            "setDefaultUsbMode" -> CommandResult.Success(JSONObject().put("result", api.deviceManager.setDefaultUsbMode(json.getLong("mode"))).toString())
+            "getNfcReaderCardemulationStatus" -> CommandResult.Success(JSONObject().put("result", api.deviceManager.getNfcReaderCardemulationStatus()).toString())
+            "setNfcReaderCardemulationStatus" -> CommandResult.Success(JSONObject().put("result", api.deviceManager.setNfcReaderCardemulationStatus(json.getInt("status"))).toString())
+            "deleteTTSVoicePackageCache" -> {
+                val arr = json.getJSONArray("names")
+                val names = (0 until arr.length()).map { arr.getString(it) }
+                CommandResult.Success(JSONObject().put("result", api.deviceManager.deleteTTSVoicePackageCache(names)).toString())
+            }
+            "installTTSVoicePackage" -> {
+                val type = json.getInt("type")
+                val path = json.getString("path")
+                suspendCancellableCoroutine { cont ->
+                    api.deviceManager.installTTSVoicePackage(type, path, object : IResultCallback.Stub() {
+                        override fun onCall(result: Bundle?) {
+                            cont.resume(CommandResult.Success(bundleToJson(result).toString()))
+                        }
+                    })
+                }
+            }
             else -> CommandResult.unsupportedMethod(method)
         }
+    }
+
+    private fun bundleToJson(bundle: Bundle?): JSONObject {
+        val obj = JSONObject()
+        if (bundle == null) return obj
+        for (key in bundle.keySet()) {
+            @Suppress("DEPRECATION")
+            obj.put(key, bundle.get(key))
+        }
+        return obj
     }
 }

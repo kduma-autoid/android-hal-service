@@ -2,6 +2,7 @@ package dev.duma.android.hal.plugins.sunmi.tms.device.handler
 
 import com.sunmi.tms.api.TMSApi
 import com.sunmi.tmsmaster.aidl.devicerunninginfo.listener.GPSLocationListener
+import com.sunmi.tmsmaster.aidl.devicerunninginfo.listener.NetworkLocationListener
 import dev.duma.android.hal.contract.CommandResult
 import org.json.JSONObject
 
@@ -32,6 +33,19 @@ internal class DeviceRunningInfoHandler(
                             val obj = JSONObject()
                             location.forEach { (k, v) -> obj.put(k.toString(), v) }
                             emitEvent("sunmi.tms.device.runtime.gpsLocationChanged", obj.toString())
+                        }
+                    }
+                }, timeout)
+                CommandResult.Success()
+            }
+            "getNetworkLocationWithTimeout" -> {
+                val timeout = json.getLong("timeout")
+                api.deviceRunningInfo.getNetworkLocationWithTimeout(object : NetworkLocationListener.Stub() {
+                    override fun onLocationChanged(location: MutableMap<Any?, Any?>?) {
+                        if (location != null) {
+                            val obj = JSONObject()
+                            location.forEach { (k, v) -> obj.put(k.toString(), v) }
+                            emitEvent("sunmi.tms.device.runtime.networkLocationChanged", obj.toString())
                         }
                     }
                 }, timeout)

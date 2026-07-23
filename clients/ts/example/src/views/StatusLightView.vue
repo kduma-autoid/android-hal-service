@@ -5,22 +5,56 @@ import { usePluginAvailability } from '../composables/usePluginAvailability';
 import { useToast } from '../composables/useToast';
 import {
   SunmiStatusLightClient,
-  PLUGIN_ID,
+  PLUGIN_ID as STATUSLIGHT_PLUGIN_ID,
   STATUS_LIGHT_COLORS,
   type StatusLightColor,
 } from '@kduma-autoid/hal-client-plugin-sunmi-statuslight';
+import {
+  SunmiTmsLedClient,
+  PLUGIN_ID as TMS_LED_PLUGIN_ID,
+} from '@kduma-autoid/hal-client-plugin-sunmi-tms-led';
 
 const { client, isConnected } = useHalClient();
 const toast = useToast();
-const { isAvailable, plugins: pluginStatuses, loading: pluginLoading } = usePluginAvailability({
-  pluginId: PLUGIN_ID,
-  capabilities: ['sunmi.statuslight'],
+
+// Detect both backends. Order matters: index 0 = preferred (new CPad TMS LED),
+// index 1 = fallback (legacy peripheral status light).
+const { plugins: pluginStatuses, loading: pluginLoading } = usePluginAvailability([
+  { pluginId: TMS_LED_PLUGIN_ID, capabilities: ['sunmi.tms.led'] },
+  { pluginId: STATUSLIGHT_PLUGIN_ID, capabilities: ['sunmi.statuslight'] },
+]);
+
+type Backend = 'tms-led' | 'statuslight' | null;
+
+const activeBackend = computed<Backend>(() => {
+  if (pluginStatuses.value[0]?.available === true) return 'tms-led';
+  if (pluginStatuses.value[1]?.available === true) return 'statuslight';
+  return null;
 });
 
-const isReady = computed(() => isConnected.value && isAvailable.value === true);
+const anyAvailable = computed(() => pluginStatuses.value.some((p) => p.available === true));
+const anyLoading = computed(() =>
+  pluginLoading.value || pluginStatuses.value.some((p) => p.available === null),
+);
 
-const light = computed(() =>
+const isReady = computed(() => isConnected.value && activeBackend.value !== null);
+
+const backendLabel = computed(() => {
+  switch (activeBackend.value) {
+    case 'tms-led': return 'sunmi.tms.led (CPad)';
+    case 'statuslight': return 'sunmi.statuslight (FLEX 3)';
+    default: return null;
+  }
+});
+
+const supportsMultiFlash = computed(() => activeBackend.value === 'statuslight');
+const supportsTimeout = computed(() => activeBackend.value === 'tms-led');
+
+const statusLight = computed(() =>
   client.value ? new SunmiStatusLightClient(client.value) : null,
+);
+const ledClient = computed(() =>
+  client.value ? new SunmiTmsLedClient(client.value) : null,
 );
 
 const flashColor = ref<StatusLightColor>('red');
@@ -28,9 +62,10 @@ const flashOnMs = ref(500);
 const flashOffMs = ref(500);
 const rainbowOnMs = ref(400);
 const rainbowOffMs = ref(100);
+// Auto-release timeout (ms), only used by the new CPad LED backend. 0 = no timeout.
+const timeoutMs = ref(0);
 
 async function exec(fn: () => Promise<unknown>) {
-  if (!light.value) return;
   try {
     await fn();
     toast.success('Success');
@@ -40,20 +75,33 @@ async function exec(fn: () => Promise<unknown>) {
 }
 
 function setColor(color: StatusLightColor) {
-  exec(() => light.value!.setColor(color));
+  exec(() =>
+    activeBackend.value === 'tms-led'
+      ? ledClient.value!.setColor(color, timeoutMs.value)
+      : statusLight.value!.setColor(color),
+  );
 }
 
 function turnOff() {
-  exec(() => light.value!.turnOff());
+  exec(() =>
+    activeBackend.value === 'tms-led'
+      ? ledClient.value!.close()
+      : statusLight.value!.turnOff(),
+  );
 }
 
 function startFlash() {
-  exec(() => light.value!.setFlashing(flashColor.value, flashOnMs.value, flashOffMs.value));
+  exec(() =>
+    activeBackend.value === 'tms-led'
+      ? ledClient.value!.setFlashing(flashColor.value, flashOnMs.value, flashOffMs.value, timeoutMs.value)
+      : statusLight.value!.setFlashing(flashColor.value, flashOnMs.value, flashOffMs.value),
+  );
 }
 
 function startRainbow() {
+  // Multi-color flashing is only supported by the legacy status light backend.
   exec(() =>
-    light.value!.setMultiFlashing(
+    statusLight.value!.setMultiFlashing(
       STATUS_LIGHT_COLORS.map((color) => ({
         color,
         onMs: rainbowOnMs.value,
@@ -86,19 +134,17 @@ function textColor(color: StatusLightColor): string {
     <router-link to="/settings">Go to Settings</router-link>
     to configure and connect.
   </div>
-  <div v-else-if="pluginLoading" class="banner banner-info">
+  <div v-else-if="anyLoading" class="banner banner-info">
     Checking plugin availability...
   </div>
-  <template v-else-if="isAvailable === false">
-    <div
-      v-for="(p, i) in pluginStatuses.filter(p => p.available === false)"
-      :key="p.pluginId ?? i"
-      class="banner banner-warning"
-    >
-      Plugin <code>{{ p.pluginId }}</code> is not available on the connected service.
-      <router-link to="/">Go to Dashboard</router-link> to see available plugins.
-    </div>
-  </template>
+  <div v-else-if="!anyAvailable" class="banner banner-warning">
+    No LED backend is available on the connected service.
+    Neither <code>sunmi.tms.led</code> nor <code>sunmi.statuslight</code> is present.
+    <router-link to="/">Go to Dashboard</router-link> to see available plugins.
+  </div>
+  <div v-else class="banner banner-info">
+    Active backend: <code>{{ backendLabel }}</code>
+  </div>
 
   <div class="card">
     <h3>Set Color</h3>
@@ -113,6 +159,11 @@ function textColor(color: StatusLightColor): string {
       >
         {{ color }}
       </button>
+    </div>
+    <div v-if="supportsTimeout" class="flash-row timeout-row">
+      <label class="timing-label">AUTO-OFF</label>
+      <input v-model.number="timeoutMs" type="number" min="0" step="1000" :disabled="!isReady" /> ms
+      <span class="hint">(0 = stay on until turned off)</span>
     </div>
   </div>
 
@@ -135,7 +186,7 @@ function textColor(color: StatusLightColor): string {
     </div>
   </div>
 
-  <div class="card">
+  <div v-if="supportsMultiFlash" class="card">
     <h3>Rainbow Flash</h3>
     <div class="flash-row">
       <label class="timing-label">ON</label>
@@ -144,6 +195,9 @@ function textColor(color: StatusLightColor): string {
       <input v-model.number="rainbowOffMs" type="number" min="50" step="50" :disabled="!isReady" /> ms
       <button class="btn btn-rainbow" :disabled="!isReady" @click="startRainbow">Start</button>
     </div>
+  </div>
+  <div v-else-if="activeBackend === 'tms-led'" class="banner banner-muted">
+    Rainbow (multi-color) flashing is not supported by the CPad built-in LED.
   </div>
 </template>
 
@@ -196,6 +250,7 @@ h3 { margin: 0 0 12px; font-size: 14px; color: #444; text-transform: uppercase; 
   gap: 8px;
   flex-wrap: wrap;
 }
+.timeout-row { margin-top: 12px; }
 .flash-row select,
 .flash-row input[type="number"] {
   padding: 6px 8px;
@@ -206,6 +261,7 @@ h3 { margin: 0 0 12px; font-size: 14px; color: #444; text-transform: uppercase; 
 .flash-row select { width: 100px; }
 .flash-row input[type="number"] { width: 70px; }
 .timing-label { font-size: 12px; color: #888; }
+.hint { font-size: 12px; color: #aaa; }
 
 .btn {
   padding: 6px 14px;
@@ -238,6 +294,11 @@ h3 { margin: 0 0 12px; font-size: 14px; color: #444; text-transform: uppercase; 
   background: #fffbeb;
   border: 1px solid #fde68a;
   color: #92400e;
+}
+.banner-muted {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  color: #6b7280;
 }
 
 .color-btn:disabled,

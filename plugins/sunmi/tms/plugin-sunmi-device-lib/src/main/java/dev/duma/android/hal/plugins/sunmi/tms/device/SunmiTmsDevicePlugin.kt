@@ -43,6 +43,12 @@ class SunmiTmsDevicePlugin(context: Context? = null) : BaseTmsPlugin(context) {
                         "Real-time GPS result from getGPSLocationWithTimeout",
                         "sunmi.tms.device",
                         exampleEvent = """{"longitude":"116.397128","latitude":"39.916527","altitude":"50.0","speed":"0.0","bearing":"0.0"}"""
+                    ),
+                    EventDescriptor(
+                        "sunmi.tms.device.runtime.networkLocationChanged",
+                        "Real-time network-based location result from getNetworkLocationWithTimeout",
+                        "sunmi.tms.device",
+                        exampleEvent = """{"longitude":"116.397128","latitude":"39.916527","altitude":"50.0","speed":"0.0","bearing":"0.0"}"""
                     )
                 ),
             ),
@@ -155,6 +161,12 @@ class SunmiTmsDevicePlugin(context: Context? = null) : BaseTmsPlugin(context) {
             experimental = true,
             exampleParameters = """{"crpType":0}""",
             exampleOutput = """{"result":"1.0.0"}"""),
+        MethodDescriptor("sunmi.tms.device.device_info.getPciHardwareVersion", "Gets the PCI hardware version", "sunmi.tms.device",
+            exampleParameters = "{}",
+            exampleOutput = """{"result":"1.0.0"}"""),
+        MethodDescriptor("sunmi.tms.device.device_info.getBatteryInfo", "Gets detailed battery information (level, status, capacity, health, cycle count, etc.)", "sunmi.tms.device",
+            exampleParameters = "{}",
+            exampleOutput = """{"result":{"batteryLevel":85,"batteryStatus":2,"batteryHealth":2,"batteryCycleCount":120,"isSupportBattery":1}}"""),
     )
 
     private fun buildDeviceManagerMethods() = listOf(
@@ -272,6 +284,37 @@ class SunmiTmsDevicePlugin(context: Context? = null) : BaseTmsPlugin(context) {
         MethodDescriptor("sunmi.tms.device.device_manager.enableNFC", "Enables or disables NFC", "sunmi.tms.device",
             exampleParameters = """{"enable":true}""",
             exampleOutput = """{}"""),
+        MethodDescriptor("sunmi.tms.device.device_manager.getDeviceDockStatus", "Gets the device dock/cradle status", "sunmi.tms.device",
+            experimental = true,
+            exampleParameters = "{}",
+            exampleOutput = """{"result":0}"""),
+        MethodDescriptor("sunmi.tms.device.device_manager.getDefaultUsbMode", "Gets the default USB mode", "sunmi.tms.device",
+            experimental = true,
+            exampleParameters = "{}",
+            exampleOutput = """{"result":0}"""),
+        MethodDescriptor("sunmi.tms.device.device_manager.setDefaultUsbMode", "Sets the default USB mode", "sunmi.tms.device",
+            experimental = true,
+            superRequired = true,
+            exampleParameters = """{"mode":0}""",
+            exampleOutput = """{"result":0}"""),
+        MethodDescriptor("sunmi.tms.device.device_manager.getNfcReaderCardemulationStatus", "Gets the NFC reader card-emulation status", "sunmi.tms.device",
+            experimental = true,
+            exampleParameters = "{}",
+            exampleOutput = """{"result":0}"""),
+        MethodDescriptor("sunmi.tms.device.device_manager.setNfcReaderCardemulationStatus", "Sets the NFC reader card-emulation status", "sunmi.tms.device",
+            experimental = true,
+            superRequired = true,
+            exampleParameters = """{"status":1}""",
+            exampleOutput = """{"result":0}"""),
+        MethodDescriptor("sunmi.tms.device.device_manager.deleteTTSVoicePackageCache", "Deletes cached TTS voice packages by name", "sunmi.tms.device",
+            experimental = true,
+            exampleParameters = """{"names":["en-US","zh-CN"]}""",
+            exampleOutput = """{"result":0}"""),
+        MethodDescriptor("sunmi.tms.device.device_manager.installTTSVoicePackage", "Installs a TTS voice package. Async — resolves with the result Bundle.", "sunmi.tms.device",
+            experimental = true,
+            superRequired = true,
+            exampleParameters = """{"type":0,"path":"/sdcard/tts.zip"}""",
+            exampleOutput = """{"result":0}"""),
     )
 
     private fun buildRuntimeMethods() = listOf(
@@ -279,6 +322,9 @@ class SunmiTmsDevicePlugin(context: Context? = null) : BaseTmsPlugin(context) {
             exampleParameters = "{}",
             exampleOutput = """{"result":{"longitude":"116.397128","latitude":"39.916527","altitude":"50.0","speed":"0.0","bearing":"0.0"}}"""),
         MethodDescriptor("sunmi.tms.device.runtime.getGPSLocationWithTimeout", "Gets real-time GPS location. Async — emits gpsLocationChanged event.", "sunmi.tms.device",
+            exampleParameters = """{"timeout":10000}""",
+            exampleOutput = """{}"""),
+        MethodDescriptor("sunmi.tms.device.runtime.getNetworkLocationWithTimeout", "Gets real-time network-based location. Async — emits networkLocationChanged event.", "sunmi.tms.device",
             exampleParameters = """{"timeout":10000}""",
             exampleOutput = """{}"""),
         MethodDescriptor("sunmi.tms.device.runtime.getBatteryCapacity", "Gets battery level percentage string", "sunmi.tms.device",

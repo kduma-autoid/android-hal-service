@@ -3,25 +3,20 @@ plugins {
 }
 
 android {
-    namespace = "dev.duma.android.hal.plugins.sunmi.tms.sdk"
+    namespace = "dev.duma.android.hal.plugins.sunmi.tms.led"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
         }
     }
-
     defaultConfig {
         minSdk = 19
         consumerProguardFiles("consumer-rules.pro")
     }
-
     buildTypes {
         release {
             isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
     compileOptions {
@@ -31,7 +26,8 @@ android {
 }
 
 dependencies {
-    api("dev.duma.android.hal.vendor:sunmi-customer-api:1.3.48")
-    api(project(":service:hal-contract"))
+    implementation(project(":service:hal-contract"))
+    api(project(":plugins:sunmi:tms:plugin-sunmi-tms-sdk"))
+    implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.core)
 }
