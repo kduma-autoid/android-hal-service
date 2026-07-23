@@ -2,6 +2,7 @@ package dev.duma.android.hal.plugins.sunmi.statuslight
 
 import android.content.Context
 import android.content.Intent
+import android.hardware.usb.UsbManager
 import com.sunmi.peripheralsdk.Color
 import com.sunmi.peripheralsdk.StatusLightManager
 import dev.duma.android.hal.contract.CommandResult
@@ -35,6 +36,12 @@ class SunmiStatusLightPlugin(
 
     private var callback: HalPluginEventCallback? = null
     private val mutex = Mutex()
+
+    companion object {
+        // The FLEX status light is a USB dongle (WCH CH9101UH serial bridge).
+        private const val LIGHT_VID = 0x1A86 // 6790  – WCH
+        private const val LIGHT_PID = 0x55D8 // 21976 – SD04 / CH9101UH
+    }
 
     override fun isSupported(): Boolean {
         val ctx = context ?: return false
@@ -104,9 +111,7 @@ class SunmiStatusLightPlugin(
         return@withLock try {
             when (method) {
                 "sunmi.statuslight.isSupported" -> {
-                    // TODO: the StatusLightManager SDK has no native capability check. For now we
-                    //  report supported; extract the real hardware verification once available.
-                    CommandResult.Success(JSONObject().put("result", true).toString())
+                    CommandResult.Success(JSONObject().put("result", isStatusLightConnected()).toString())
                 }
                 "sunmi.statuslight.on" -> {
                     val color = parseColor(JSONObject(params).getString("color"))
@@ -168,6 +173,16 @@ class SunmiStatusLightPlugin(
 
     override fun setEventCallback(callback: HalPluginEventCallback?) {
         this.callback = callback
+    }
+
+    /**
+     * The status light itself is a USB device (WCH CH9101UH). It can be hot-plugged, so this
+     * reflects the live connection state rather than a one-time capability flag.
+     */
+    private fun isStatusLightConnected(): Boolean {
+        val ctx = context ?: return false
+        val usb = ctx.getSystemService(Context.USB_SERVICE) as? UsbManager ?: return false
+        return usb.deviceList.values.any { it.vendorId == LIGHT_VID && it.productId == LIGHT_PID }
     }
 
     private fun parseColor(name: String): Color? = when (name.lowercase()) {
