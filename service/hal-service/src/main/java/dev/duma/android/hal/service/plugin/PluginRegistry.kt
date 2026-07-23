@@ -256,6 +256,11 @@ class PluginRegistry {
         return unsupportedPlugins.keys.toSet()
     }
 
+    /** Registered plugins that are currently unavailable (loaded, but hardware/service absent right now). */
+    fun getUnavailablePluginIds(): Set<String> {
+        return plugins.keys.filter { available[it] == false }.toSet()
+    }
+
     fun getExperimentalPluginIds(): Set<String> {
         return (plugins.values + unsupportedPlugins.values)
             .filter { it.getDescriptor().experimental }
