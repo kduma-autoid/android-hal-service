@@ -360,6 +360,10 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick));
     padding: 8px 0 8px 16px;
     border-top: 1px solid #eee;
   }
+  /* Compact top bar on mobile: the Connect button is icon-only (labelled via aria-label). */
+  .connect-label {
+    display: none;
+  }
 }
 
 /* Keep the connection controls in the top bar down to mid-size phones. */
@@ -376,12 +380,9 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick));
   }
 }
 
-/* Smallest screens: the Connect button collapses to an icon, but never disappears. */
+/* Smallest screens: drop the status word too (the dot stays). */
 @media (max-width: 360px) {
   .status-text {
-    display: none;
-  }
-  .connect-label {
     display: none;
   }
 }
