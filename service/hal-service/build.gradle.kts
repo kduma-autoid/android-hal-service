@@ -20,10 +20,15 @@ android {
         versionName = project.properties["projectVersion"] as String? ?: "0.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Development builds (see product flavors) flip this on to expose the configurable
+        // listen address/port. Production builds keep the service bound to localhost.
+        buildConfigField("boolean", "DEVELOPMENT", "false")
     }
 
     buildFeatures {
         aidl = true
+        buildConfig = true
     }
 
     buildTypes {
@@ -52,6 +57,14 @@ android {
             dimension = "device"
             // Full build: every plugin and method, including experimental.
             missingDimensionStrategy("stability", "development")
+            buildConfigField("boolean", "DEVELOPMENT", "true")
+        }
+        create("genericDevelopment") {
+            dimension = "device"
+            // Generic development build: no vendor plugins, but the development options
+            // (configurable listen address/port) are enabled.
+            missingDimensionStrategy("stability", "development")
+            buildConfigField("boolean", "DEVELOPMENT", "true")
         }
     }
 

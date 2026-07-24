@@ -15,17 +15,21 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.text.InputType
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.widget.Button
 import android.widget.CheckBox
+import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
+import dev.duma.android.hal.service.BuildConfig
 import dev.duma.android.hal.service.auth.DeviceKeyManager
+import dev.duma.android.hal.service.config.ServerConfig
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -253,12 +257,14 @@ class DashboardActivity : AppCompatActivity() {
         layout.addView(row)
 
         // Endpoint info
+        val displayHost = HalService.boundHost.takeIf { it != "0.0.0.0" } ?: "localhost"
         layout.addView(sectionHeader("Endpoints"))
         layout.addView(TextView(this).apply {
             text = buildString {
-                appendLine("Port: ${HalService.PORT}")
-                appendLine("WebSocket: ws://localhost:${HalService.PORT}/ws")
-                appendLine("HTTP API: http://localhost:${HalService.PORT}/api")
+                appendLine("Bind address: ${HalService.boundHost}")
+                appendLine("Port: ${HalService.boundPort}")
+                appendLine("WebSocket: ws://$displayHost:${HalService.boundPort}/ws")
+                appendLine("HTTP API: http://$displayHost:${HalService.boundPort}/api")
                 appendLine()
                 appendLine("POST /api/token — Request token")
                 appendLine("POST /api/execute — Execute command")
@@ -269,6 +275,63 @@ class DashboardActivity : AppCompatActivity() {
             textSize = 13f
             setTypeface(Typeface.MONOSPACE, Typeface.NORMAL)
         })
+
+        // Development-only: configurable listen address + port ("instead of only localhost").
+        if (BuildConfig.DEVELOPMENT) {
+            val serverConfig = HalService.serverConfig ?: ServerConfig(this)
+            layout.addView(sectionHeader("Server (development)"))
+            layout.addView(TextView(this).apply {
+                text = "Listen address"
+                textSize = 13f
+                setPadding(0, 8, 0, 2)
+            })
+            val addressField = EditText(this).apply {
+                setText(serverConfig.getBindAddress())
+                hint = "0.0.0.0 or 127.0.0.1"
+                inputType = InputType.TYPE_CLASS_TEXT
+            }
+            layout.addView(addressField)
+            layout.addView(TextView(this).apply {
+                text = "Port"
+                textSize = 13f
+                setPadding(0, 8, 0, 2)
+            })
+            val portField = EditText(this).apply {
+                setText(serverConfig.getPort().toString())
+                hint = "8400"
+                inputType = InputType.TYPE_CLASS_NUMBER
+            }
+            layout.addView(portField)
+            layout.addView(Button(this).apply {
+                text = "Save server settings"
+                setOnClickListener {
+                    val addr = addressField.text.toString().trim()
+                        .ifEmpty { ServerConfig.DEFAULT_BIND_ADDRESS }
+                    val port = portField.text.toString().trim().toIntOrNull()
+                    if (port == null || port !in 1..65535) {
+                        Toast.makeText(
+                            this@DashboardActivity,
+                            "Invalid port (1-65535)",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        return@setOnClickListener
+                    }
+                    serverConfig.setBindAddress(addr)
+                    serverConfig.setPort(port)
+                    Toast.makeText(
+                        this@DashboardActivity,
+                        "Saved. Restart the service to apply.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            })
+            layout.addView(TextView(this).apply {
+                text = "Applies on next service (re)start. Development builds only."
+                textSize = 12f
+                setTextColor(Color.GRAY)
+                setPadding(0, 4, 0, 0)
+            })
+        }
 
         return wrapInScrollView(layout)
     }

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- DEV build marker: an amber banner across the lower third of the adaptive-icon foreground. -->
+<!-- DEV build marker: an amber banner across the lower third of the adaptive-icon foreground.
+     Lives in main so every *Development flavor can reference it; unused by production flavors. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"

@@ -23,8 +23,10 @@ import dev.duma.android.hal.service.auth.GrantPermissionActivity
 import dev.duma.android.hal.service.auth.TokenDatabase
 import dev.duma.android.hal.service.auth.TokenDao
 import dev.duma.android.hal.service.auth.TokenManager
+import dev.duma.android.hal.service.BuildConfig
 import dev.duma.android.hal.service.config.BroadcastConfig
 import dev.duma.android.hal.service.config.ExperimentalConfig
+import dev.duma.android.hal.service.config.ServerConfig
 import dev.duma.android.hal.service.core.ServiceCommandHandler
 import dev.duma.android.hal.service.core.TransportBootstrap
 import dev.duma.android.hal.service.plugin.PluginRegistry
@@ -65,6 +67,14 @@ class HalService : Service() {
         var broadcastConfig: BroadcastConfig? = null
             private set
         var experimentalConfig: ExperimentalConfig? = null
+            private set
+        var serverConfig: ServerConfig? = null
+            private set
+
+        /** The address/port the server was actually bound to at startup (for the dashboard). */
+        var boundHost: String = "127.0.0.1"
+            private set
+        var boundPort: Int = PORT
             private set
     }
 
@@ -174,11 +184,19 @@ class HalService : Service() {
         // 9. KtorServerManager
         ktorServerManager = KtorServerManager()
 
-        // 10. ExperimentalConfig + TransportConfig
+        // 10. ExperimentalConfig + ServerConfig + TransportConfig
         val experimentalConfig = ExperimentalConfig(applicationContext)
         val broadcastConfig = BroadcastConfig(applicationContext)
+        val serverConfig = ServerConfig(applicationContext)
+
+        // Production binds localhost on the fixed port; development builds honour the configurable
+        // bind address + port from ServerConfig ("instead of only localhost").
+        val bindHost = if (BuildConfig.DEVELOPMENT) serverConfig.getBindAddress() else "127.0.0.1"
+        val bindPort = if (BuildConfig.DEVELOPMENT) serverConfig.getPort() else PORT
+
         val config = TransportConfig(
-            port = PORT,
+            port = bindPort,
+            host = bindHost,
             context = applicationContext,
             enabledBroadcastEvents = broadcastConfig.getEnabledEvents(),
             broadcastEventFilter = { broadcastConfig.isEventEnabled(it) },
@@ -207,8 +225,8 @@ class HalService : Service() {
 
         // 14. Start Ktor server if any Ktor transports registered
         if (ktorServerManager.hasModules) {
-            ktorServerManager.start(PORT)
-            Log.i(TAG, "Ktor server started on port $PORT")
+            ktorServerManager.start(bindPort, bindHost)
+            Log.i(TAG, "Ktor server started on $bindHost:$bindPort")
         } else {
             Log.i(TAG, "No Ktor transports registered, skipping server start")
         }
@@ -245,6 +263,9 @@ class HalService : Service() {
         Companion.tokenDao = db.tokenDao()
         Companion.broadcastConfig = broadcastConfig
         Companion.experimentalConfig = experimentalConfig
+        Companion.serverConfig = serverConfig
+        Companion.boundHost = bindHost
+        Companion.boundPort = bindPort
         Companion.isServiceRunning = true
 
         // 19. Foreground notification
@@ -269,6 +290,7 @@ class HalService : Service() {
         Companion.tokenDao = null
         Companion.broadcastConfig = null
         Companion.experimentalConfig = null
+        Companion.serverConfig = null
         transportRegistry.stopAll()
         ktorServerManager.stop()
         pluginRegistry.disconnectAll(this)

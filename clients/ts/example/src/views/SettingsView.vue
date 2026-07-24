@@ -17,8 +17,13 @@ async function onSubmit() {
 
   <form class="form" @submit.prevent="onSubmit">
     <label class="field">
-      <span>Base URL</span>
-      <input v-model="form.baseUrl" type="text" placeholder="http://localhost:8400" />
+      <span>Address</span>
+      <input v-model="form.host" type="text" placeholder="localhost" />
+    </label>
+
+    <label class="field">
+      <span>Port</span>
+      <input v-model.number="form.port" type="number" min="1" max="65535" placeholder="8400" />
     </label>
 
     <label class="field">
@@ -62,7 +67,7 @@ async function onSubmit() {
 
   <div class="status-info">
     <strong>Status:</strong> {{ isConnected ? 'Connected' : 'Disconnected' }}
-    <template v-if="isConnected"> via {{ settings.transport.toUpperCase() }} to {{ settings.baseUrl }}</template>
+    <template v-if="isConnected"> via {{ settings.transport.toUpperCase() }} to {{ settings.host }}:{{ settings.port }}</template>
   </div>
 </template>
 

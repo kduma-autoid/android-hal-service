@@ -49,7 +49,8 @@ async function generateDeviceKeyJwt(secret: string, clientId: string): Promise<s
 }
 
 export interface AppSettings {
-  baseUrl: string;
+  host: string;
+  port: number;
   clientId: string;
   authMode: AuthMode;
   serviceKey: string;
@@ -58,7 +59,8 @@ export interface AppSettings {
 }
 
 const defaultSettings: AppSettings = {
-  baseUrl: 'http://localhost:8400',
+  host: 'localhost',
+  port: 8400,
   clientId: 'hal-example',
   authMode: hasBuiltinKey ? 'builtin' : 'none',
   serviceKey: '',
@@ -90,6 +92,17 @@ function loadSettings(): void {
       if (parsed.authMode === 'builtin' && !hasBuiltinKey) {
         parsed.authMode = 'none';
       }
+      // Migrate old single baseUrl into host/port
+      if (parsed.baseUrl && (parsed.host === undefined || parsed.port === undefined)) {
+        try {
+          const u = new URL(parsed.baseUrl);
+          parsed.host = u.hostname;
+          parsed.port = u.port ? Number(u.port) : defaultSettings.port;
+        } catch {
+          // ignore unparseable legacy baseUrl
+        }
+      }
+      delete parsed.baseUrl;
       Object.assign(settings, { ...defaultSettings, ...parsed });
     }
   } catch {
@@ -135,7 +148,8 @@ async function connect(): Promise<void> {
     const serviceKey = await resolveServiceKey();
     const options = {
       clientId: settings.authMode === 'builtin' ? 'hal-example' : settings.clientId,
-      baseUrl: settings.baseUrl,
+      host: settings.host,
+      port: settings.port,
       serviceKey,
       tokenStore,
     };
