@@ -5,6 +5,7 @@ import android.content.Intent
 import com.sunmi.nfc.INfcListener
 import com.sunmi.nfc.Nfc
 import com.sunmi.peripheralsdk.NfcManager
+import dev.duma.android.hal.contract.BaseHalPlugin
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
@@ -30,7 +31,7 @@ import org.json.JSONObject
  */
 class SunmiNfcPlugin(
     private val context: Context? = null
-) : HalPlugin {
+) : BaseHalPlugin() {
 
     override val pluginId = "sunmi.nfc"
     override val version = 1
@@ -93,7 +94,7 @@ class SunmiNfcPlugin(
         }
     }
 
-    override suspend fun execute(method: String, params: String): CommandResult = mutex.withLock {
+    override suspend fun onExecute(method: String, params: String): CommandResult = mutex.withLock {
         return@withLock try {
             when (method) {
                 "sunmi.nfc.switchModule" -> {

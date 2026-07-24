@@ -12,6 +12,7 @@ import com.sunmi.scanner.io.DataCallback
 import com.sunmi.scanner.io.QueryCallback
 import com.sunmi.scanner.sdk.InnerScanner
 import com.sunmi.sdk.ServiceConnectStatus
+import dev.duma.android.hal.contract.BaseHalPlugin
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
@@ -38,7 +39,7 @@ import org.json.JSONObject
  */
 class SunmiInnerScannerPlugin(
     private val appContext: Context? = null
-) : HalPlugin {
+) : BaseHalPlugin() {
 
     override val pluginId = "sunmi.scanner.inner"
     override val version = 1
@@ -120,7 +121,7 @@ class SunmiInnerScannerPlugin(
 
     // --- Execute ---
 
-    override suspend fun execute(method: String, params: String): CommandResult = mutex.withLock {
+    override suspend fun onExecute(method: String, params: String): CommandResult = mutex.withLock {
         val scanner = InnerScanner.getInstance()
         val json = if (params.isBlank() || params == "{}") JSONObject() else JSONObject(params)
 

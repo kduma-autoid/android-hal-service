@@ -1,5 +1,6 @@
 package dev.duma.android.hal.plugins.generic
 
+import dev.duma.android.hal.contract.BaseHalPlugin
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
@@ -13,7 +14,7 @@ import dev.duma.android.hal.contract.PluginDescriptor
  * vendor-specific printer plugin (Sunmi, Zebra, Chainway) via PluginContext.
  * Must be in-process — requires PluginContext for inter-plugin communication.
  */
-class GenericPrinterPlugin : HalPlugin {
+class GenericPrinterPlugin : BaseHalPlugin() {
 
     override val pluginId = "printer"
     override val version = 1
@@ -56,7 +57,7 @@ class GenericPrinterPlugin : HalPlugin {
         this.ctx = pluginContext
     }
 
-    override suspend fun execute(method: String, params: String): CommandResult {
+    override suspend fun onExecute(method: String, params: String): CommandResult {
         val context = ctx ?: return CommandResult.unavailable("Plugin not initialized")
 
         val operation = method.removePrefix("printer.")

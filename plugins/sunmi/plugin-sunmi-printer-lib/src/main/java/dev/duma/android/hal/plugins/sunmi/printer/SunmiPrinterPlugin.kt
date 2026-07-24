@@ -1,6 +1,7 @@
 package dev.duma.android.hal.plugins.sunmi.printer
 
 import android.content.Context
+import dev.duma.android.hal.contract.BaseHalPlugin
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.DescriptorGroup
 import dev.duma.android.hal.contract.HalPlugin
@@ -15,7 +16,7 @@ import dev.duma.android.hal.contract.stripExperimental
  * simulating print jobs and printer status. Will be replaced with real Sunmi SDK
  * integration in production. Accepts optional [Context] for hardware SDK access.
  */
-class SunmiPrinterPlugin(private val appContext: Context? = null) : HalPlugin {
+class SunmiPrinterPlugin(private val appContext: Context? = null) : BaseHalPlugin() {
 
     override val pluginId = "sunmi.printer"
     override val version = 1
@@ -68,7 +69,7 @@ class SunmiPrinterPlugin(private val appContext: Context? = null) : HalPlugin {
         // Stub — no PluginContext usage needed
     }
 
-    override suspend fun execute(method: String, params: String): CommandResult {
+    override suspend fun onExecute(method: String, params: String): CommandResult {
         return when (method) {
             "sunmi.printer.print" -> CommandResult.Success("""{"jobId":"job_${System.currentTimeMillis()}","status":"queued"}""")
             "sunmi.printer.status" -> CommandResult.Success("""{"status":"idle","paperLevel":"ok"}""")

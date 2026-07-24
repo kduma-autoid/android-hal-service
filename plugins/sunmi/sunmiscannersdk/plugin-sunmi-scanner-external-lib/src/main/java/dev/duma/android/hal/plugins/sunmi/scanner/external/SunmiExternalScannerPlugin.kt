@@ -5,6 +5,7 @@ import com.sunmi.scanner.connector.InitStatusCallback
 import com.sunmi.scanner.connector.ScanResultCallback
 import com.sunmi.scanner.manager.LittleFlashScanner
 import com.sunmi.sdk.ServiceConnectStatus
+import dev.duma.android.hal.contract.BaseHalPlugin
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
@@ -26,7 +27,7 @@ import org.json.JSONObject
  */
 class SunmiExternalScannerPlugin(
     private val appContext: Context? = null
-) : HalPlugin {
+) : BaseHalPlugin() {
 
     override val pluginId = "sunmi.scanner.external"
     override val version = 1
@@ -212,7 +213,7 @@ class SunmiExternalScannerPlugin(
 
     // --- Execute ---
 
-    override suspend fun execute(method: String, params: String): CommandResult = mutex.withLock {
+    override suspend fun onExecute(method: String, params: String): CommandResult = mutex.withLock {
         val scanner = LittleFlashScanner.getInstance()
         val json = if (params.isBlank() || params == "{}") JSONObject() else JSONObject(params)
 

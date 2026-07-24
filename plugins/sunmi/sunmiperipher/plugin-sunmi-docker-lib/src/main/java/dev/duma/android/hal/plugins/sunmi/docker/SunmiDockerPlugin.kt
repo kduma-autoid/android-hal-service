@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
 import com.sunmi.docker.IDockerController
+import dev.duma.android.hal.contract.BaseHalPlugin
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
@@ -25,7 +26,7 @@ import kotlinx.coroutines.sync.withLock
  */
 class SunmiDockerPlugin(
     private val context: Context? = null
-) : HalPlugin {
+) : BaseHalPlugin() {
 
     override val pluginId = "sunmi.docker"
     override val version = 1
@@ -106,7 +107,7 @@ class SunmiDockerPlugin(
         }
     }
 
-    override suspend fun execute(method: String, params: String): CommandResult = mutex.withLock {
+    override suspend fun onExecute(method: String, params: String): CommandResult = mutex.withLock {
         val controller = dockerController
             ?: return@withLock CommandResult.unavailable("Docker controller not connected")
 

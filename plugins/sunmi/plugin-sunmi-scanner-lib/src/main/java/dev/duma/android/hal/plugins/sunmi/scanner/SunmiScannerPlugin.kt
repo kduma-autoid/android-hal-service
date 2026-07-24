@@ -1,6 +1,7 @@
 package dev.duma.android.hal.plugins.sunmi.scanner
 
 import android.content.Context
+import dev.duma.android.hal.contract.BaseHalPlugin
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
@@ -18,7 +19,7 @@ import kotlin.random.Random
  * simulating scan triggers. Will be replaced with real Sunmi SDK integration
  * in production. Accepts optional [Context] for hardware SDK access.
  */
-class SunmiScannerPlugin(private val appContext: Context? = null) : HalPlugin {
+class SunmiScannerPlugin(private val appContext: Context? = null) : BaseHalPlugin() {
 
     override val pluginId = "sunmi.scanner"
     override val version = 1
@@ -70,7 +71,7 @@ class SunmiScannerPlugin(private val appContext: Context? = null) : HalPlugin {
         // Stub — timer started by trigger, stopped by stop
     }
 
-    override suspend fun execute(method: String, params: String): CommandResult {
+    override suspend fun onExecute(method: String, params: String): CommandResult {
         return when (method) {
             "sunmi.scanner.trigger" -> {
                 startDemoTimer()
