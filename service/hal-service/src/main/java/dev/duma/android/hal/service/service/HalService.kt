@@ -25,6 +25,7 @@ import dev.duma.android.hal.service.auth.TokenDao
 import dev.duma.android.hal.service.auth.TokenManager
 import dev.duma.android.hal.service.config.BroadcastConfig
 import dev.duma.android.hal.service.config.ExperimentalConfig
+import dev.duma.android.hal.service.config.InterfacePreferenceConfig
 import dev.duma.android.hal.service.core.ServiceCommandHandler
 import dev.duma.android.hal.service.core.TransportBootstrap
 import dev.duma.android.hal.service.plugin.PluginRegistry
@@ -65,6 +66,8 @@ class HalService : Service() {
         var broadcastConfig: BroadcastConfig? = null
             private set
         var experimentalConfig: ExperimentalConfig? = null
+            private set
+        var interfacePreferenceConfig: InterfacePreferenceConfig? = null
             private set
     }
 
@@ -179,6 +182,8 @@ class HalService : Service() {
         // 10. ExperimentalConfig + TransportConfig
         val experimentalConfig = ExperimentalConfig(applicationContext)
         val broadcastConfig = BroadcastConfig(applicationContext)
+        val interfacePreferenceConfig = InterfacePreferenceConfig(applicationContext)
+        pluginRegistry.interfacePreferenceConfig = interfacePreferenceConfig
         val config = TransportConfig(
             port = PORT,
             context = applicationContext,
@@ -200,6 +205,7 @@ class HalService : Service() {
             pluginRegistry = pluginRegistry,
             transportRegistry = transportRegistry,
             experimentalConfig = experimentalConfig,
+            interfacePreferenceConfig = interfacePreferenceConfig,
             versionName = pkgInfo?.versionName,
             versionCode = pkgInfo?.versionCode
         )
@@ -247,6 +253,7 @@ class HalService : Service() {
         Companion.tokenDao = db.tokenDao()
         Companion.broadcastConfig = broadcastConfig
         Companion.experimentalConfig = experimentalConfig
+        Companion.interfacePreferenceConfig = interfacePreferenceConfig
         Companion.isServiceRunning = true
 
         // 19. Foreground notification
@@ -271,6 +278,7 @@ class HalService : Service() {
         Companion.tokenDao = null
         Companion.broadcastConfig = null
         Companion.experimentalConfig = null
+        Companion.interfacePreferenceConfig = null
         transportRegistry.stopAll()
         ktorServerManager.stop()
         pluginRegistry.disconnectAll(this)

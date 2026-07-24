@@ -7,6 +7,7 @@ import dev.duma.android.hal.service.auth.TokenManager
 import dev.duma.android.hal.service.auth.TokenRequest
 import dev.duma.android.hal.service.auth.TokenResponse
 import dev.duma.android.hal.service.config.ExperimentalConfig
+import dev.duma.android.hal.service.config.InterfacePreferenceConfig
 import dev.duma.android.hal.service.plugin.PluginRegistry
 import dev.duma.android.hal.transport.core.CallerContext
 import dev.duma.android.hal.transport.core.CommandHandler
@@ -20,6 +21,7 @@ import dev.duma.android.hal.contract.allEvents
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.encodeToJsonElement
@@ -40,6 +42,7 @@ class ServiceCommandHandler(
     private val pluginRegistry: PluginRegistry,
     private val transportRegistry: TransportRegistry,
     private val experimentalConfig: ExperimentalConfig,
+    private val interfacePreferenceConfig: InterfacePreferenceConfig,
     private val startTimeMillis: Long = System.currentTimeMillis(),
     private val versionName: String? = null,
     private val versionCode: Int? = null
@@ -87,6 +90,14 @@ class ServiceCommandHandler(
                 val tokenEntity = requireToken(token, callerContext)
                     ?: return CommandResult.unauthorized("Invalid token")
                 CommandResult.Success(handleDescribe(tokenEntity, params))
+            }
+            "system.interface.setOrder" -> {
+                requireToken(token, callerContext) ?: return CommandResult.unauthorized("Invalid token")
+                handleSetInterfaceOrder(params)
+            }
+            "system.interface.setEnabled" -> {
+                requireToken(token, callerContext) ?: return CommandResult.unauthorized("Invalid token")
+                handleSetInterfaceEnabled(params)
             }
             else -> {
                 val tokenEntity = requireToken(token, callerContext)
@@ -150,6 +161,30 @@ class ServiceCommandHandler(
             ?: return null to params
         val provider = obj["__provider"]?.jsonPrimitive?.contentOrNull ?: return null to params
         return provider to JsonObject(obj - "__provider").toString()
+    }
+
+    private fun handleSetInterfaceOrder(params: String): CommandResult {
+        val obj = try { Json.parseToJsonElement(params) as? JsonObject } catch (_: Exception) { null }
+            ?: return CommandResult.badRequest("Invalid JSON")
+        val interfaceId = obj["interfaceId"]?.jsonPrimitive?.contentOrNull
+            ?: return CommandResult.badRequest("Missing 'interfaceId'")
+        val order = obj["order"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull }
+            ?: return CommandResult.badRequest("Missing 'order' array")
+        pluginRegistry.setInterfaceOrder(interfaceId, order)
+        return CommandResult.Success()
+    }
+
+    private fun handleSetInterfaceEnabled(params: String): CommandResult {
+        val obj = try { Json.parseToJsonElement(params) as? JsonObject } catch (_: Exception) { null }
+            ?: return CommandResult.badRequest("Invalid JSON")
+        val interfaceId = obj["interfaceId"]?.jsonPrimitive?.contentOrNull
+            ?: return CommandResult.badRequest("Missing 'interfaceId'")
+        val pluginId = obj["pluginId"]?.jsonPrimitive?.contentOrNull
+            ?: return CommandResult.badRequest("Missing 'pluginId'")
+        val enabled = obj["enabled"]?.jsonPrimitive?.booleanOrNull
+            ?: return CommandResult.badRequest("Missing 'enabled' boolean")
+        pluginRegistry.setInterfaceEnabled(interfaceId, pluginId, enabled)
+        return CommandResult.Success()
     }
 
     override suspend fun subscribe(token: String, events: String, callerContext: CallerContext): CommandResult {

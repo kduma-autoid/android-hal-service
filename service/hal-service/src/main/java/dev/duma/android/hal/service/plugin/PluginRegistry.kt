@@ -17,6 +17,7 @@ import dev.duma.android.hal.contract.InterfaceContract
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginDescriptor
 import dev.duma.android.hal.contract.allMethods
+import dev.duma.android.hal.service.config.InterfacePreferenceConfig
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArraySet
 
@@ -35,6 +36,7 @@ class PluginRegistry {
         private const val TAG = "PluginRegistry"
         private const val ACTION_HARDWARE_PLUGIN = "dev.duma.android.hal.HARDWARE_PLUGIN"
         const val EVENT_PLUGINS_CHANGED = "system.plugins.changed"
+        const val EVENT_INTERFACES_CHANGED = "system.interfaces.changed"
     }
 
     enum class PluginSource { BUILT_IN, EXTERNAL }
@@ -52,7 +54,9 @@ class PluginRegistry {
         val priority: Int,
         val features: List<String>,
         val isDefault: Boolean,
-        val available: Boolean
+        val available: Boolean,
+        val supported: Boolean = true,
+        val enabled: Boolean = true
     )
 
     private val plugins = ConcurrentHashMap<String, HalPlugin>()
@@ -68,6 +72,9 @@ class PluginRegistry {
     private val interfaceProviders = ConcurrentHashMap<String, CopyOnWriteArraySet<String>>()
     private val interfaceBindings = ConcurrentHashMap<String, List<InterfaceBinding>>()
     private val interfaceDefinitionsByPlugin = ConcurrentHashMap<String, List<String>>()
+
+    /** User ordering / enable-disable preferences per interface. Null until wired by the service. */
+    var interfacePreferenceConfig: InterfacePreferenceConfig? = null
 
     private val pluginInfo = ConcurrentHashMap<String, PluginInfo>()
     private val displacedPlugins = ConcurrentHashMap<String, Pair<HalPlugin, PluginInfo>>()
@@ -318,8 +325,11 @@ class PluginRegistry {
      */
     fun getInterfaceProviders(interfaceId: String): List<ProviderRef> {
         val ids = interfaceProviders[interfaceId] ?: return emptyList()
+        val config = interfacePreferenceConfig
+        val order = config?.getOrder(interfaceId) ?: emptyList()
         val refs = ids.mapNotNull { id ->
             if (!plugins.containsKey(id) || !isAvailable(id)) return@mapNotNull null
+            if (config?.isEnabled(interfaceId, id) == false) return@mapNotNull null
             val binding = interfaceBindings[id]?.firstOrNull { it.interfaceId == interfaceId } ?: return@mapNotNull null
             val plugin = plugins[id] ?: return@mapNotNull null
             ProviderRef(
@@ -331,12 +341,87 @@ class PluginRegistry {
                 isDefault = false,
                 available = true
             )
-        }.sortedWith(
-            compareByDescending<ProviderRef> { it.priority }
-                .thenByDescending { it.source == PluginSource.EXTERNAL }
-                .thenByDescending { it.version }
-        )
+        }.sortedWith(providerComparator(order))
         return refs.mapIndexed { index, ref -> ref.copy(isDefault = index == 0) }
+    }
+
+    /**
+     * ALL implementors of [interfaceId] for the Dashboard — including dynamically unavailable ones
+     * and unsupported ones (which are not in the interface index, so they are scanned from
+     * [unsupportedPlugins] descriptors). Sorted in effective order; [ProviderRef.isDefault] marks the
+     * one routing would pick (first available + enabled). Carries `available`/`supported`/`enabled` flags.
+     */
+    fun getAllInterfaceImplementors(interfaceId: String): List<ProviderRef> {
+        val config = interfacePreferenceConfig
+        val order = config?.getOrder(interfaceId) ?: emptyList()
+        val result = LinkedHashMap<String, ProviderRef>()
+        interfaceProviders[interfaceId]?.forEach { id ->
+            val plugin = plugins[id] ?: return@forEach
+            val binding = interfaceBindings[id]?.firstOrNull { it.interfaceId == interfaceId } ?: return@forEach
+            result[id] = ProviderRef(
+                pluginId = id,
+                source = pluginInfo[id]?.source,
+                version = plugin.version,
+                priority = binding.priority,
+                features = binding.features,
+                isDefault = false,
+                available = isAvailable(id),
+                supported = true,
+                enabled = config?.isEnabled(interfaceId, id) != false
+            )
+        }
+        // Unsupported plugins are never indexed — scan their descriptors for a binding.
+        unsupportedPlugins.values.forEach { plugin ->
+            if (result.containsKey(plugin.pluginId)) return@forEach
+            val binding = try {
+                plugin.getDescriptor().interfaces.firstOrNull { it.interfaceId == interfaceId }
+            } catch (_: Exception) {
+                null
+            } ?: return@forEach
+            result[plugin.pluginId] = ProviderRef(
+                pluginId = plugin.pluginId,
+                source = pluginInfo[plugin.pluginId]?.source,
+                version = plugin.version,
+                priority = binding.priority,
+                features = binding.features,
+                isDefault = false,
+                available = false,
+                supported = false,
+                enabled = config?.isEnabled(interfaceId, plugin.pluginId) != false
+            )
+        }
+        val sorted = result.values.sortedWith(providerComparator(order))
+        val defaultId = sorted.firstOrNull { it.available && it.enabled }?.pluginId
+        return sorted.map { it.copy(isDefault = it.pluginId == defaultId) }
+    }
+
+    /** User order first (by index), then priority desc, external over built-in, version desc. */
+    private fun providerComparator(order: List<String>): Comparator<ProviderRef> {
+        fun rank(id: String): Int = order.indexOf(id).let { if (it >= 0) it else Int.MAX_VALUE }
+        return compareBy<ProviderRef> { rank(it.pluginId) }
+            .thenByDescending { it.priority }
+            .thenByDescending { it.source == PluginSource.EXTERNAL }
+            .thenByDescending { it.version }
+    }
+
+    /** Sets the user provider order for an interface and notifies clients. */
+    fun setInterfaceOrder(interfaceId: String, order: List<String>) {
+        interfacePreferenceConfig?.setOrder(interfaceId, order)
+        emitInterfacesChanged(interfaceId)
+    }
+
+    /** Enables/disables a provider for an interface and notifies clients. */
+    fun setInterfaceEnabled(interfaceId: String, pluginId: String, enabled: Boolean) {
+        interfacePreferenceConfig?.setEnabled(interfaceId, pluginId, enabled)
+        emitInterfacesChanged(interfaceId)
+    }
+
+    private fun emitInterfacesChanged(interfaceId: String) {
+        pendingInit?.second?.emit(
+            EVENT_INTERFACES_CHANGED,
+            """{"interfaceId":"$interfaceId"}""",
+            sourcePluginId = "system"
+        )
     }
 
     /**
@@ -357,8 +442,9 @@ class PluginRegistry {
         }
         val plugin = if (providerPluginId != null) {
             val bound = interfaceBindings[providerPluginId]?.any { it.interfaceId == interfaceId } == true
+            val enabled = interfacePreferenceConfig?.isEnabled(interfaceId, providerPluginId) != false
             val p = plugins[providerPluginId]
-            if (p == null || !isAvailable(providerPluginId) || !bound) {
+            if (p == null || !isAvailable(providerPluginId) || !bound || !enabled) {
                 return CommandResult.unavailable("Provider '$providerPluginId' does not provide interface '$interfaceId'")
             }
             p
