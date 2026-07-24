@@ -21,12 +21,17 @@ interface ReceivedEvent {
 const receivedEvents = reactive<Record<string, ReceivedEvent[]>>({});
 let unsubscribers: (() => Promise<void>)[] = [];
 let isUnmounted = false;
+// The interfaceId we currently hold event subscriptions for. Guards against re-subscribing on every
+// data refresh (e.g. after a provider reorder), which would otherwise stack duplicate listeners.
+let subscribedFor: string | null = null;
 
 const interfaceId = computed(() => route.params.interfaceId as string);
 
 async function subscribeToEvents() {
-  cleanupSubscriptions();
   if (!client.value || !iface.value) return;
+  if (subscribedFor === iface.value.interfaceId) return; // already subscribed for this interface
+  cleanupSubscriptions();
+  subscribedFor = iface.value.interfaceId;
   const promises: Promise<void>[] = [];
   for (const ev of iface.value.events) {
     if (!receivedEvents[ev.name]) receivedEvents[ev.name] = [];
@@ -51,10 +56,13 @@ async function subscribeToEvents() {
 function cleanupSubscriptions() {
   const toCleanup = unsubscribers;
   unsubscribers = [];
+  subscribedFor = null;
   for (const off of toCleanup) off().catch(() => {});
 }
 
-async function fetchInterface() {
+// Fetches the interface (providers + methods). Subscribes to events only on the first load / an
+// interface change; a plain refresh (reorder/enable) updates data without touching subscriptions.
+async function fetchInterface(subscribe = true) {
   if (!client.value || !isConnected.value) return;
   loading.value = true;
   error.value = null;
@@ -63,7 +71,7 @@ async function fetchInterface() {
     const found = (result.interfaces ?? []).find((i) => i.interfaceId === interfaceId.value);
     if (found) {
       iface.value = found;
-      await subscribeToEvents();
+      if (subscribe) await subscribeToEvents();
     } else {
       error.value = `Interface not found: ${interfaceId.value}`;
       iface.value = null;
@@ -76,6 +84,11 @@ async function fetchInterface() {
   }
 }
 
+// Called by the card after a provider reorder/enable change — refresh data only, no re-subscribe.
+function refreshData() {
+  fetchInterface(false);
+}
+
 onMounted(() => {
   if (isConnected.value) fetchInterface();
 });
@@ -86,14 +99,18 @@ onUnmounted(() => {
 });
 
 watch(isConnected, (connected) => {
-  if (connected) fetchInterface();
-  else {
+  if (connected) {
+    fetchInterface();
+  } else {
     cleanupSubscriptions();
     iface.value = null;
   }
 });
 
-watch(interfaceId, fetchInterface);
+watch(interfaceId, () => {
+  cleanupSubscriptions();
+  fetchInterface();
+});
 </script>
 
 <template>
@@ -111,7 +128,7 @@ watch(interfaceId, fetchInterface);
 
       <div v-if="loading && !iface" class="loading">Loading interface details...</div>
 
-      <InterfaceCard v-if="iface" :iface="iface" :received-events="receivedEvents" @refresh="fetchInterface" />
+      <InterfaceCard v-if="iface" :iface="iface" :received-events="receivedEvents" @refresh="refreshData" />
     </template>
   </div>
 </template>

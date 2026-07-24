@@ -103,6 +103,7 @@ class InterfaceDetailActivity : AppCompatActivity() {
             return
         }
         impls.forEachIndexed { index, ref ->
+            if (index > 0) container.addView(divider())
             container.addView(buildImplementorRow(reg, container, impls, index, ref))
         }
     }
@@ -119,7 +120,6 @@ class InterfaceDetailActivity : AppCompatActivity() {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, 8, 0, 8)
             if (!ref.available || !ref.supported) alpha = 0.5f
-            addView(divider())
         }
 
         val upBtn = Button(this).apply {
