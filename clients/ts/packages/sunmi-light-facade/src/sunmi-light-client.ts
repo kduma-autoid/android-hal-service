@@ -1,103 +1,151 @@
 import type {
+  DescribeResponse,
+  FlashStep,
   IHalClient,
   ILight,
+  InterfaceDescriptor,
+  InterfaceProvider,
   LightCapabilities,
   LightColor,
   LightOptions,
   MultiFlash,
-  StatusResponse,
 } from '@kduma-autoid/hal-client-common';
+import { PROVIDER_PARAM_KEY } from '@kduma-autoid/hal-client-common';
+
+const LIGHT_INTERFACE = 'light';
 
 /** System event emitted when a plugin's dynamic availability changes. */
 export const PLUGINS_CHANGED_EVENT = 'system.plugins.changed';
-import {
-  SunmiTmsLedClient,
-  PLUGIN_ID as TMS_LED_PLUGIN_ID,
-} from '@kduma-autoid/hal-client-plugin-sunmi-tms-led';
-import {
-  SunmiStatusLightClient,
-  PLUGIN_ID as STATUSLIGHT_PLUGIN_ID,
-} from '@kduma-autoid/hal-client-plugin-sunmi-statuslight';
+/** System event emitted when interface provider order/enable changes. */
+export const INTERFACES_CHANGED_EVENT = 'system.interfaces.changed';
 
-export type LightBackend = typeof TMS_LED_PLUGIN_ID | typeof STATUSLIGHT_PLUGIN_ID;
-
-/** Preference order: the CPad built-in LED wins over the FLEX status light. */
-const BACKEND_PREFERENCE: LightBackend[] = [TMS_LED_PLUGIN_ID, STATUSLIGHT_PLUGIN_ID];
+/** A light provider's pluginId (backend), e.g. "sunmi.tms.led" or "sunmi.statuslight". */
+export type LightBackend = string;
 
 /**
- * Facade over the two Sunmi light backends (`sunmi.tms.led` on CPad and
- * `sunmi.statuslight` on FLEX). Detects which one the connected service exposes,
- * prefers the CPad LED, and delegates the unified {@link ILight} surface to it.
+ * Unified {@link ILight} client backed by the server-side `light` interface. Calls
+ * `light.on/off/flash/multiFlash`, targeting the interface's default provider — or a specific one
+ * pinned via {@link SunmiLightClient.forBackend}, injected through the reserved `__provider` param.
+ * Feature flags (`timeout`, `multiFlash`) come from the chosen provider's advertised interface
+ * features in `system.describe`, so the caller programs against one type and the backend is
+ * transparent.
  */
 export class SunmiLightClient implements ILight {
-  readonly backend: LightBackend;
-  private readonly delegate: ILight;
+  /** The active provider's pluginId (e.g. "sunmi.tms.led"). */
+  readonly backend: string;
+  readonly capabilities: LightCapabilities;
 
-  private constructor(delegate: ILight, backend: LightBackend) {
-    this.delegate = delegate;
+  private readonly client: IHalClient;
+  private readonly isDefaultProvider: boolean;
+
+  private constructor(
+    client: IHalClient,
+    backend: string,
+    capabilities: LightCapabilities,
+    isDefaultProvider: boolean,
+  ) {
+    this.client = client;
     this.backend = backend;
+    this.capabilities = capabilities;
+    this.isDefaultProvider = isDefaultProvider;
   }
 
-  /** Wraps a specific backend without probing the service. */
-  static forBackend(client: IHalClient, backend: LightBackend): SunmiLightClient {
-    const delegate: ILight =
-      backend === TMS_LED_PLUGIN_ID
-        ? new SunmiTmsLedClient(client)
-        : new SunmiStatusLightClient(client);
-    return new SunmiLightClient(delegate, backend);
-  }
-
-  /**
-   * Detects the available light backend via `system.status` and returns a facade
-   * bound to it. Throws if neither backend is present.
-   */
+  /** Binds to the interface's default provider; throws if `light` has no available provider. */
   static async create(client: IHalClient): Promise<SunmiLightClient> {
-    const backend = await SunmiLightClient.detect(client);
-    if (!backend) {
-      throw new Error(
-        'No Sunmi light backend available (neither sunmi.tms.led nor sunmi.statuslight)',
-      );
+    const provider = await SunmiLightClient.detect(client);
+    if (!provider) {
+      throw new Error('No Sunmi light backend available (interface "light" has no provider)');
     }
-    return SunmiLightClient.forBackend(client, backend);
+    return SunmiLightClient.fromProvider(client, provider);
   }
 
-  /** Returns the preferred available backend, or null if none is present. */
-  static async detect(client: IHalClient): Promise<LightBackend | null> {
-    const status = await client.execute<StatusResponse>('system.status', {});
-    const caps = new Set(
-      Object.values(status?.plugins ?? {}).flatMap((p) => p.capabilities ?? []),
-    );
-    return BACKEND_PREFERENCE.find((b) => caps.has(b)) ?? null;
+  /** Binds to a specific provider by pluginId (e.g. to override the default). */
+  static async forBackend(client: IHalClient, pluginId: string): Promise<SunmiLightClient> {
+    const iface = await SunmiLightClient.describeLight(client);
+    const provider = iface?.providers.find((p) => p.pluginId === pluginId);
+    if (!provider) {
+      throw new Error(`Light provider not available: ${pluginId}`);
+    }
+    return SunmiLightClient.fromProvider(client, provider);
+  }
+
+  /** The default provider of the `light` interface, or null if none is available. */
+  static async detect(client: IHalClient): Promise<InterfaceProvider | null> {
+    const iface = await SunmiLightClient.describeLight(client);
+    if (!iface || iface.providers.length === 0) return null;
+    return iface.providers.find((p) => p.isDefault) ?? iface.providers[0];
   }
 
   /**
-   * Subscribes to plugin availability changes (e.g. a light being plugged in/out or a CPad LED
-   * being confirmed after the TMS connection). Call `create()`/`detect()` again from the handler
-   * to pick up the new backend. Resolves to an unsubscribe function.
+   * Subscribes to backend-availability changes — hardware hot-plug (`system.plugins.changed`) and
+   * interface order/enable changes (`system.interfaces.changed`). Call `create()`/`detect()` again
+   * from the handler to pick up the new default. Resolves to an unsubscribe function.
    */
-  static onChanged(client: IHalClient, handler: () => void): Promise<() => Promise<void>> {
-    return client.on(PLUGINS_CHANGED_EVENT, () => handler());
+  static async onChanged(client: IHalClient, handler: () => void): Promise<() => Promise<void>> {
+    const offs = await Promise.all([
+      client.on(PLUGINS_CHANGED_EVENT, () => handler()),
+      client.on(INTERFACES_CHANGED_EVENT, () => handler()),
+    ]);
+    return async () => {
+      for (const off of offs) await off();
+    };
   }
 
-  get capabilities(): LightCapabilities {
-    return this.delegate.capabilities;
+  private static async describeLight(client: IHalClient): Promise<InterfaceDescriptor | undefined> {
+    const res = await client.execute<DescribeResponse>('system.describe', {});
+    return res.interfaces?.find((i) => i.interfaceId === LIGHT_INTERFACE);
   }
 
-  off(): Promise<void> {
-    return this.delegate.off();
+  private static fromProvider(client: IHalClient, provider: InterfaceProvider): SunmiLightClient {
+    const capabilities: LightCapabilities = {
+      multiFlash: provider.features.includes('multiFlash'),
+      timeout: provider.features.includes('timeout'),
+    };
+    return new SunmiLightClient(client, provider.pluginId, capabilities, provider.isDefault);
   }
 
-  on(color: LightColor, options?: LightOptions): Promise<void> {
-    return this.delegate.on(color, options);
+  /** Adds the `__provider` selector unless this client is bound to the interface's default provider. */
+  private params(base: Record<string, unknown>): Record<string, unknown> {
+    return this.isDefaultProvider ? base : { ...base, [PROVIDER_PARAM_KEY]: this.backend };
   }
 
-  flash(color: LightColor, onMs: number, offMs: number, options?: LightOptions): Promise<void> {
-    return this.delegate.flash(color, onMs, offMs, options);
+  async off(): Promise<void> {
+    await this.client.execute('light.off', this.params({}));
   }
 
-  /** Present (non-undefined) only when the active backend supports multiFlash. */
+  async on(color: LightColor, options?: LightOptions): Promise<void> {
+    const base: Record<string, unknown> = { color };
+    if (this.capabilities.timeout) {
+      base.timeoutMs = options?.timeoutMs ?? 0;
+    } else if (options?.timeoutMs) {
+      throw new Error(`timeoutMs is not supported by ${this.backend}`);
+    }
+    await this.client.execute('light.on', this.params(base));
+  }
+
+  async flash(color: LightColor, onMs: number, offMs: number, options?: LightOptions): Promise<void> {
+    const base: Record<string, unknown> = { color, onMs, offMs };
+    if (this.capabilities.timeout) {
+      base.timeoutMs = options?.timeoutMs ?? 0;
+    } else if (options?.timeoutMs) {
+      throw new Error(`timeoutMs is not supported by ${this.backend}`);
+    }
+    await this.client.execute('light.flash', this.params(base));
+  }
+
   get multiFlash(): MultiFlash | undefined {
-    const fn = this.delegate.multiFlash;
-    return fn ? (fn.bind(this.delegate) as MultiFlash) : undefined;
+    if (!this.capabilities.multiFlash) return undefined;
+    const impl = async (
+      a: FlashStep[] | LightColor[],
+      onMs?: number,
+      offMs?: number,
+    ): Promise<void> => {
+      const payload =
+        onMs === undefined
+          ? { steps: a as FlashStep[] }
+          : { colors: a as LightColor[], onMs, offMs };
+      await this.client.execute('light.multiFlash', this.params(payload));
+    };
+    return impl as unknown as MultiFlash;
   }
 }

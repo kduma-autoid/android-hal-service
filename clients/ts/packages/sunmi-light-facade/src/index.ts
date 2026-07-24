@@ -1,4 +1,8 @@
-export { SunmiLightClient, PLUGINS_CHANGED_EVENT } from './sunmi-light-client.js';
+export {
+  SunmiLightClient,
+  PLUGINS_CHANGED_EVENT,
+  INTERFACES_CHANGED_EVENT,
+} from './sunmi-light-client.js';
 export type { LightBackend } from './sunmi-light-client.js';
 export type {
   ILight,

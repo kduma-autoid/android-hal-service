@@ -17,8 +17,11 @@ export type {
   DescriptorGroup,
   MethodDescriptor,
   EventDescriptor,
+  InterfaceDescriptor,
+  InterfaceFeature,
+  InterfaceProvider,
 } from './describe.js';
-export { allMethods, allEvents } from './describe.js';
+export { allMethods, allEvents, PROVIDER_PARAM_KEY } from './describe.js';
 export type { StatusResponse, PluginStatus, TransportStatus } from './status.js';
 export type { HealthResponse } from './health.js';
 export type { LightColor, FlashStep, LightOptions, LightCapabilities } from './light.js';

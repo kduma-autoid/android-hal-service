@@ -5,6 +5,35 @@ export interface DescribeOptions {
 
 export interface DescribeResponse {
   plugins: PluginDescriptor[];
+  /** Registered interfaces (server-side interface layer). Absent on older services. */
+  interfaces?: InterfaceDescriptor[];
+}
+
+/** Reserved params key selecting a specific interface provider for a call. */
+export const PROVIDER_PARAM_KEY = '__provider';
+
+export interface InterfaceFeature {
+  key: string;
+  description: string;
+  methods: string[];
+}
+
+export interface InterfaceProvider {
+  pluginId: string;
+  source: string;
+  priority: number;
+  isDefault: boolean;
+  features: string[];
+}
+
+export interface InterfaceDescriptor {
+  kind: 'interface';
+  interfaceId: string;
+  version: number;
+  features: InterfaceFeature[];
+  methods: MethodDescriptor[];
+  events: EventDescriptor[];
+  providers: InterfaceProvider[];
 }
 
 export interface PluginDescriptor {

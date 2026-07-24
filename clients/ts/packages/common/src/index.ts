@@ -15,6 +15,9 @@ export type {
   DescriptorGroup,
   MethodDescriptor,
   EventDescriptor,
+  InterfaceDescriptor,
+  InterfaceFeature,
+  InterfaceProvider,
   StatusResponse,
   PluginStatus,
   TransportStatus,
@@ -34,6 +37,7 @@ export {
   createHalError,
   allMethods,
   allEvents,
+  PROVIDER_PARAM_KEY,
 } from './types/index.js';
 
 export { LIGHT_COLORS } from './types/index.js';
