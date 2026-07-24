@@ -277,7 +277,7 @@ class ServiceCommandHandler(
                     methodPredicate = { m -> permissions.any { m.requiredPermission.startsWith(it) } },
                     eventPredicate = { e -> permissions.any { e.requiredPermission.startsWith(it) } }
                 ))
-            }.filter { it.allMethods.isNotEmpty() || it.allEvents.isNotEmpty() }
+            }.filter { it.allMethods.isNotEmpty() || it.allEvents.isNotEmpty() || it.interfaces.isNotEmpty() || it.definesInterfaces.isNotEmpty() }
         }
 
         // Step 2: Filter super methods unless withSuper=true
@@ -286,7 +286,7 @@ class ServiceCommandHandler(
         } else {
             filtered.map { desc ->
                 desc.copy(groups = filterGroups(desc.groups, methodPredicate = { !it.superRequired }))
-            }.filter { it.allMethods.isNotEmpty() || it.allEvents.isNotEmpty() }
+            }.filter { it.allMethods.isNotEmpty() || it.allEvents.isNotEmpty() || it.interfaces.isNotEmpty() || it.definesInterfaces.isNotEmpty() }
         }
 
         // Step 3: Filter experimental methods/plugins unless withExperimental=true
@@ -307,7 +307,7 @@ class ServiceCommandHandler(
                 } else {
                     desc.copy(groups = filterGroups(desc.groups, methodPredicate = { !it.experimental }, eventPredicate = { !it.experimental }))
                 }
-            }.filter { it.allMethods.isNotEmpty() || it.allEvents.isNotEmpty() }
+            }.filter { it.allMethods.isNotEmpty() || it.allEvents.isNotEmpty() || it.interfaces.isNotEmpty() || it.definesInterfaces.isNotEmpty() }
         }
 
         // Step 4: Build response with extra metadata
@@ -328,6 +328,12 @@ class ServiceCommandHandler(
                             put("experimentalActive", isExpEnabledViaPrefs || hasExpViaToken)
                         }
                         putJsonArray("capabilities") { desc.capabilities.forEach { add(JsonPrimitive(it)) } }
+                        if (desc.interfaces.isNotEmpty()) {
+                            putJsonArray("providesInterfaces") { desc.interfaces.forEach { add(JsonPrimitive(it.interfaceId)) } }
+                        }
+                        if (desc.definesInterfaces.isNotEmpty()) {
+                            putJsonArray("definesInterfaces") { desc.definesInterfaces.forEach { add(JsonPrimitive(it.interfaceId)) } }
+                        }
                         putJsonArray("groups") {
                             desc.groups.forEach { group ->
                                 add(buildJsonObject {

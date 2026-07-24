@@ -459,6 +459,20 @@ class PluginRegistry {
                 ?: return CommandResult.unavailable("No provider available for interface: $interfaceId")
             plugins[defaultId] ?: return CommandResult.unavailable("No provider available for interface: $interfaceId")
         }
+        // Method-level feature gate: if the method is gated by an interface feature (feature.methods),
+        // the resolved provider must advertise it. Parameter-level features (features with no `methods`,
+        // e.g. a "timeout" option) are NOT enforced here — the core forwards params opaquely, so the
+        // provider validates its own parameters.
+        val requiredFeature = contract.features.firstOrNull { method in it.methods }?.key
+        if (requiredFeature != null) {
+            val providerFeatures = interfaceBindings[plugin.pluginId]
+                ?.firstOrNull { it.interfaceId == interfaceId }?.features ?: emptyList()
+            if (requiredFeature !in providerFeatures) {
+                return CommandResult.unavailable(
+                    "Provider '${plugin.pluginId}' does not support feature '$requiredFeature' required by '$method'"
+                )
+            }
+        }
         return plugin.execute(method, params)
     }
 

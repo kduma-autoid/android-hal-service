@@ -46,6 +46,10 @@ export interface PluginDescriptor {
   experimentalActive?: boolean;
   capabilities: string[];
   groups: DescriptorGroup[];
+  /** Interface ids this plugin provides (implements). Cross-reference DescribeResponse.interfaces. */
+  providesInterfaces?: string[];
+  /** Interface ids this plugin defines (registers). Cross-reference DescribeResponse.interfaces. */
+  definesInterfaces?: string[];
 }
 
 export interface DescriptorGroup {

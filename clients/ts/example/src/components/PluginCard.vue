@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import type { PluginDescriptor } from '@kduma-autoid/hal-client-common';
+import type { PluginDescriptor, InterfaceDescriptor } from '@kduma-autoid/hal-client-common';
 import { allMethods, allEvents } from '@kduma-autoid/hal-client-common';
 import MethodExecutor from './MethodExecutor.vue';
 import EventMonitor from './EventMonitor.vue';
+import InterfaceMethodsSection from './InterfaceMethodsSection.vue';
 
 interface ReceivedEvent {
   timestamp: number;
@@ -13,7 +14,23 @@ interface ReceivedEvent {
 const props = defineProps<{
   plugin: PluginDescriptor;
   receivedEvents?: Record<string, ReceivedEvent[]>;
+  /** All registered interfaces (from describe), used to render this plugin's interface sections. */
+  interfaces?: InterfaceDescriptor[];
 }>();
+
+const providedContracts = computed(() =>
+  (props.plugin.providesInterfaces ?? [])
+    .map((id) => props.interfaces?.find((i) => i.interfaceId === id))
+    .filter((c): c is InterfaceDescriptor => !!c),
+);
+const definedContracts = computed(() =>
+  (props.plugin.definesInterfaces ?? [])
+    .map((id) => props.interfaces?.find((i) => i.interfaceId === id))
+    .filter((c): c is InterfaceDescriptor => !!c),
+);
+function providerFeatures(contract: InterfaceDescriptor): string[] {
+  return contract.providers.find((p) => p.pluginId === props.plugin.pluginId)?.features ?? [];
+}
 
 const methodCount = computed(() => allMethods(props.plugin).length);
 const eventCount = computed(() => allEvents(props.plugin).length);
@@ -140,7 +157,23 @@ function breakableName(name: string): string {
       </template>
     </template>
 
-    <p v-if="methodCount === 0 && eventCount === 0" class="empty">No methods or events</p>
+    <template v-for="contract in providedContracts" :key="'prov-' + contract.interfaceId">
+      <InterfaceMethodsSection
+        :contract="contract"
+        mode="provider"
+        :provider-id="plugin.pluginId"
+        :provider-features="providerFeatures(contract)"
+        :received-events="receivedEvents"
+      />
+    </template>
+    <template v-for="contract in definedContracts" :key="'def-' + contract.interfaceId">
+      <InterfaceMethodsSection :contract="contract" mode="definer" />
+    </template>
+
+    <p
+      v-if="methodCount === 0 && eventCount === 0 && !providedContracts.length && !definedContracts.length"
+      class="empty"
+    >No methods or events</p>
   </div>
 </template>
 
