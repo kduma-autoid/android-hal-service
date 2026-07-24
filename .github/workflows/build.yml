@@ -195,9 +195,14 @@ jobs:
           mkdir -p /tmp/aars
           find . -name '*-release.aar' -path '*/build/outputs/aar/*' | while read -r aar; do
             base=$(basename "$aar" -release.aar)
-            # Drop the `-stable` suffix so a stable variant matches the flavourless naming.
-            base="${base%-stable}"
-            cp "$aar" "/tmp/android-artifacts/library_${base}-${VERSION}.aar"
+            # Flavour goes after the version (like the APKs); stable drops its suffix entirely.
+            if [[ "$base" == *-stable ]]; then
+              cp "$aar" "/tmp/android-artifacts/library_${base%-stable}-${VERSION}.aar"
+            elif [[ "$base" == *-development ]]; then
+              cp "$aar" "/tmp/android-artifacts/library_${base%-development}-${VERSION}-development.aar"
+            else
+              cp "$aar" "/tmp/android-artifacts/library_${base}-${VERSION}.aar"
+            fi
           done
 
       - name: Upload android-artifacts as workflow artifact
