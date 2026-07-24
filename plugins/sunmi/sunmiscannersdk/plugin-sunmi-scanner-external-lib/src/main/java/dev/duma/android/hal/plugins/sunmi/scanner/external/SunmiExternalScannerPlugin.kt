@@ -47,14 +47,15 @@ class SunmiExternalScannerPlugin(
     }
 
     private val scanResultCallback = object : ScanResultCallback {
-        @Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
-        override fun onScanResultAvailable(data: String?, rawData: ByteArray?, format: String?, status: String?) {
+        // Parameter names mirror the SDK's ScanResultCallback. The JSON keys below are the event's
+        // existing payload contract, so they don't map 1:1 onto the parameter names.
+        override fun onScanResultAvailable(qrResult: String?, barcodeSource: ByteArray?, status: String?, subStatus: String?) {
             val payload = JSONObject()
-                .put("data", data ?: "")
-                .put("format", format ?: "")
-                .put("status", status ?: "")
-            if (rawData != null) {
-                payload.put("rawData", rawData.joinToString("") { "%02x".format(it) })
+                .put("data", qrResult ?: "")
+                .put("format", status ?: "")
+                .put("status", subStatus ?: "")
+            if (barcodeSource != null) {
+                payload.put("rawData", barcodeSource.joinToString("") { "%02x".format(it) })
             }
             emitEvent(EVENT_BARCODE, payload.toString())
         }
