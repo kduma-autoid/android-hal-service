@@ -174,18 +174,25 @@ jobs:
             base=$(basename "$apk" -release.apk)
             # Detect flavor from directory structure: apk/{flavor}/release/ vs apk/release/
             grandparent=$(basename "$(dirname "$(dirname "$apk")")")
-            if [[ "$grandparent" != "apk" ]]; then
-              module="${base%-"$grandparent"}"
-              if [[ "$grandparent" == "stable" ]]; then
-                # Stable variant: no suffix, matching flavourless naming.
-                cp "$apk" "/tmp/android-artifacts/${module}-${VERSION}.apk"
-              else
-                # Dash-separate the *Development app flavors (sunmiDevelopment -> sunmi-development).
-                flavor=$(echo "$grandparent" | sed -E 's/Development$/-development/')
-                cp "$apk" "/tmp/android-artifacts/${module}-${VERSION}-${flavor}.apk"
-              fi
-            else
+            if [[ "$grandparent" == "apk" ]]; then
               cp "$apk" "/tmp/android-artifacts/${base}-${VERSION}.apk"
+            else
+              module="${base%-"$grandparent"}"
+              # Device part (sunmi/generic) goes before the version, edition (development) after it;
+              # stable is dropped. App flavours: sunmi/generic(+Development); bundles: stable/development.
+              device=""
+              edition=""
+              case "$grandparent" in
+                stable) ;;
+                development) edition="development" ;;
+                *Development) device="${grandparent%Development}"; edition="development" ;;
+                *) device="$grandparent" ;;
+              esac
+              name="$module"
+              if [[ -n "$device" ]]; then name="${name}-${device}"; fi
+              name="${name}-${VERSION}"
+              if [[ -n "$edition" ]]; then name="${name}-${edition}"; fi
+              cp "$apk" "/tmp/android-artifacts/${name}.apk"
             fi
           done
 
