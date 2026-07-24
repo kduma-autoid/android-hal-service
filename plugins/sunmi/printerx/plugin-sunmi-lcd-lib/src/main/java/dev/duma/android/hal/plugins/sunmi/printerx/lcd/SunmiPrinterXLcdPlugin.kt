@@ -4,6 +4,7 @@ import android.content.Context
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginDescriptor
+import dev.duma.android.hal.contract.stripExperimental
 import dev.duma.android.hal.plugins.sunmi.printerx.lcd.handler.LcdApiHandler
 import dev.duma.android.hal.plugins.sunmi.printerx.sdk.BasePrinterXPlugin
 import org.json.JSONObject
@@ -17,7 +18,11 @@ class SunmiPrinterXLcdPlugin(context: Context? = null) : BasePrinterXPlugin(cont
 
     override fun getCapabilities() = listOf("sunmi.printerx.lcd")
 
-    override fun getDescriptor() = PluginDescriptor.withFlatLists(
+    override fun getDescriptor() = fullDescriptor().let {
+        if (BuildConfig.WITH_EXPERIMENTAL) it else it.stripExperimental()
+    }
+
+    private fun fullDescriptor() = PluginDescriptor.withFlatLists(
         pluginId = pluginId,
         name = "Sunmi: LCD",
         version = version,

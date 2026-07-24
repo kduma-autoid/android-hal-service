@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import com.sunmi.peripheralsdk.SubScreenManager
 import com.sunmi.usbscreen.ISetCall
+import dev.duma.android.hal.contract.BaseHalPlugin
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
@@ -24,7 +25,7 @@ import org.json.JSONObject
  */
 class SunmiSubScreenPlugin(
     private val context: Context? = null
-) : HalPlugin {
+) : BaseHalPlugin() {
 
     override val pluginId = "sunmi.screen"
     override val version = 1
@@ -108,7 +109,7 @@ class SunmiSubScreenPlugin(
         }
     }
 
-    override suspend fun execute(method: String, params: String): CommandResult = mutex.withLock {
+    override suspend fun onExecute(method: String, params: String): CommandResult = mutex.withLock {
         return@withLock try {
             when (method) {
                 "sunmi.screen.getDeviceInfo" -> {

@@ -42,6 +42,7 @@
             <option value="$PROJECT_DIR$/plugins/sunmi/tms" />
             <option value="$PROJECT_DIR$/plugins/sunmi/tms/plugin-sunmi-device-lib" />
             <option value="$PROJECT_DIR$/plugins/sunmi/tms/plugin-sunmi-kiosk-lib" />
+            <option value="$PROJECT_DIR$/plugins/sunmi/tms/plugin-sunmi-led-lib" />
             <option value="$PROJECT_DIR$/plugins/sunmi/tms/plugin-sunmi-network-lib" />
             <option value="$PROJECT_DIR$/plugins/sunmi/tms/plugin-sunmi-software-lib" />
             <option value="$PROJECT_DIR$/plugins/sunmi/tms/plugin-sunmi-system-lib" />

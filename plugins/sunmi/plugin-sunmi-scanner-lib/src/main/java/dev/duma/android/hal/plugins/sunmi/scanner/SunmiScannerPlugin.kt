@@ -1,6 +1,7 @@
 package dev.duma.android.hal.plugins.sunmi.scanner
 
 import android.content.Context
+import dev.duma.android.hal.contract.BaseHalPlugin
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
@@ -8,6 +9,7 @@ import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
+import dev.duma.android.hal.contract.stripExperimental
 import java.util.Timer
 import kotlin.concurrent.fixedRateTimer
 import kotlin.random.Random
@@ -17,7 +19,7 @@ import kotlin.random.Random
  * simulating scan triggers. Will be replaced with real Sunmi SDK integration
  * in production. Accepts optional [Context] for hardware SDK access.
  */
-class SunmiScannerPlugin(private val appContext: Context? = null) : HalPlugin {
+class SunmiScannerPlugin(private val appContext: Context? = null) : BaseHalPlugin() {
 
     override val pluginId = "sunmi.scanner"
     override val version = 1
@@ -29,7 +31,11 @@ class SunmiScannerPlugin(private val appContext: Context? = null) : HalPlugin {
 
     override fun getCapabilities(): List<String> = listOf("sunmi.scanner")
 
-    override fun getDescriptor(): PluginDescriptor = PluginDescriptor.withFlatLists(
+    override fun getDescriptor() = fullDescriptor().let {
+        if (BuildConfig.WITH_EXPERIMENTAL) it else it.stripExperimental()
+    }
+
+    private fun fullDescriptor(): PluginDescriptor = PluginDescriptor.withFlatLists(
         pluginId = pluginId,
         name = "[DEMO] Sunmi Scanner",
         version = version,
@@ -65,7 +71,7 @@ class SunmiScannerPlugin(private val appContext: Context? = null) : HalPlugin {
         // Stub — timer started by trigger, stopped by stop
     }
 
-    override suspend fun execute(method: String, params: String): CommandResult {
+    override suspend fun onExecute(method: String, params: String): CommandResult {
         return when (method) {
             "sunmi.scanner.trigger" -> {
                 startDemoTimer()

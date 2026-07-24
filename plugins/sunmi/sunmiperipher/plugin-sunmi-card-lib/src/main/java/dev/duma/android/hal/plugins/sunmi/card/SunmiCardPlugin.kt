@@ -9,6 +9,7 @@ import android.hardware.usb.UsbManager
 import androidx.core.content.ContextCompat
 import com.sunmi.card.IDataListener
 import com.sunmi.peripheralsdk.CardManager
+import dev.duma.android.hal.contract.BaseHalPlugin
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
@@ -16,6 +17,7 @@ import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
+import dev.duma.android.hal.contract.stripExperimental
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
@@ -28,7 +30,7 @@ import org.json.JSONObject
  */
 class SunmiCardPlugin(
     private val context: Context? = null
-) : HalPlugin {
+) : BaseHalPlugin() {
 
     override val pluginId = "sunmi.card"
     override val version = 1
@@ -75,7 +77,11 @@ class SunmiCardPlugin(
 
     override fun getCapabilities(): List<String> = listOf("sunmi.card")
 
-    override fun getDescriptor(): PluginDescriptor = PluginDescriptor.withFlatLists(
+    override fun getDescriptor() = fullDescriptor().let {
+        if (BuildConfig.WITH_EXPERIMENTAL) it else it.stripExperimental()
+    }
+
+    private fun fullDescriptor(): PluginDescriptor = PluginDescriptor.withFlatLists(
         pluginId = pluginId,
         name = "Sunmi: Magnetic Card Reader (FLEX 3)",
         version = version,
@@ -140,7 +146,7 @@ class SunmiCardPlugin(
         return usb.deviceList.values.any { it.vendorId == CARD_READER_VID && it.productId == CARD_READER_PID }
     }
 
-    override suspend fun execute(method: String, params: String): CommandResult = mutex.withLock {
+    override suspend fun onExecute(method: String, params: String): CommandResult = mutex.withLock {
         return@withLock try {
             when (method) {
                 "sunmi.card.getInfo" -> {

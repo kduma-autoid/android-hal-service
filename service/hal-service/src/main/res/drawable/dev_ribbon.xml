@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- DEV build marker: a "DEV" pill in the lower-centre of the adaptive-icon foreground. Placed
+     inside the guaranteed-visible safe zone (a circle of radius ~33 around the 54,54 centre) so it
+     is never clipped by round/squircle masks, and kept away from the top-right corner where
+     launchers draw the notification dot. Lives in main so every *Development flavor can reference
+     it; unused by production flavors. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Pill background (fully rounded ends), centred at (54,65), spanning x 28..80, y 58..72. -->
+    <path
+        android:fillColor="#D32F2F"
+        android:pathData="M35,58 L73,58 A7,7 0 0 1 73,72 L35,72 A7,7 0 0 1 35,58 Z" />
+
+    <!-- "DEV" text, upright and centred in the pill. -->
+    <group android:name="devText">
+        <!-- D -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="2"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M38,60 L38,70 M38,60 Q46,60 46,65 Q46,70 38,70" />
+        <!-- E -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="2"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M57,60 L50,60 L50,70 L57,70 M50,65 L55,65" />
+        <!-- V -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="2"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M61,60 L65,70 L69,60" />
+    </group>
+</vector>

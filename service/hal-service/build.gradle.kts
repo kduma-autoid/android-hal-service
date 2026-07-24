@@ -20,10 +20,15 @@ android {
         versionName = project.properties["projectVersion"] as String? ?: "0.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Development builds (see product flavors) flip this on to expose the configurable
+        // listen address/port. Production builds keep the service bound to localhost.
+        buildConfigField("boolean", "DEVELOPMENT", "false")
     }
 
     buildFeatures {
         aidl = true
+        buildConfig = true
     }
 
     buildTypes {
@@ -36,7 +41,12 @@ android {
         }
     }
 
-    flavorDimensions += "device"
+    // Two orthogonal dimensions:
+    //   device    — which vendor plugins are on the classpath (generic vs sunmi)
+    //   stability  — whether experimental methods are compiled in (stable vs development)
+    // The `stability` dimension is shared with the plugin modules, so selecting a single Build
+    // Variant in Android Studio switches the app and every plugin together (no per-module fiddling).
+    flavorDimensions += listOf("device", "stability")
     productFlavors {
         create("generic") {
             dimension = "device"
@@ -44,7 +54,18 @@ android {
         create("sunmi") {
             dimension = "device"
         }
+        create("stable") {
+            dimension = "stability"
+            // Production build: experimental methods are compiled out of the plugins.
+        }
+        create("development") {
+            dimension = "stability"
+            // Full build: every plugin and method, including experimental, plus the
+            // development-only options (configurable listen address/port).
+            buildConfigField("boolean", "DEVELOPMENT", "true")
+        }
     }
+
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -63,6 +84,25 @@ android {
     }
 }
 
+// AGP generates dependency configurations per flavour and per build type, but NOT for
+// multi-dimension flavour combinations, so there is no `sunmiDevelopmentImplementation`. Collect
+// the plugins that belong only to the sunmi+development combination in this dependency bucket and
+// extend just the matching variants' classpaths with it (see the androidComponents block below).
+val sunmiDevelopmentOnly = configurations.create("sunmiDevelopmentOnly") {
+    isCanBeResolved = false
+    isCanBeConsumed = false
+}
+
+androidComponents {
+    onVariants { variant ->
+        // Variant names are the flavour combination + build type, e.g. sunmiDevelopmentRelease.
+        if (variant.name.startsWith("sunmiDevelopment")) {
+            variant.compileConfiguration.extendsFrom(sunmiDevelopmentOnly)
+            variant.runtimeConfiguration.extendsFrom(sunmiDevelopmentOnly)
+        }
+    }
+}
+
 dependencies {
     // Project modules - core
     implementation(project(":service:hal-contract"))
@@ -78,27 +118,43 @@ dependencies {
 
     // Project modules - plugins
     implementation(project(":plugins:generic:plugin-generic-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:plugin-sunmi-printer-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:plugin-sunmi-scanner-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:sunmiperipher:plugin-sunmi-statuslight-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:sunmiperipher:plugin-sunmi-nfc-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:sunmiperipher:plugin-sunmi-card-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:sunmiperipher:plugin-sunmi-screen-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:sunmiperipher:plugin-sunmi-docker-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:tms:plugin-sunmi-device-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:tms:plugin-sunmi-led-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:tms:plugin-sunmi-software-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:tms:plugin-sunmi-system-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:tms:plugin-sunmi-network-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:tms:plugin-sunmi-kiosk-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-rfid-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-scanner-inner-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-scanner-camera-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-scanner-external-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:printerx:plugin-sunmi-manager-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:printerx:plugin-sunmi-printer-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:printerx:plugin-sunmi-drawer-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:printerx:plugin-sunmi-lcd-lib"))
+    // Sunmi plugins shared by both sunmi builds (production subset). Added to the `sunmi` device
+    // flavour, so they land in both sunmiStable and sunmiDevelopment; AGP matches each plugin's
+    // `stability` variant to the app's (stable → experimental compiled out, development → kept).
+    val sunmiCommonPlugins = listOf(
+        ":plugins:sunmi:plugin-sunmi-scanner-lib",
+        ":plugins:sunmi:sunmiperipher:plugin-sunmi-statuslight-lib",
+        ":plugins:sunmi:sunmiperipher:plugin-sunmi-nfc-lib",
+        ":plugins:sunmi:sunmiperipher:plugin-sunmi-screen-lib",
+        ":plugins:sunmi:tms:plugin-sunmi-device-lib",
+        ":plugins:sunmi:tms:plugin-sunmi-led-lib",
+        ":plugins:sunmi:sunmiscannersdk:plugin-sunmi-rfid-lib",
+        ":plugins:sunmi:sunmiscannersdk:plugin-sunmi-scanner-inner-lib",
+        ":plugins:sunmi:printerx:plugin-sunmi-manager-lib",
+        ":plugins:sunmi:printerx:plugin-sunmi-printer-lib",
+        ":plugins:sunmi:printerx:plugin-sunmi-drawer-lib",
+        ":plugins:sunmi:printerx:plugin-sunmi-lcd-lib",
+    )
+    // Sunmi plugins only in the full development build — experimental at the whole-plugin level.
+    // Added to the sunmi+development flavour combination only (via `sunmiDevelopmentOnly`, wired
+    // below), so they never reach a stable APK.
+    val sunmiDevelopmentOnlyPlugins = listOf(
+        ":plugins:sunmi:plugin-sunmi-printer-lib",
+        ":plugins:sunmi:sunmiperipher:plugin-sunmi-card-lib",
+        ":plugins:sunmi:sunmiperipher:plugin-sunmi-docker-lib",
+        ":plugins:sunmi:tms:plugin-sunmi-software-lib",
+        ":plugins:sunmi:tms:plugin-sunmi-system-lib",
+        ":plugins:sunmi:tms:plugin-sunmi-network-lib",
+        ":plugins:sunmi:tms:plugin-sunmi-kiosk-lib",
+        ":plugins:sunmi:sunmiscannersdk:plugin-sunmi-scanner-camera-lib",
+        ":plugins:sunmi:sunmiscannersdk:plugin-sunmi-scanner-external-lib",
+    )
+    sunmiCommonPlugins.forEach {
+        add("sunmiImplementation", project(it))
+    }
+    sunmiDevelopmentOnlyPlugins.forEach {
+        add("sunmiDevelopmentOnly", project(it))
+    }
 
     // AndroidX
     implementation(libs.androidx.core.ktx)

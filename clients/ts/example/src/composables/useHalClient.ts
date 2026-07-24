@@ -49,7 +49,9 @@ async function generateDeviceKeyJwt(secret: string, clientId: string): Promise<s
 }
 
 export interface AppSettings {
-  baseUrl: string;
+  host: string;
+  port: number;
+  secure: boolean;
   clientId: string;
   authMode: AuthMode;
   serviceKey: string;
@@ -58,7 +60,9 @@ export interface AppSettings {
 }
 
 const defaultSettings: AppSettings = {
-  baseUrl: 'http://localhost:8400',
+  host: 'localhost',
+  port: 8400,
+  secure: false,
   clientId: 'hal-example',
   authMode: hasBuiltinKey ? 'builtin' : 'none',
   serviceKey: '',
@@ -135,7 +139,9 @@ async function connect(): Promise<void> {
     const serviceKey = await resolveServiceKey();
     const options = {
       clientId: settings.authMode === 'builtin' ? 'hal-example' : settings.clientId,
-      baseUrl: settings.baseUrl,
+      host: settings.host,
+      port: settings.port,
+      secure: settings.secure,
       serviceKey,
       tokenStore,
     };

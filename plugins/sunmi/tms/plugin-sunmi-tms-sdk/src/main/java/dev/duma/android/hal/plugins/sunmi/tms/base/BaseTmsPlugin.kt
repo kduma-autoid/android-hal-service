@@ -3,8 +3,8 @@ package dev.duma.android.hal.plugins.sunmi.tms.base
 import android.content.Context
 import com.sunmi.tms.api.TMSApi
 import com.sunmi.tms.api.TMSServiceConnection
+import dev.duma.android.hal.contract.BaseHalPlugin
 import dev.duma.android.hal.contract.CommandResult
-import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.PluginContext
 import kotlinx.coroutines.sync.Mutex
@@ -12,7 +12,7 @@ import kotlinx.coroutines.sync.withLock
 
 abstract class BaseTmsPlugin(
     protected val context: Context? = null
-) : HalPlugin {
+) : BaseHalPlugin() {
 
     protected val tmsApi = TMSApi()
     protected var connected = false
