@@ -1,12 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- DEV build marker: an amber banner across the lower third of the adaptive-icon foreground.
+<!-- DEV build marker: a diagonal "DEV" ribbon across the top-right corner of the adaptive-icon
+     foreground. The band hugs the corner (partly masked on round icons is fine); the "DEV" text is
+     kept inside the adaptive-icon safe zone so it stays legible under any launcher mask.
      Lives in main so every *Development flavor can reference it; unused by production flavors. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- Ribbon band across the top-right corner. -->
     <path
-        android:fillColor="#FFC107"
-        android:pathData="M0,79 L108,79 L108,95 L0,95 Z" />
+        android:fillColor="#D32F2F"
+        android:pathData="M44,0 L74,0 L108,34 L108,64 Z" />
+
+    <!-- "DEV" text, rotated 45° to run along the band (reads when tilting the head right). -->
+    <group
+        android:name="devText"
+        android:pivotX="83.5"
+        android:pivotY="24.5"
+        android:rotation="45">
+        <!-- D -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="2.2"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M69,18 L69,32 M69,18 Q77,18 77,25 Q77,32 69,32" />
+        <!-- E -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="2.2"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M87,18 L80,18 L80,32 L87,32 M80,25 L85,25" />
+        <!-- V -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="2.2"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M90,18 L94,32 L98,18" />
+    </group>
 </vector>
