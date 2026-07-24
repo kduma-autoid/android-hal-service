@@ -1,11 +1,10 @@
 import { WsConnection, WsCommandTransport, WsEventTransport } from '@kduma-autoid/hal-client-transport-ws';
 import { HalClient } from './hal-client.js';
 import type { HalClientOptions } from './hal-client-options.js';
-import { resolveBaseUrl } from './hal-client-options.js';
+import { resolveWsUrl } from './hal-client-options.js';
 
 export function createWsHalClient(options: HalClientOptions): HalClient {
-  const baseUrl = resolveBaseUrl(options);
-  const wsUrl = baseUrl.replace(/^http/, 'ws') + '/ws';
+  const wsUrl = resolveWsUrl(options);
   const connection = new WsConnection({
     url: wsUrl,
     autoReconnect: options.autoReconnect,

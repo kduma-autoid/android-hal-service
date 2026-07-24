@@ -323,13 +323,14 @@ class DashboardActivity : AppCompatActivity() {
                     serverConfig.setLanAccessAsLocal(lanCheck.isChecked)
                     Toast.makeText(
                         this@DashboardActivity,
-                        "Saved. Restart the service to apply.",
-                        Toast.LENGTH_LONG
+                        "Saved. Restarting server…",
+                        Toast.LENGTH_SHORT
                     ).show()
+                    restartService()
                 }
             })
             layout.addView(TextView(this).apply {
-                text = "Applies on next service (re)start. Development builds only."
+                text = "Saving restarts the server to apply. Development builds only."
                 textSize = 12f
                 setTextColor(Color.GRAY)
                 setPadding(0, 4, 0, 0)
@@ -976,6 +977,25 @@ class DashboardActivity : AppCompatActivity() {
                     return@launch
                 }
             }
+        }
+    }
+
+    /** Stops the service and starts a fresh instance so config changes (e.g. bind address/port)
+     *  take effect. */
+    private fun restartService() {
+        stopService(Intent(this, HalService::class.java))
+        lifecycleScope.launch {
+            // Wait for the running instance to tear down before starting a fresh one.
+            var waited = 0
+            while (HalService.isServiceRunning && waited < 3000) {
+                delay(100)
+                waited += 100
+            }
+            delay(200)
+            val intent = Intent(this@DashboardActivity, HalService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent)
+            else startService(intent)
+            pollServiceReady()
         }
     }
 

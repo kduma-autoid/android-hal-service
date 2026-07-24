@@ -26,6 +26,11 @@ async function onSubmit() {
       <input v-model.number="form.port" type="number" min="1" max="65535" placeholder="8400" />
     </label>
 
+    <label class="checkbox-field">
+      <input v-model="form.secure" type="checkbox" />
+      <span>Secure (HTTPS / WSS)</span>
+    </label>
+
     <label class="field">
       <span>Authentication</span>
       <select v-model="form.authMode">
@@ -100,6 +105,14 @@ h2 { margin-top: 0; }
   border: 1px solid #ccc;
   border-radius: 6px;
   font-size: 14px;
+}
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #444;
 }
 .btn {
   padding: 8px 20px;
