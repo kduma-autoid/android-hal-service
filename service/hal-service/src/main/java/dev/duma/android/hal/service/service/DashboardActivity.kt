@@ -16,6 +16,9 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.text.InputType
+import java.net.Inet4Address
+import java.net.NetworkInterface
+import java.util.Collections
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.widget.Button
@@ -257,14 +260,27 @@ class DashboardActivity : AppCompatActivity() {
         layout.addView(row)
 
         // Endpoint info
-        val displayHost = HalService.boundHost.takeIf { it != "0.0.0.0" } ?: "localhost"
+        val boundHost = HalService.boundHost
+        val boundPort = HalService.boundPort
+        val displayHost = boundHost.takeIf { it != "0.0.0.0" } ?: "localhost"
+        // When bound to all interfaces (development "LAN access" mode), surface the device's
+        // own LAN addresses so it's clear where other machines on the network can reach it.
+        val lanAddresses = if (boundHost == "0.0.0.0") deviceLanAddresses() else emptyList()
         layout.addView(sectionHeader("Endpoints"))
         layout.addView(TextView(this).apply {
             text = buildString {
-                appendLine("Bind address: ${HalService.boundHost}")
-                appendLine("Port: ${HalService.boundPort}")
-                appendLine("WebSocket: ws://$displayHost:${HalService.boundPort}/ws")
-                appendLine("HTTP API: http://$displayHost:${HalService.boundPort}/api")
+                appendLine("Bind address: $boundHost")
+                appendLine("Port: $boundPort")
+                appendLine("WebSocket: ws://$displayHost:$boundPort/ws")
+                appendLine("HTTP API: http://$displayHost:$boundPort/api")
+                if (lanAddresses.isNotEmpty()) {
+                    appendLine()
+                    appendLine("Reachable on this network:")
+                    for (ip in lanAddresses) {
+                        appendLine("  http://$ip:$boundPort/api")
+                        appendLine("  ws://$ip:$boundPort/ws")
+                    }
+                }
                 appendLine()
                 appendLine("POST /api/token — Request token")
                 appendLine("POST /api/execute — Execute command")
@@ -683,7 +699,7 @@ class DashboardActivity : AppCompatActivity() {
         val touchHelper = ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
             override fun onMove(rv: RecyclerView, vh: RecyclerView.ViewHolder, target: RecyclerView.ViewHolder) = false
             override fun onSwiped(vh: RecyclerView.ViewHolder, direction: Int) {
-                val position = vh.adapterPosition
+                val position = vh.bindingAdapterPosition
                 val token = adapter.tokens[position]
                 AlertDialog.Builder(this@DashboardActivity)
                     .setTitle("Revoke token")
@@ -979,6 +995,21 @@ class DashboardActivity : AppCompatActivity() {
             }
         }
     }
+
+    /** Non-loopback IPv4 addresses of this device, used to show reachable URLs when the server is
+     *  bound to all interfaces (development "LAN access" mode). Empty on any lookup error. */
+    private fun deviceLanAddresses(): List<String> =
+        try {
+            Collections.list(NetworkInterface.getNetworkInterfaces())
+                .filter { it.isUp && !it.isLoopback }
+                .flatMap { Collections.list(it.inetAddresses) }
+                .filterIsInstance<Inet4Address>()
+                .filterNot { it.isLoopbackAddress }
+                .mapNotNull { it.hostAddress }
+                .distinct()
+        } catch (_: Exception) {
+            emptyList()
+        }
 
     /** Stops the service and starts a fresh instance so config changes (e.g. bind address/port)
      *  take effect. */
