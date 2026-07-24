@@ -176,7 +176,14 @@ jobs:
             grandparent=$(basename "$(dirname "$(dirname "$apk")")")
             if [[ "$grandparent" != "apk" ]]; then
               module="${base%-"$grandparent"}"
-              cp "$apk" "/tmp/android-artifacts/${module}-${VERSION}-${grandparent}.apk"
+              if [[ "$grandparent" == "stable" ]]; then
+                # Stable variant: no suffix, matching flavourless naming.
+                cp "$apk" "/tmp/android-artifacts/${module}-${VERSION}.apk"
+              else
+                # Dash-separate the *Development app flavors (sunmiDevelopment -> sunmi-development).
+                flavor=$(echo "$grandparent" | sed -E 's/Development$/-development/')
+                cp "$apk" "/tmp/android-artifacts/${module}-${VERSION}-${flavor}.apk"
+              fi
             else
               cp "$apk" "/tmp/android-artifacts/${base}-${VERSION}.apk"
             fi
@@ -188,6 +195,8 @@ jobs:
           mkdir -p /tmp/aars
           find . -name '*-release.aar' -path '*/build/outputs/aar/*' | while read -r aar; do
             base=$(basename "$aar" -release.aar)
+            # Drop the `-stable` suffix so a stable variant matches the flavourless naming.
+            base="${base%-stable}"
             cp "$aar" "/tmp/android-artifacts/library_${base}-${VERSION}.aar"
           done
 

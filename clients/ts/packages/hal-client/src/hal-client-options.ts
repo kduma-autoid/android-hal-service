@@ -25,25 +25,16 @@ export const DEFAULT_HOST = 'localhost';
 export const DEFAULT_PORT = 8400;
 
 /**
- * Resolves the HTTP base URL from client options: an explicit `baseUrl` wins, otherwise it is
- * composed from `host`/`port` (falling back to the defaults).
+ * Resolves the service URL for the given protocol family (`http`/`https` or `ws`/`wss`).
+ * An explicit `baseUrl` wins (its scheme is mapped for the `ws` family); otherwise the URL is
+ * composed from `host`/`port`/`secure`, falling back to the defaults.
  */
-export function resolveBaseUrl(options: HalClientOptions): string {
-  if (options.baseUrl) return options.baseUrl;
-  const scheme = options.secure ? 'https' : 'http';
+export function resolveBaseUrl(options: HalClientOptions, protocol: 'http' | 'ws' = 'http'): string {
+  if (options.baseUrl) {
+    return protocol === 'ws' ? options.baseUrl.replace(/^http/, 'ws') : options.baseUrl;
+  }
+  const scheme = options.secure ? `${protocol}s` : protocol;
   const host = options.host ?? DEFAULT_HOST;
   const port = options.port ?? DEFAULT_PORT;
   return `${scheme}://${host}:${port}`;
-}
-
-/**
- * Resolves the WebSocket URL from client options: derives it from the HTTP base URL, mapping
- * `http`/`https` to `ws`/`wss` and appending the `/ws` path (using the URL API rather than string
- * surgery so schemes, ports and existing paths are handled correctly).
- */
-export function resolveWsUrl(options: HalClientOptions): string {
-  const url = new URL(resolveBaseUrl(options));
-  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-  url.pathname = url.pathname.replace(/\/+$/, '') + '/ws';
-  return url.toString();
 }
