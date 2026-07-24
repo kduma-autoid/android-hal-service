@@ -16,6 +16,7 @@ import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
+import dev.duma.android.hal.contract.stripExperimental
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
@@ -75,7 +76,11 @@ class SunmiCardPlugin(
 
     override fun getCapabilities(): List<String> = listOf("sunmi.card")
 
-    override fun getDescriptor(): PluginDescriptor = PluginDescriptor.withFlatLists(
+    override fun getDescriptor() = fullDescriptor().let {
+        if (BuildConfig.WITH_EXPERIMENTAL) it else it.stripExperimental()
+    }
+
+    private fun fullDescriptor(): PluginDescriptor = PluginDescriptor.withFlatLists(
         pluginId = pluginId,
         name = "Sunmi: Magnetic Card Reader (FLEX 3)",
         version = version,

@@ -40,11 +40,21 @@ android {
     productFlavors {
         create("generic") {
             dimension = "device"
+            // Plugins with a `stability` dimension are consumed in their `stable` variant.
+            missingDimensionStrategy("stability", "stable")
         }
         create("sunmi") {
             dimension = "device"
+            // Production build: experimental methods are compiled out of the plugins.
+            missingDimensionStrategy("stability", "stable")
+        }
+        create("sunmiDevelopment") {
+            dimension = "device"
+            // Full build: every plugin and method, including experimental.
+            missingDimensionStrategy("stability", "development")
         }
     }
+
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -78,27 +88,41 @@ dependencies {
 
     // Project modules - plugins
     implementation(project(":plugins:generic:plugin-generic-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:plugin-sunmi-printer-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:plugin-sunmi-scanner-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:sunmiperipher:plugin-sunmi-statuslight-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:sunmiperipher:plugin-sunmi-nfc-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:sunmiperipher:plugin-sunmi-card-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:sunmiperipher:plugin-sunmi-screen-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:sunmiperipher:plugin-sunmi-docker-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:tms:plugin-sunmi-device-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:tms:plugin-sunmi-led-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:tms:plugin-sunmi-software-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:tms:plugin-sunmi-system-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:tms:plugin-sunmi-network-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:tms:plugin-sunmi-kiosk-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-rfid-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-scanner-inner-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-scanner-camera-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:sunmiscannersdk:plugin-sunmi-scanner-external-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:printerx:plugin-sunmi-manager-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:printerx:plugin-sunmi-printer-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:printerx:plugin-sunmi-drawer-lib"))
-    "sunmiImplementation"(project(":plugins:sunmi:printerx:plugin-sunmi-lcd-lib"))
+    // Sunmi plugins shared by both sunmi builds (production subset). Consumed in their `stable`
+    // variant by the `sunmi` flavor and `development` variant by `sunmiDevelopment`.
+    val sunmiCommonPlugins = listOf(
+        ":plugins:sunmi:plugin-sunmi-scanner-lib",
+        ":plugins:sunmi:sunmiperipher:plugin-sunmi-statuslight-lib",
+        ":plugins:sunmi:sunmiperipher:plugin-sunmi-nfc-lib",
+        ":plugins:sunmi:sunmiperipher:plugin-sunmi-screen-lib",
+        ":plugins:sunmi:tms:plugin-sunmi-device-lib",
+        ":plugins:sunmi:tms:plugin-sunmi-led-lib",
+        ":plugins:sunmi:sunmiscannersdk:plugin-sunmi-rfid-lib",
+        ":plugins:sunmi:sunmiscannersdk:plugin-sunmi-scanner-inner-lib",
+        ":plugins:sunmi:printerx:plugin-sunmi-manager-lib",
+        ":plugins:sunmi:printerx:plugin-sunmi-printer-lib",
+        ":plugins:sunmi:printerx:plugin-sunmi-drawer-lib",
+        ":plugins:sunmi:printerx:plugin-sunmi-lcd-lib",
+    )
+    // Sunmi plugins only in the full development build — experimental at the whole-plugin level.
+    val sunmiDevelopmentOnlyPlugins = listOf(
+        ":plugins:sunmi:plugin-sunmi-printer-lib",
+        ":plugins:sunmi:sunmiperipher:plugin-sunmi-card-lib",
+        ":plugins:sunmi:sunmiperipher:plugin-sunmi-docker-lib",
+        ":plugins:sunmi:tms:plugin-sunmi-software-lib",
+        ":plugins:sunmi:tms:plugin-sunmi-system-lib",
+        ":plugins:sunmi:tms:plugin-sunmi-network-lib",
+        ":plugins:sunmi:tms:plugin-sunmi-kiosk-lib",
+        ":plugins:sunmi:sunmiscannersdk:plugin-sunmi-scanner-camera-lib",
+        ":plugins:sunmi:sunmiscannersdk:plugin-sunmi-scanner-external-lib",
+    )
+    sunmiCommonPlugins.forEach {
+        add("sunmiImplementation", project(it))
+        add("sunmiDevelopmentImplementation", project(it))
+    }
+    sunmiDevelopmentOnlyPlugins.forEach {
+        add("sunmiDevelopmentImplementation", project(it))
+    }
 
     // AndroidX
     implementation(libs.androidx.core.ktx)

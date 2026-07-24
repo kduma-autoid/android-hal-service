@@ -5,6 +5,7 @@ import dev.duma.android.hal.contract.DescriptorGroup
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginDescriptor
+import dev.duma.android.hal.contract.stripExperimental
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.plugins.sunmi.tms.device.handler.*
 import dev.duma.android.hal.plugins.sunmi.tms.base.BaseTmsPlugin
@@ -20,7 +21,11 @@ class SunmiTmsDevicePlugin(context: Context? = null) : BaseTmsPlugin(context) {
 
     override fun getCapabilities() = listOf("sunmi.tms.device")
 
-    override fun getDescriptor() = PluginDescriptor(
+    override fun getDescriptor() = fullDescriptor().let {
+        if (BuildConfig.WITH_EXPERIMENTAL) it else it.stripExperimental()
+    }
+
+    private fun fullDescriptor() = PluginDescriptor(
         pluginId = pluginId,
         name = "Sunmi: TMS (Device)",
         version = version,
@@ -55,7 +60,7 @@ class SunmiTmsDevicePlugin(context: Context? = null) : BaseTmsPlugin(context) {
         )
     )
 
-    override suspend fun execute(method: String, params: String): CommandResult = guardedExecute {
+    override suspend fun onExecute(method: String, params: String): CommandResult = guardedExecute {
         val module = method.removePrefix("sunmi.tms.device.").substringBefore(".")
         when (module) {
             "device_info"    -> deviceInfoHandler.handle(method, params)

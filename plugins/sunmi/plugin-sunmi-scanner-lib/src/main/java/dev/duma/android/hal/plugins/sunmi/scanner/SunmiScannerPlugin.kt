@@ -8,6 +8,7 @@ import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
+import dev.duma.android.hal.contract.stripExperimental
 import java.util.Timer
 import kotlin.concurrent.fixedRateTimer
 import kotlin.random.Random
@@ -29,7 +30,11 @@ class SunmiScannerPlugin(private val appContext: Context? = null) : HalPlugin {
 
     override fun getCapabilities(): List<String> = listOf("sunmi.scanner")
 
-    override fun getDescriptor(): PluginDescriptor = PluginDescriptor.withFlatLists(
+    override fun getDescriptor() = fullDescriptor().let {
+        if (BuildConfig.WITH_EXPERIMENTAL) it else it.stripExperimental()
+    }
+
+    private fun fullDescriptor(): PluginDescriptor = PluginDescriptor.withFlatLists(
         pluginId = pluginId,
         name = "[DEMO] Sunmi Scanner",
         version = version,

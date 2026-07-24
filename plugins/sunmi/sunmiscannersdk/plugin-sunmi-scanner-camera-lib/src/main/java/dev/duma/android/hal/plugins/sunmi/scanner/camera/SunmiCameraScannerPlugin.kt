@@ -11,6 +11,7 @@ import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
+import dev.duma.android.hal.contract.stripExperimental
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -74,7 +75,11 @@ class SunmiCameraScannerPlugin(
 
     override fun getCapabilities() = listOf("sunmi.scanner.camera")
 
-    override fun getDescriptor() = PluginDescriptor.withFlatLists(
+    override fun getDescriptor() = fullDescriptor().let {
+        if (BuildConfig.WITH_EXPERIMENTAL) it else it.stripExperimental()
+    }
+
+    private fun fullDescriptor() = PluginDescriptor.withFlatLists(
         pluginId = pluginId,
         name = "Sunmi: Scanner (Camera)",
         version = version,

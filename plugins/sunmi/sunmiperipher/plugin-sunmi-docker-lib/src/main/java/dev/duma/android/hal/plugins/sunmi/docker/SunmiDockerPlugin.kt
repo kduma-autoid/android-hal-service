@@ -12,6 +12,7 @@ import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
+import dev.duma.android.hal.contract.stripExperimental
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -50,7 +51,11 @@ class SunmiDockerPlugin(
 
     override fun getCapabilities(): List<String> = listOf("sunmi.docker")
 
-    override fun getDescriptor(): PluginDescriptor = PluginDescriptor.withFlatLists(
+    override fun getDescriptor() = fullDescriptor().let {
+        if (BuildConfig.WITH_EXPERIMENTAL) it else it.stripExperimental()
+    }
+
+    private fun fullDescriptor(): PluginDescriptor = PluginDescriptor.withFlatLists(
         pluginId = pluginId,
         name = "Sunmi: Docker Service",
         version = version,

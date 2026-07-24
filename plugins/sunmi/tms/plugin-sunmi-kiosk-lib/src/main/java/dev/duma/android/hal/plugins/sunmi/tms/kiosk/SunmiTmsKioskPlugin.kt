@@ -5,6 +5,7 @@ import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.DescriptorGroup
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginDescriptor
+import dev.duma.android.hal.contract.stripExperimental
 import dev.duma.android.hal.plugins.sunmi.tms.kiosk.handler.*
 import dev.duma.android.hal.plugins.sunmi.tms.base.BaseTmsPlugin
 
@@ -18,7 +19,11 @@ class SunmiTmsKioskPlugin(context: Context? = null) : BaseTmsPlugin(context) {
 
     override fun getCapabilities() = listOf("sunmi.tms.kiosk")
 
-    override fun getDescriptor() = PluginDescriptor(
+    override fun getDescriptor() = fullDescriptor().let {
+        if (BuildConfig.WITH_EXPERIMENTAL) it else it.stripExperimental()
+    }
+
+    private fun fullDescriptor() = PluginDescriptor(
         pluginId = pluginId,
         name = "Sunmi: TMS (Kiosk)",
         version = version,
@@ -36,7 +41,7 @@ class SunmiTmsKioskPlugin(context: Context? = null) : BaseTmsPlugin(context) {
         )
     )
 
-    override suspend fun execute(method: String, params: String): CommandResult = guardedExecute {
+    override suspend fun onExecute(method: String, params: String): CommandResult = guardedExecute {
         val withoutPlugin = method.removePrefix("sunmi.tms.kiosk.")
         if (withoutPlugin.startsWith("certificate.")) {
             certificateHandler.handle(method, params)

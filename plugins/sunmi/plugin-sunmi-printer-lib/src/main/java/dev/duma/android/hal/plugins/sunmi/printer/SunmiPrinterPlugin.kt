@@ -8,6 +8,7 @@ import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
+import dev.duma.android.hal.contract.stripExperimental
 
 /**
  * Stub implementation of Sunmi thermal printer plugin. Returns hardcoded responses
@@ -25,7 +26,11 @@ class SunmiPrinterPlugin(private val appContext: Context? = null) : HalPlugin {
 
     override fun getCapabilities(): List<String> = listOf("sunmi.printer")
 
-    override fun getDescriptor(): PluginDescriptor = PluginDescriptor(
+    override fun getDescriptor() = fullDescriptor().let {
+        if (BuildConfig.WITH_EXPERIMENTAL) it else it.stripExperimental()
+    }
+
+    private fun fullDescriptor(): PluginDescriptor = PluginDescriptor(
         pluginId = pluginId,
         name = "[DEMO] Sunmi Printer",
         version = version,
