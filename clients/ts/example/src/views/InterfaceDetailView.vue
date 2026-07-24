@@ -1,18 +1,58 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import type { DescribeResponse, InterfaceDescriptor } from '@kduma-autoid/hal-client-common';
 import { useHalClient } from '../composables/useHalClient';
+import { useToast } from '../composables/useToast';
 import InterfaceCard from '../components/InterfaceCard.vue';
 
 const route = useRoute();
 const { client, isConnected } = useHalClient();
+const toast = useToast();
 
 const iface = ref<InterfaceDescriptor | null>(null);
 const loading = ref(false);
 const error = ref<string | null>(null);
 
+interface ReceivedEvent {
+  timestamp: number;
+  data: unknown;
+}
+const receivedEvents = reactive<Record<string, ReceivedEvent[]>>({});
+let unsubscribers: (() => Promise<void>)[] = [];
+let isUnmounted = false;
+
 const interfaceId = computed(() => route.params.interfaceId as string);
+
+async function subscribeToEvents() {
+  cleanupSubscriptions();
+  if (!client.value || !iface.value) return;
+  const promises: Promise<void>[] = [];
+  for (const ev of iface.value.events) {
+    if (!receivedEvents[ev.name]) receivedEvents[ev.name] = [];
+    promises.push(
+      client.value
+        .on(ev.name, (_n: string, data: unknown) => {
+          if (isUnmounted) return;
+          receivedEvents[ev.name].push({ timestamp: Date.now(), data });
+          toast.info(`Event: ${ev.name}`);
+        })
+        .then((off) => {
+          unsubscribers.push(off);
+        })
+        .catch(() => {
+          // event transport may be unavailable (e.g. HTTP mode)
+        }),
+    );
+  }
+  await Promise.all(promises);
+}
+
+function cleanupSubscriptions() {
+  const toCleanup = unsubscribers;
+  unsubscribers = [];
+  for (const off of toCleanup) off().catch(() => {});
+}
 
 async function fetchInterface() {
   if (!client.value || !isConnected.value) return;
@@ -23,6 +63,7 @@ async function fetchInterface() {
     const found = (result.interfaces ?? []).find((i) => i.interfaceId === interfaceId.value);
     if (found) {
       iface.value = found;
+      await subscribeToEvents();
     } else {
       error.value = `Interface not found: ${interfaceId.value}`;
       iface.value = null;
@@ -39,9 +80,17 @@ onMounted(() => {
   if (isConnected.value) fetchInterface();
 });
 
+onUnmounted(() => {
+  isUnmounted = true;
+  cleanupSubscriptions();
+});
+
 watch(isConnected, (connected) => {
   if (connected) fetchInterface();
-  else iface.value = null;
+  else {
+    cleanupSubscriptions();
+    iface.value = null;
+  }
 });
 
 watch(interfaceId, fetchInterface);
@@ -62,7 +111,7 @@ watch(interfaceId, fetchInterface);
 
       <div v-if="loading && !iface" class="loading">Loading interface details...</div>
 
-      <InterfaceCard v-if="iface" :iface="iface" @refresh="fetchInterface" />
+      <InterfaceCard v-if="iface" :iface="iface" :received-events="receivedEvents" @refresh="fetchInterface" />
     </template>
   </div>
 </template>

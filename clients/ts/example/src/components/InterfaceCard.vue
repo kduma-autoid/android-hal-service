@@ -4,8 +4,17 @@ import type { InterfaceDescriptor } from '@kduma-autoid/hal-client-common';
 import { PROVIDER_PARAM_KEY } from '@kduma-autoid/hal-client-common';
 import { useHalClient } from '../composables/useHalClient';
 import MethodExecutor from './MethodExecutor.vue';
+import EventMonitor from './EventMonitor.vue';
 
-const props = defineProps<{ iface: InterfaceDescriptor }>();
+interface ReceivedEvent {
+  timestamp: number;
+  data: unknown;
+}
+
+const props = defineProps<{
+  iface: InterfaceDescriptor;
+  receivedEvents?: Record<string, ReceivedEvent[]>;
+}>();
 const emit = defineEmits<{ (e: 'refresh'): void }>();
 
 const { client } = useHalClient();
@@ -32,6 +41,15 @@ const expandedMethods = ref<Set<string>>(new Set());
 function toggleMethod(name: string) {
   if (expandedMethods.value.has(name)) expandedMethods.value.delete(name);
   else expandedMethods.value.add(name);
+}
+
+const expandedEvents = ref<Set<string>>(new Set());
+function toggleEvent(name: string) {
+  if (expandedEvents.value.has(name)) expandedEvents.value.delete(name);
+  else expandedEvents.value.add(name);
+}
+function getReceivedEvents(name: string): ReceivedEvent[] {
+  return props.receivedEvents?.[name] ?? [];
 }
 
 async function moveProvider(index: number, delta: number) {
@@ -149,7 +167,40 @@ function breakableName(name: string): string {
       </div>
     </div>
 
-    <p v-if="!iface.methods.length" class="empty">No methods</p>
+    <div v-if="iface.events.length" class="section">
+      <h4>Events ({{ iface.events.length }})</h4>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Description</th>
+              <th>Permission</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template v-for="ev in iface.events" :key="ev.name">
+              <tr class="method-row" :class="{ expanded: expandedEvents.has(ev.name) }" @click="toggleEvent(ev.name)">
+                <td data-label="Name">
+                  <span class="name-cell">
+                    <span class="expand-icon">{{ expandedEvents.has(ev.name) ? '▼' : '▶' }}</span>
+                    <code>{{ breakableName(ev.name) }}</code>
+                  </span>
+                  <span v-if="getReceivedEvents(ev.name).length" class="badge badge-default">{{ getReceivedEvents(ev.name).length }}</span>
+                </td>
+                <td data-label="Description">{{ ev.description }}</td>
+                <td data-label="Permission"><code>{{ breakableName(ev.requiredPermission) }}</code></td>
+              </tr>
+              <tr v-if="expandedEvents.has(ev.name)" class="executor-row">
+                <td colspan="3"><EventMonitor :event="ev" :received-events="getReceivedEvents(ev.name)" /></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <p v-if="!iface.methods.length && !iface.events.length" class="empty">No methods or events</p>
   </div>
 </template>
 

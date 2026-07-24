@@ -183,6 +183,10 @@ class HalService : Service() {
         tryRegisterPlugin("dev.duma.android.hal.plugins.generic.GenericScannerPlugin")
         // Interface definers (register interface contracts; providers opt in via bindings).
         tryRegisterPlugin("dev.duma.android.hal.plugins.generic.LightInterface")
+        // Hardware-free demo interface + two providers (always available, for testing the interface layer).
+        tryRegisterPlugin("dev.duma.android.hal.plugins.generic.DemoInterface")
+        tryRegisterPlugin("dev.duma.android.hal.plugins.generic.DemoAlphaPlugin")
+        tryRegisterPlugin("dev.duma.android.hal.plugins.generic.DemoBetaPlugin")
 
         // 8. Initialize all plugins (PluginContext per plugin)
         pluginRegistry.initializeAll(applicationContext, eventBus)
