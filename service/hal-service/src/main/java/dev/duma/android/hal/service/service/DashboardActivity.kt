@@ -39,6 +39,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.pm.PackageInfoCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import android.view.Gravity
@@ -114,7 +115,7 @@ class DashboardActivity : AppCompatActivity() {
 
             val versionText = try {
                 val info = packageManager.getPackageInfo(packageName, 0)
-                "v${info.versionName} (${info.versionCode})"
+                "v${info.versionName} (${PackageInfoCompat.getLongVersionCode(info)})"
             } catch (_: Exception) { "" }
 
             addHeaderView(LinearLayout(this@DashboardActivity).apply {

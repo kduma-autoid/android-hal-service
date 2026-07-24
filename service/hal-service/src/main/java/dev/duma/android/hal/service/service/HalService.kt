@@ -9,6 +9,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
+import androidx.core.content.pm.PackageInfoCompat
 import androidx.room.Room
 import com.nimbusds.jose.crypto.MACVerifier
 import com.nimbusds.jose.crypto.RSASSAVerifier
@@ -217,7 +218,7 @@ class HalService : Service() {
             transportRegistry = transportRegistry,
             experimentalConfig = experimentalConfig,
             versionName = pkgInfo?.versionName,
-            versionCode = pkgInfo?.versionCode
+            versionCode = pkgInfo?.let { PackageInfoCompat.getLongVersionCode(it).toInt() }
         )
 
         // 13. Start all transports — each registers modules in KtorServerManager
@@ -326,6 +327,9 @@ class HalService : Service() {
         startForeground(NOTIFICATION_ID, notification)
     }
 
+    // Notification.Builder / setPriority are used directly (pre-O compat); the channel importance
+    // drives priority on O+. Suppress the framework deprecation warnings for this compat path.
+    @Suppress("DEPRECATION")
     private fun showGrantNotification(activityIntent: Intent, clientId: String) {
         val notificationManager = getSystemService(NotificationManager::class.java)
 
