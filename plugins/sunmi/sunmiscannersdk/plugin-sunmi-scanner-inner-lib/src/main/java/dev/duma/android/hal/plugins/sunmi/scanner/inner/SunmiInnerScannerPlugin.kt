@@ -20,6 +20,8 @@ import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
+import dev.duma.android.hal.plugins.sunmi.scanner.common.ScannerCapabilities
+import dev.duma.android.hal.plugins.sunmi.scanner.common.ScannerModelInfo
 import dev.duma.android.hal.plugins.sunmi.scanner.common.ScannerServiceManager
 import dev.duma.android.hal.plugins.sunmi.scanner.common.compat.ScannerService
 import dev.duma.android.hal.plugins.sunmi.scanner.common.compat.SunmiHelper
@@ -49,6 +51,7 @@ class SunmiInnerScannerPlugin(
     private var connectionListener: ServiceConnectStatus? = null
     private var broadcastReceiver: ScannerBroadcastReceiver? = null
     private var beeper: Beeper? = null
+    private val capabilities = ScannerCapabilities(QUERY_TIMEOUT_MS)
 
     companion object {
         private const val CALLBACK_KEY = "hal_inner_scanner"
@@ -86,6 +89,8 @@ class SunmiInnerScannerPlugin(
 
         val listener = object : ServiceConnectStatus {
             override fun onServiceConnected() {
+                // The connected engine (and therefore its supported-symbology set) may have changed.
+                capabilities.invalidate()
                 InnerScanner.getInstance().registerDecodeCallback(CALLBACK_KEY, decodeCallback)
                 emitEvent(EVENT_SERVICE_CONNECTED, "{}")
             }
@@ -141,10 +146,39 @@ class SunmiInnerScannerPlugin(
 
                 // --- Scanner model ---
                 "sunmi.scanner.inner.getScannerModel" -> {
-                    val id = scanner.getScannerModel()
-                    CommandResult.Success(JSONObject().put("id", id).put("name", ScannerService.scannerIdToName(id)).toString())
+                    val model = ScannerModelInfo.of(scanner.getScannerModel())
+                    CommandResult.Success(
+                        JSONObject()
+                            .put("id", model.id)
+                            .put("name", model.name)
+                            .put("engine", model.engineFamily.name)
+                            .put("supports2d", model.supports2d ?: JSONObject.NULL)
+                            .toString()
+                    )
                 }
-                "sunmi.scanner.inner.setScannerModel" -> { scanner.setScannerModel(json.getInt("model")); CommandResult.Success() }
+                "sunmi.scanner.inner.setScannerModel" -> {
+                    scanner.setScannerModel(json.getInt("model"))
+                    capabilities.invalidate()
+                    CommandResult.Success()
+                }
+
+                // --- Capability discovery ---
+                "sunmi.scanner.inner.getSupportedBarcodes" -> {
+                    val model = ScannerModelInfo.of(scanner.getScannerModel())
+                    val supported = capabilities.supportedBarcodes(scanner)
+                    CommandResult.Success(
+                        JSONObject()
+                            .put("model", JSONObject().put("id", model.id).put("name", model.name)
+                                .put("engine", model.engineFamily.name).put("supports2d", model.supports2d ?: JSONObject.NULL))
+                            .put("determinable", supported != null)
+                            .put("barcodes", JSONArray((supported ?: emptySet()).sorted()))
+                            .toString()
+                    )
+                }
+                "sunmi.scanner.inner.isBarcodeSupported" -> {
+                    val name = json.getString("name")
+                    CommandResult.Success(barcodeSupportReport(scanner, name).toString())
+                }
 
                 // --- Output configuration ---
                 "sunmi.scanner.inner.getOutputType" -> queryServiceSetting { ss ->
@@ -381,12 +415,16 @@ class SunmiInnerScannerPlugin(
                 "sunmi.scanner.inner.getBarcodesList" -> queryBarcodesList()
                 "sunmi.scanner.inner.getBarcode" -> queryBarcode(json.getString("name"))
                 "sunmi.scanner.inner.setBarcode" -> {
-                    val cmd = SunmiHelper.setCodeEnable(json.getString("name"), json.getBoolean("enabled"))
-                    if (cmd.isNullOrEmpty()) CommandResult.badRequest("Unknown barcode type: ${json.getString("name")}")
-                    else { scanner.sendCommand(cmd); CommandResult.Success() }
+                    val name = json.getString("name")
+                    unsupportedBarcodeError(scanner, name) ?: run {
+                        val cmd = SunmiHelper.setCodeEnable(name, json.getBoolean("enabled"))
+                        if (cmd.isNullOrEmpty()) CommandResult.badRequest("Unknown barcode type: $name")
+                        else { scanner.sendCommand(cmd); CommandResult.Success() }
+                    }
                 }
                 "sunmi.scanner.inner.getBarcodeConfig" -> queryBarcodeConfig(json.getString("name"))
-                "sunmi.scanner.inner.setBarcodeConfig" -> setBarcodeConfig(scanner, json)
+                "sunmi.scanner.inner.setBarcodeConfig" ->
+                    unsupportedBarcodeError(scanner, json.getString("name")) ?: setBarcodeConfig(scanner, json)
 
                 else -> CommandResult.unsupportedMethod(method)
             }
@@ -564,6 +602,67 @@ class SunmiInnerScannerPlugin(
         return CommandResult.Success()
     }
 
+    // --- Capability validation ---
+
+    /**
+     * Validates that [name] is decodable by the currently connected scanner engine, using two
+     * independent checks:
+     *  1. Static — a linear 1D engine (`supports2d == false`) physically cannot read a 2D
+     *     symbology; this is known from the model id alone (Sunmi's published engine matrix) and
+     *     needs no service round-trip.
+     *  2. Runtime — the service's own `QUERY_ALL_ENABLE_CODE` list, when it reports a concrete
+     *     supported set. Permissive when that set is unavailable, so a transient query failure
+     *     never blocks an otherwise-working configuration.
+     *
+     * Returns a [CommandResult.badRequest] describing the mismatch, or `null` when [name] is (or
+     * may be) supported and the caller should proceed with sending the command.
+     */
+    private suspend fun unsupportedBarcodeError(scanner: InnerScanner, name: String): CommandResult? {
+        val model = ScannerModelInfo.of(scanner.getScannerModel())
+
+        if (model.supports2d == false && ScannerCapabilities.is2dSymbology(name)) {
+            return CommandResult.badRequest(
+                "Barcode '$name' is a 2D symbology and is not supported by the current 1D scanner " +
+                    "engine ${model.name} (id=${model.id}, engine=${model.engineFamily.name})."
+            )
+        }
+
+        val supported = capabilities.supportedBarcodes(scanner)
+        if (supported != null && name !in supported) {
+            return CommandResult.badRequest(
+                "Barcode '$name' is not supported by the current scanner engine ${model.name} " +
+                    "(id=${model.id}, engine=${model.engineFamily.name}). " +
+                    "Call sunmi.scanner.inner.getSupportedBarcodes for the full list."
+            )
+        }
+        return null
+    }
+
+    /** Best-effort "is this symbology usable on the current engine" report for isBarcodeSupported. */
+    private suspend fun barcodeSupportReport(scanner: InnerScanner, name: String): JSONObject {
+        val model = ScannerModelInfo.of(scanner.getScannerModel())
+        val supported = capabilities.supportedBarcodes(scanner)
+
+        // A 2D-on-1D rejection is authoritative even when the runtime list is unavailable.
+        val blockedByDimension = model.supports2d == false && ScannerCapabilities.is2dSymbology(name)
+        val runtimeSupported: Boolean? = supported?.contains(name)
+
+        val isSupported: Any = when {
+            blockedByDimension -> false
+            runtimeSupported != null -> runtimeSupported
+            else -> JSONObject.NULL
+        }
+        return JSONObject()
+            .put("name", name)
+            .put("supported", isSupported)
+            .put("determinable", blockedByDimension || runtimeSupported != null)
+            .put(
+                "model",
+                JSONObject().put("id", model.id).put("name", model.name)
+                    .put("engine", model.engineFamily.name).put("supports2d", model.supports2d ?: JSONObject.NULL)
+            )
+    }
+
     // --- Entity serialization ---
 
     private fun serializeEntity(entity: Entity<*>?): CommandResult {
@@ -644,8 +743,10 @@ class SunmiInnerScannerPlugin(
         MethodDescriptor("sunmi.scanner.inner.sendKeyEvent", "Simulate a hardware key event on the scanner.", "sunmi.scanner.inner", exampleParameters = """{"action":0,"keyCode":0}""", exampleOutput = """{}"""),
         MethodDescriptor("sunmi.scanner.inner.clearConfig", "Reset scanner configuration to defaults.", "sunmi.scanner.inner", exampleParameters = """{}""", exampleOutput = """{}"""),
         MethodDescriptor("sunmi.scanner.inner.isServiceConnected", "Check if the scanner service is connected.", "sunmi.scanner.inner", exampleParameters = """{}""", exampleOutput = """{"connected":true}"""),
-        MethodDescriptor("sunmi.scanner.inner.getScannerModel", "Get scanner model identifier and name.", "sunmi.scanner.inner", exampleParameters = """{}""", exampleOutput = """{"id":101,"name":"SUPER_N1365_Y1825"}"""),
+        MethodDescriptor("sunmi.scanner.inner.getScannerModel", "Get scanner engine identifier, name, vendor family, and 2D capability (supports2d: true/false/null=unknown).", "sunmi.scanner.inner", exampleParameters = """{}""", exampleOutput = """{"id":101,"name":"SUPER_N1365_Y1825","engine":"FP1825_NLS1365","supports2d":false}"""),
         MethodDescriptor("sunmi.scanner.inner.setScannerModel", "Set the active scanner model identifier.", "sunmi.scanner.inner", exampleParameters = """{"model":100}""", exampleOutput = """{}"""),
+        MethodDescriptor("sunmi.scanner.inner.getSupportedBarcodes", "List the symbologies the connected engine supports (runtime query). 'determinable' is false when the service does not report a concrete set.", "sunmi.scanner.inner", exampleParameters = """{}""", exampleOutput = """{"model":{"id":103,"name":"ZEBRA_4710","engine":"ZEBRA","supports2d":true},"determinable":true,"barcodes":["Code 128","QR Code"]}"""),
+        MethodDescriptor("sunmi.scanner.inner.isBarcodeSupported", "Check whether a symbology is usable on the current engine. 'supported' may be null when undeterminable.", "sunmi.scanner.inner", exampleParameters = """{"name":"QR Code"}""", exampleOutput = """{"name":"QR Code","supported":false,"determinable":true,"model":{"id":101,"name":"SUPER_N1365_Y1825","engine":"FP1825_NLS1365","supports2d":false}}"""),
         MethodDescriptor("sunmi.scanner.inner.getOutputType", "Get output mode and related options.", "sunmi.scanner.inner", exampleParameters = """{}""", exampleOutput = """{"mode":2,"interval":0,"tab":false,"enter":true,"space":false}"""),
         MethodDescriptor("sunmi.scanner.inner.setOutputType", "Set output mode and options.", "sunmi.scanner.inner", exampleParameters = """{"mode":2,"enter":true,"tab":false}""", exampleOutput = """{}"""),
         MethodDescriptor("sunmi.scanner.inner.getOutputEncodingCode", "Get output character encoding.", "sunmi.scanner.inner", exampleParameters = """{}""", exampleOutput = """{"encoding":0}"""),
