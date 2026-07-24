@@ -1,12 +1,29 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import { useHalClient } from '../composables/useHalClient';
 
 const route = useRoute();
 const { isConnected, error, connect, disconnect } = useHalClient();
 const menuOpen = ref(false);
+const demosOpen = ref(false);
 const isDescribeActive = computed(() => route.path.startsWith('/describe'));
+const isDemosActive = computed(() => route.path === '/statuslight' || route.path === '/screens');
+
+function closeMenu() {
+  menuOpen.value = false;
+  demosOpen.value = false;
+}
+
+// Close the (desktop) Demos dropdown when clicking anywhere outside of it.
+const dropdownRef = ref<HTMLElement | null>(null);
+function onDocumentClick(e: MouseEvent) {
+  if (demosOpen.value && dropdownRef.value && !dropdownRef.value.contains(e.target as Node)) {
+    demosOpen.value = false;
+  }
+}
+onMounted(() => document.addEventListener('click', onDocumentClick));
+onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick));
 </script>
 
 <template>
@@ -18,10 +35,16 @@ const isDescribeActive = computed(() => route.path.startsWith('/describe'));
           <div class="navbar-right-mobile">
             <span class="status">
               <span class="status-dot" :class="isConnected ? 'connected' : 'disconnected'" />
-              {{ isConnected ? 'Connected' : 'Disconnected' }}
+              <span class="status-text">{{ isConnected ? 'Connected' : 'Disconnected' }}</span>
             </span>
-            <button v-if="isConnected" class="btn btn-sm mobile-btn" @click="disconnect">Disconnect</button>
-            <button v-else class="btn btn-sm btn-primary mobile-btn" @click="connect">Connect</button>
+            <button v-if="isConnected" class="btn btn-sm mobile-disconnect" @click="disconnect">Disconnect</button>
+            <button v-else class="btn btn-sm btn-primary connect-btn" @click="connect" aria-label="Connect">
+              <svg class="connect-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
+                <line x1="12" y1="2" x2="12" y2="12" />
+              </svg>
+              <span class="connect-label">Connect</span>
+            </button>
           </div>
           <button class="menu-toggle" @click="menuOpen = !menuOpen" aria-label="Toggle menu">
             <span class="hamburger" :class="{ open: menuOpen }" />
@@ -30,15 +53,22 @@ const isDescribeActive = computed(() => route.path.startsWith('/describe'));
       </div>
       <div class="navbar-collapse" :class="{ open: menuOpen }">
         <div class="nav-links">
-          <router-link to="/" class="nav-link" @click="menuOpen = false">Dashboard</router-link>
-          <router-link to="/describe" class="nav-link" :class="{ 'router-link-active': isDescribeActive }" @click="menuOpen = false">API Explorer</router-link>
-          <router-link to="/statuslight" class="nav-link" @click="menuOpen = false">Status Light</router-link>
-          <router-link to="/screens" class="nav-link" @click="menuOpen = false">Screens & NFC</router-link>
-          <router-link to="/log" class="nav-link" @click="menuOpen = false">Activity Log</router-link>
-          <router-link to="/settings" class="nav-link" @click="menuOpen = false">Settings</router-link>
+          <router-link to="/" class="nav-link" @click="closeMenu">Dashboard</router-link>
+          <router-link to="/describe" class="nav-link" :class="{ 'router-link-active': isDescribeActive }" @click="closeMenu">API Explorer</router-link>
+          <div ref="dropdownRef" class="nav-dropdown" :class="{ open: demosOpen }">
+            <button class="nav-link nav-dropdown-toggle" :class="{ 'router-link-active': isDemosActive }" @click.stop="demosOpen = !demosOpen">
+              Demos<span class="caret" />
+            </button>
+            <div class="nav-dropdown-menu">
+              <router-link to="/statuslight" class="nav-link dropdown-link" @click="closeMenu">Status Light</router-link>
+              <router-link to="/screens" class="nav-link dropdown-link" @click="closeMenu">Screens &amp; NFC</router-link>
+            </div>
+          </div>
+          <router-link to="/log" class="nav-link" @click="closeMenu">Activity Log</router-link>
+          <router-link to="/settings" class="nav-link" @click="closeMenu">Settings</router-link>
         </div>
         <div class="collapse-connection">
-          <span class="status collapse-status">
+          <span class="status">
             <span class="status-dot" :class="isConnected ? 'connected' : 'disconnected'" />
             {{ isConnected ? 'Connected' : 'Disconnected' }}
           </span>
@@ -156,9 +186,6 @@ const isDescribeActive = computed(() => route.path.startsWith('/describe'));
 .collapse-connection {
   display: none;
 }
-.collapse-status {
-  display: none;
-}
 .nav-link {
   color: #0066cc;
   text-decoration: none;
@@ -167,6 +194,56 @@ const isDescribeActive = computed(() => route.path.startsWith('/describe'));
 }
 .nav-link:hover { text-decoration: underline; }
 .nav-link.router-link-active { font-weight: 600; }
+
+/* Demos dropdown */
+.nav-dropdown {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.nav-dropdown-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+.caret {
+  display: inline-block;
+  margin-left: 5px;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid currentColor;
+  transition: transform 0.15s;
+}
+.nav-dropdown.open .caret { transform: rotate(180deg); }
+.nav-dropdown-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 8px;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  padding: 6px 0;
+  min-width: 160px;
+  z-index: 20;
+}
+.nav-dropdown.open .nav-dropdown-menu { display: flex; }
+.dropdown-link {
+  padding: 8px 14px;
+}
+.dropdown-link:hover {
+  background: #f5f5f5;
+  text-decoration: none;
+}
+
 .status {
   display: flex;
   align-items: center;
@@ -201,6 +278,15 @@ const isDescribeActive = computed(() => route.path.startsWith('/describe'));
 }
 .btn-primary:hover { background: #0055aa; }
 .btn-sm { padding: 4px 10px; }
+.connect-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.connect-icon {
+  display: block;
+  flex-shrink: 0;
+}
 .navbar-error {
   max-width: 960px;
   margin: 0 auto;
@@ -242,10 +328,35 @@ const isDescribeActive = computed(() => route.path.startsWith('/describe'));
   .navbar-brand-right {
     display: flex;
   }
+  /* Demos dropdown becomes an inline accordion inside the hamburger menu. */
+  .nav-dropdown {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .nav-dropdown-toggle {
+    justify-content: space-between;
+    width: 100%;
+    padding: 8px 0;
+    border-top: 1px solid #eee;
+  }
+  .nav-dropdown-menu {
+    position: static;
+    margin-top: 0;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+    min-width: 0;
+  }
+  .dropdown-link {
+    padding: 8px 0 8px 16px;
+    border-top: 1px solid #eee;
+  }
 }
 
+/* Keep the connection controls in the top bar down to mid-size phones. */
 @media (max-width: 420px) {
-  .mobile-btn {
+  .mobile-disconnect {
     display: none;
   }
   .collapse-connection {
@@ -257,12 +368,13 @@ const isDescribeActive = computed(() => route.path.startsWith('/describe'));
   }
 }
 
-@media (max-width: 340px) {
-  .navbar-right-mobile {
+/* Smallest screens: the Connect button collapses to an icon, but never disappears. */
+@media (max-width: 360px) {
+  .status-text {
     display: none;
   }
-  .collapse-status {
-    display: flex;
+  .connect-label {
+    display: none;
   }
 }
 </style>
