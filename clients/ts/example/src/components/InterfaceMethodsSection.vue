@@ -8,6 +8,7 @@ import EventMonitor from './EventMonitor.vue';
 interface ReceivedEvent {
   timestamp: number;
   data: unknown;
+  source?: string;
 }
 
 const props = defineProps<{

@@ -8,7 +8,7 @@ export {
   isHalErrorResponse,
   createHalError,
 } from './error.js';
-export type { HalEvent, EventHandler, EventSubscription } from './event.js';
+export type { HalEvent, EventMeta, EventHandler, EventSubscription } from './event.js';
 export type { ExecuteRequest, ExecuteResponse } from './command.js';
 export type {
   DescribeOptions,

@@ -5,6 +5,7 @@ import type { EventDescriptor } from '@kduma-autoid/hal-client-common';
 interface ReceivedEvent {
   timestamp: number;
   data: unknown;
+  source?: string;
 }
 
 const props = defineProps<{
@@ -46,7 +47,13 @@ function formatTime(ts: number): string {
       <div v-if="receivedEvents.length === 0" class="no-events">No events received yet</div>
       <div v-else class="event-log">
         <div v-for="(evt, i) in receivedEvents" :key="i" class="event-entry">
-          <span class="event-time">{{ formatTime(evt.timestamp) }}</span>
+          <div class="event-head">
+            <span class="event-time">{{ formatTime(evt.timestamp) }}</span>
+            <span v-if="evt.source" class="event-source">
+              <span class="event-source-label">source</span>
+              <code>{{ evt.source }}</code>
+            </span>
+          </div>
           <pre class="monitor-pre pre-received">{{ prettyJson(evt.data) }}</pre>
         </div>
       </div>
@@ -114,9 +121,34 @@ function formatTime(ts: number): string {
   flex-direction: column;
   gap: 2px;
 }
+.event-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 .event-time {
   font-size: 11px;
   color: #888;
   font-family: monospace;
+}
+.event-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+}
+.event-source-label {
+  color: #6d28d9;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.event-source code {
+  background: #ede9fe;
+  color: #5b21b6;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
 }
 </style>

@@ -247,7 +247,7 @@ class HalService : Service() {
         // 15. Bridge: EventBus.events -> TransportRegistry.pushEvent
         scope.launch {
             eventBus.events.collect { envelope ->
-                transportRegistry.pushEvent(envelope.eventName, envelope.jsonData)
+                transportRegistry.pushEvent(envelope.eventName, envelope.jsonData, envelope.sourcePluginId)
             }
         }
 

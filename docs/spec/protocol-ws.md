@@ -49,8 +49,11 @@ Bez klucza (triggeruje dialog):
 
 **Event (push):**
 ```json
-{"type":"event","event":"rfid.tag","data":{"epc":"E200...","rssi":-45}}
+{"type":"event","event":"rfid.tag","source":"sunmi.rfid","data":{"epc":"E200...","rssi":-45}}
 ```
+
+`source` to `pluginId` nadawcy eventu — w nagłówku ramki, obok `data` (nie w środku payloadu),
+aby konsument mógł rozpoznać providera bez polegania na treści. Nieobecny na starszych serwerach.
 
 ## Subskrypcje eventów
 

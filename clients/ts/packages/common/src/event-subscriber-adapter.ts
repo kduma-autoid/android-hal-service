@@ -1,5 +1,6 @@
 import type { IEventTransport } from './interfaces/event-transport.js';
 import type { IEventSubscriber } from './interfaces/event-subscriber.js';
+import type { EventMeta } from './types/event.js';
 
 export class EventSubscriberAdapter implements IEventSubscriber {
   private readonly handlers = new Map<string, Set<Function>>();
@@ -8,7 +9,7 @@ export class EventSubscriberAdapter implements IEventSubscriber {
 
   async on<T = unknown>(
     event: string,
-    handler: (eventName: string, data: T) => void,
+    handler: (eventName: string, data: T, meta?: EventMeta) => void,
   ): Promise<() => Promise<void>> {
     let set = this.handlers.get(event);
     if (!set) {

@@ -12,6 +12,7 @@ import type {
   StatusResponse,
   DescribeOptions,
   DescribeResponse,
+  EventMeta,
 } from '@kduma-autoid/hal-client-common';
 import { InMemoryTokenStore, EventSubscriberAdapter } from '@kduma-autoid/hal-client-common';
 import type { HalClientOptions } from './hal-client-options.js';
@@ -146,7 +147,7 @@ export class HalClient implements IHalClient {
 
   async on<T = unknown>(
     event: string,
-    handler: (eventName: string, data: T) => void,
+    handler: (eventName: string, data: T, meta?: EventMeta) => void,
   ): Promise<() => Promise<void>> {
     if (this.eventSubscriber === null) {
       throw new Error('No event transport configured. Call useEventTransport() first.');

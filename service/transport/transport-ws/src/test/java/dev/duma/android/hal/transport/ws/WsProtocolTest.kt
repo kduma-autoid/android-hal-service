@@ -48,10 +48,12 @@ class WsProtocolTest {
 
     @Test
     fun `serialize event`() {
-        val json = WsProtocol.serializeEvent("rfid.tag", """{"epc":"E200"}""")
+        val json = WsProtocol.serializeEvent("rfid.tag", """{"epc":"E200"}""", "sunmi.rfid")
         val parsed = Json.parseToJsonElement(json).jsonObject
         assertEquals("event", parsed["type"]?.jsonPrimitive?.content)
         assertEquals("rfid.tag", parsed["event"]?.jsonPrimitive?.content)
+        // Emitting plugin id is exposed in the frame header, not inside `data`.
+        assertEquals("sunmi.rfid", parsed["source"]?.jsonPrimitive?.content)
     }
 
     @Test

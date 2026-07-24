@@ -74,10 +74,12 @@ object WsProtocol {
         }.toString()
     }
 
-    fun serializeEvent(eventName: String, jsonData: String): String {
+    fun serializeEvent(eventName: String, jsonData: String, source: String): String {
         return buildJsonObject {
             put("type", "event")
             put("event", eventName)
+            // Emitting plugin id, exposed in the frame header (sibling of `data`, not inside it).
+            put("source", source)
             put("data", json.parseToJsonElement(jsonData))
         }.toString()
     }

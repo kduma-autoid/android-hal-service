@@ -9,6 +9,7 @@ import InterfaceMethodsSection from './InterfaceMethodsSection.vue';
 interface ReceivedEvent {
   timestamp: number;
   data: unknown;
+  source?: string;
 }
 
 const props = defineProps<{

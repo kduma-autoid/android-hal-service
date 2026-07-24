@@ -72,9 +72,10 @@ class DemoInterface : HalPlugin {
             events = listOf(
                 EventDescriptor(
                     "demo.notice",
-                    "Notice emitted by a demo provider in response to demo.emit.",
+                    "Notice emitted by a demo provider in response to demo.emit. The emitting provider " +
+                        "is carried in the event header (source), not in the body.",
                     PERMISSION,
-                    exampleEvent = """{"message":"ping","provider":"demo.alpha"}"""
+                    exampleEvent = """{"message":"ping"}"""
                 )
             ),
             features = listOf(

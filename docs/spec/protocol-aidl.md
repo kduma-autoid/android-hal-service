@@ -37,10 +37,13 @@ interface IHalService {
 
 ```aidl
 interface IHalCallback {
-    void onEvent(String eventName, String jsonData);
+    void onEvent(String eventName, String jsonData, String source);
     void onError(String deviceType, int code, String message);
 }
 ```
+
+`source` to `pluginId` nadawcy eventu — dostarczany w nagłówku wywołania (osobny parametr),
+a nie wewnątrz `jsonData`, aby klient rozpoznał providera bez parsowania payloadu.
 
 ## Flow
 

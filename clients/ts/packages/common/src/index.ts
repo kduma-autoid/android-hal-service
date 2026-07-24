@@ -5,6 +5,7 @@ export type {
   HalErrorCode,
   HalErrorResponse,
   HalEvent,
+  EventMeta,
   EventHandler,
   EventSubscription,
   ExecuteRequest,

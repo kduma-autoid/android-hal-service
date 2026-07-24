@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import type { DescribeResponse, InterfaceDescriptor } from '@kduma-autoid/hal-client-common';
+import type { DescribeResponse, InterfaceDescriptor, EventMeta } from '@kduma-autoid/hal-client-common';
 import { useHalClient } from '../composables/useHalClient';
 import { useToast } from '../composables/useToast';
 import InterfaceCard from '../components/InterfaceCard.vue';
@@ -17,6 +17,7 @@ const error = ref<string | null>(null);
 interface ReceivedEvent {
   timestamp: number;
   data: unknown;
+  source?: string;
 }
 const receivedEvents = reactive<Record<string, ReceivedEvent[]>>({});
 let unsubscribers: (() => Promise<void>)[] = [];
@@ -37,9 +38,9 @@ async function subscribeToEvents() {
     if (!receivedEvents[ev.name]) receivedEvents[ev.name] = [];
     promises.push(
       client.value
-        .on(ev.name, (_n: string, data: unknown) => {
+        .on(ev.name, (_n: string, data: unknown, meta?: EventMeta) => {
           if (isUnmounted) return;
-          receivedEvents[ev.name].push({ timestamp: Date.now(), data });
+          receivedEvents[ev.name].push({ timestamp: Date.now(), data, source: meta?.source });
           toast.info(`Event: ${ev.name}`);
         })
         .then((off) => {

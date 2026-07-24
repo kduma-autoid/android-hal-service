@@ -15,11 +15,12 @@ function createMockConnection() {
         messageCallback = null;
       };
     }),
-    simulateEvent(event: string, data: unknown) {
+    simulateEvent(event: string, data: unknown, source?: string) {
       messageCallback?.({
         type: 'event',
         event,
         data,
+        source,
       });
     },
     simulateMessage(msg: WsServerMessage) {
@@ -46,7 +47,16 @@ describe('WsEventTransport', () => {
 
       mockConnection.simulateEvent('scanner.barcode', { value: '123' });
 
-      expect(handler).toHaveBeenCalledWith('scanner.barcode', { value: '123' });
+      expect(handler).toHaveBeenCalledWith('scanner.barcode', { value: '123' }, { source: undefined });
+    });
+
+    it('should deliver the emitting plugin id in the meta header', () => {
+      const handler = vi.fn();
+      transport.on('demo.notice', handler);
+
+      mockConnection.simulateEvent('demo.notice', { message: 'ping' }, 'demo.beta');
+
+      expect(handler).toHaveBeenCalledWith('demo.notice', { message: 'ping' }, { source: 'demo.beta' });
     });
 
     it('should support wildcard patterns', () => {
@@ -57,8 +67,8 @@ describe('WsEventTransport', () => {
       mockConnection.simulateEvent('scanner.status', { ready: true });
 
       expect(handler).toHaveBeenCalledTimes(2);
-      expect(handler).toHaveBeenCalledWith('scanner.barcode', { value: '123' });
-      expect(handler).toHaveBeenCalledWith('scanner.status', { ready: true });
+      expect(handler).toHaveBeenCalledWith('scanner.barcode', { value: '123' }, { source: undefined });
+      expect(handler).toHaveBeenCalledWith('scanner.status', { ready: true }, { source: undefined });
     });
 
     it('should support global wildcard', () => {

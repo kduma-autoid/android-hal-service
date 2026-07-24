@@ -72,8 +72,8 @@ class WsTransport : CommandTransport, EventTransport {
         running = false
     }
 
-    override fun pushEvent(eventName: String, jsonData: String) {
-        val eventJson = WsProtocol.serializeEvent(eventName, jsonData)
+    override fun pushEvent(eventName: String, jsonData: String, source: String) {
+        val eventJson = WsProtocol.serializeEvent(eventName, jsonData, source)
         for ((_, session) in sessions) {
             if (session.token != null &&
                 WsProtocol.matchesAnySubscription(session.subscribedEvents, eventName)

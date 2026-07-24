@@ -30,7 +30,7 @@ interface HalClient {
     // Subskrypcje (nie wszystkie kanały wspierają)
     suspend fun subscribe(events: List<String>): SubscribeResult
     suspend fun unsubscribe(events: List<String>)
-    fun onEvent(callback: (eventName: String, jsonData: String) -> Unit): Disposable
+    fun onEvent(callback: (eventName: String, jsonData: String, source: String) -> Unit): Disposable  // source = pluginId nadawcy
 
     // System
     suspend fun ping(): Boolean
@@ -161,10 +161,11 @@ class HalModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
 
     // Eventy → RN EventEmitter
     init {
-        client.onEvent { event, data ->
+        client.onEvent { event, data, source ->
             sendEvent(reactContext, "HalEvent", Arguments.createMap().apply {
                 putString("event", event)
                 putString("data", data)
+                putString("source", source)
             })
         }
     }

@@ -65,11 +65,11 @@ abstract class BaseDemoPlugin(
                 JSONObject().put("pong", true).put("provider", id).toString()
             )
             "emit" -> {
+                // The emitting provider is carried in the event header (source), not in the body.
                 callback?.onEvent(
                     "demo.notice",
                     JSONObject()
                         .put("message", json.optString("message", ""))
-                        .put("provider", id)
                         .toString()
                 )
                 CommandResult.Success(

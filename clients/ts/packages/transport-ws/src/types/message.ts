@@ -64,4 +64,6 @@ export interface WsEventMessage {
   type: 'event';
   event: string;
   data: unknown;
+  /** Plugin id that emitted the event (frame header, sibling of `data`). Absent on older services. */
+  source?: string;
 }
