@@ -23,6 +23,8 @@ export interface InterfaceProvider {
   source: string;
   priority: number;
   isDefault: boolean;
+  /** False when the user has disabled this provider for the interface (still listed, not routable). */
+  enabled: boolean;
   features: string[];
 }
 

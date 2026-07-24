@@ -64,6 +64,16 @@ async function moveProvider(iface: InterfaceDescriptor, index: number, delta: nu
   await load();
 }
 
+async function setProviderEnabled(iface: InterfaceDescriptor, pluginId: string, enabled: boolean): Promise<void> {
+  if (!client.value) return;
+  await client.value.execute('system.interface.setEnabled', {
+    interfaceId: iface.interfaceId,
+    pluginId,
+    enabled,
+  });
+  await load();
+}
+
 async function callMethod(iface: InterfaceDescriptor, method: MethodDescriptor): Promise<void> {
   if (!client.value) return;
   const key = paramsKey(iface.interfaceId, method.name);
@@ -109,11 +119,23 @@ watch(isConnected, (connected) => {
       <h3>Providers</h3>
       <p v-if="iface.providers.length === 0" class="muted">No available providers.</p>
       <ul v-else class="providers">
-        <li v-for="(p, i) in iface.providers" :key="p.pluginId" class="provider">
+        <li
+          v-for="(p, i) in iface.providers"
+          :key="p.pluginId"
+          class="provider"
+          :class="{ disabled: !p.enabled }"
+        >
           <span class="order">
             <button class="btn-xs" :disabled="i === 0" @click="moveProvider(iface, i, -1)">↑</button>
             <button class="btn-xs" :disabled="i === iface.providers.length - 1" @click="moveProvider(iface, i, 1)">↓</button>
           </span>
+          <input
+            type="checkbox"
+            class="en"
+            :checked="p.enabled"
+            title="Enabled"
+            @change="setProviderEnabled(iface, p.pluginId, ($event.target as HTMLInputElement).checked)"
+          />
           <label class="pick">
             <input
               type="radio"
@@ -203,6 +225,12 @@ watch(isConnected, (connected) => {
 .order {
   display: flex;
   gap: 2px;
+}
+.provider.disabled .pick {
+  opacity: 0.55;
+}
+.en {
+  margin: 0 2px;
 }
 .pick {
   display: flex;

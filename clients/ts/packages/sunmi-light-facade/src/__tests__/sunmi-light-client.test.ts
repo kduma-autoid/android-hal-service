@@ -27,6 +27,7 @@ function clientWithLight(providers: FakeProvider[]): IHalClient {
                   source: 'builtin',
                   priority: 0,
                   isDefault: !!p.isDefault,
+                  enabled: true,
                   features: p.features,
                 })),
               },

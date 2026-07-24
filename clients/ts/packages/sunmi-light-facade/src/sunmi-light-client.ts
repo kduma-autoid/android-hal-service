@@ -73,7 +73,9 @@ export class SunmiLightClient implements ILight {
   static async detect(client: IHalClient): Promise<InterfaceProvider | null> {
     const iface = await SunmiLightClient.describeLight(client);
     if (!iface || iface.providers.length === 0) return null;
-    return iface.providers.find((p) => p.isDefault) ?? iface.providers[0];
+    // Prefer the interface default; otherwise the first enabled provider (disabled ones are listed
+    // by the API but are not routable).
+    return iface.providers.find((p) => p.isDefault) ?? iface.providers.find((p) => p.enabled) ?? null;
   }
 
   /**

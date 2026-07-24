@@ -410,15 +410,21 @@ class ServiceCommandHandler(
                             }
                         }
                         putJsonArray("providers") {
-                            pluginRegistry.getInterfaceProviders(contract.interfaceId).forEach { p ->
-                                add(buildJsonObject {
-                                    put("pluginId", p.pluginId)
-                                    put("source", p.source?.name?.lowercase() ?: "unknown")
-                                    put("priority", p.priority)
-                                    put("isDefault", p.isDefault)
-                                    putJsonArray("features") { p.features.forEach { add(JsonPrimitive(it)) } }
-                                })
-                            }
+                            // API lists loaded (supported + dynamically-available) providers, INCLUDING
+                            // user-disabled ones (with an `enabled` flag) so a client can re-enable them.
+                            // Only unavailable/unsupported implementors are hidden from the API.
+                            pluginRegistry.getAllInterfaceImplementors(contract.interfaceId)
+                                .filter { it.available && it.supported }
+                                .forEach { p ->
+                                    add(buildJsonObject {
+                                        put("pluginId", p.pluginId)
+                                        put("source", p.source?.name?.lowercase() ?: "unknown")
+                                        put("priority", p.priority)
+                                        put("isDefault", p.isDefault)
+                                        put("enabled", p.enabled)
+                                        putJsonArray("features") { p.features.forEach { add(JsonPrimitive(it)) } }
+                                    })
+                                }
                         }
                     })
                 }
