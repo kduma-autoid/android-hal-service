@@ -4,6 +4,7 @@ import android.content.Context
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginDescriptor
+import dev.duma.android.hal.contract.stripExperimental
 import dev.duma.android.hal.plugins.sunmi.tms.network.handler.NetworkManagerHandler
 import dev.duma.android.hal.plugins.sunmi.tms.base.BaseTmsPlugin
 
@@ -16,7 +17,11 @@ class SunmiTmsNetworkPlugin(context: Context? = null) : BaseTmsPlugin(context) {
 
     override fun getCapabilities() = listOf("sunmi.tms.network")
 
-    override fun getDescriptor() = PluginDescriptor.withFlatLists(
+    override fun getDescriptor() = fullDescriptor().let {
+        if (BuildConfig.WITH_EXPERIMENTAL) it else it.stripExperimental()
+    }
+
+    private fun fullDescriptor() = PluginDescriptor.withFlatLists(
         pluginId = pluginId,
         name = "Sunmi: TMS (Network)",
         version = version,
@@ -25,7 +30,7 @@ class SunmiTmsNetworkPlugin(context: Context? = null) : BaseTmsPlugin(context) {
         methods = buildMethodList(),
     )
 
-    override suspend fun execute(method: String, params: String): CommandResult = guardedExecute {
+    override suspend fun onExecute(method: String, params: String): CommandResult = guardedExecute {
         networkHandler.handle(method, params)
     }
 

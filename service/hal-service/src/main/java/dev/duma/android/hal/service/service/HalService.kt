@@ -9,6 +9,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
+import androidx.core.content.pm.PackageInfoCompat
 import androidx.room.Room
 import com.nimbusds.jose.crypto.MACVerifier
 import com.nimbusds.jose.crypto.RSASSAVerifier
@@ -23,9 +24,11 @@ import dev.duma.android.hal.service.auth.GrantPermissionActivity
 import dev.duma.android.hal.service.auth.TokenDatabase
 import dev.duma.android.hal.service.auth.TokenDao
 import dev.duma.android.hal.service.auth.TokenManager
+import dev.duma.android.hal.service.BuildConfig
 import dev.duma.android.hal.service.config.BroadcastConfig
 import dev.duma.android.hal.service.config.ExperimentalConfig
 import dev.duma.android.hal.service.config.InterfacePreferenceConfig
+import dev.duma.android.hal.service.config.ServerConfig
 import dev.duma.android.hal.service.core.ServiceCommandHandler
 import dev.duma.android.hal.service.core.TransportBootstrap
 import dev.duma.android.hal.service.plugin.PluginRegistry
@@ -68,6 +71,14 @@ class HalService : Service() {
         var experimentalConfig: ExperimentalConfig? = null
             private set
         var interfacePreferenceConfig: InterfacePreferenceConfig? = null
+            private set
+        var serverConfig: ServerConfig? = null
+            private set
+
+        /** The address/port the server was actually bound to at startup (for the dashboard). */
+        var boundHost: String = "127.0.0.1"
+            private set
+        var boundPort: Int = PORT
             private set
     }
 
@@ -179,13 +190,21 @@ class HalService : Service() {
         // 9. KtorServerManager
         ktorServerManager = KtorServerManager()
 
-        // 10. ExperimentalConfig + TransportConfig
+        // 10. ExperimentalConfig + ServerConfig + TransportConfig
         val experimentalConfig = ExperimentalConfig(applicationContext)
         val broadcastConfig = BroadcastConfig(applicationContext)
         val interfacePreferenceConfig = InterfacePreferenceConfig(applicationContext)
         pluginRegistry.interfacePreferenceConfig = interfacePreferenceConfig
+        val serverConfig = ServerConfig(applicationContext)
+
+        // Production binds localhost on the fixed port. Development builds default to the same
+        // (localhost:8400) but honour the opt-in ServerConfig toggles (custom port, LAN access).
+        val bindHost = if (BuildConfig.DEVELOPMENT) serverConfig.resolvedBindAddress() else "127.0.0.1"
+        val bindPort = if (BuildConfig.DEVELOPMENT) serverConfig.resolvedPort() else PORT
+
         val config = TransportConfig(
-            port = PORT,
+            port = bindPort,
+            host = bindHost,
             context = applicationContext,
             enabledBroadcastEvents = broadcastConfig.getEnabledEvents(),
             broadcastEventFilter = { broadcastConfig.isEventEnabled(it) },
@@ -207,7 +226,7 @@ class HalService : Service() {
             experimentalConfig = experimentalConfig,
             interfacePreferenceConfig = interfacePreferenceConfig,
             versionName = pkgInfo?.versionName,
-            versionCode = pkgInfo?.versionCode
+            versionCode = pkgInfo?.let { PackageInfoCompat.getLongVersionCode(it).toInt() }
         )
 
         // 13. Start all transports — each registers modules in KtorServerManager
@@ -215,8 +234,8 @@ class HalService : Service() {
 
         // 14. Start Ktor server if any Ktor transports registered
         if (ktorServerManager.hasModules) {
-            ktorServerManager.start(PORT)
-            Log.i(TAG, "Ktor server started on port $PORT")
+            ktorServerManager.start(bindPort, bindHost)
+            Log.i(TAG, "Ktor server started on $bindHost:$bindPort")
         } else {
             Log.i(TAG, "No Ktor transports registered, skipping server start")
         }
@@ -254,6 +273,9 @@ class HalService : Service() {
         Companion.broadcastConfig = broadcastConfig
         Companion.experimentalConfig = experimentalConfig
         Companion.interfacePreferenceConfig = interfacePreferenceConfig
+        Companion.serverConfig = serverConfig
+        Companion.boundHost = bindHost
+        Companion.boundPort = bindPort
         Companion.isServiceRunning = true
 
         // 19. Foreground notification
@@ -279,6 +301,7 @@ class HalService : Service() {
         Companion.broadcastConfig = null
         Companion.experimentalConfig = null
         Companion.interfacePreferenceConfig = null
+        Companion.serverConfig = null
         transportRegistry.stopAll()
         ktorServerManager.stop()
         pluginRegistry.disconnectAll(this)
@@ -314,6 +337,9 @@ class HalService : Service() {
         startForeground(NOTIFICATION_ID, notification)
     }
 
+    // Notification.Builder / setPriority are used directly (pre-O compat); the channel importance
+    // drives priority on O+. Suppress the framework deprecation warnings for this compat path.
+    @Suppress("DEPRECATION")
     private fun showGrantNotification(activityIntent: Intent, clientId: String) {
         val notificationManager = getSystemService(NotificationManager::class.java)
 

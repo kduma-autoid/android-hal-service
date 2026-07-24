@@ -48,7 +48,7 @@ class SunmiTmsLedPlugin(context: Context? = null) : BaseTmsPlugin(context) {
         )
     )
 
-    override suspend fun execute(method: String, params: String): CommandResult = guardedExecute {
+    override suspend fun onExecute(method: String, params: String): CommandResult = guardedExecute {
         rgbLedHandler.handle(method, params)
     }
 

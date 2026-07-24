@@ -10,6 +10,7 @@ import android.content.Context
  */
 data class TransportConfig(
     val port: Int = 8400,
+    val host: String = "0.0.0.0",
     val context: Context,
     val enabledBroadcastEvents: Set<String> = emptySet(),
     val broadcastEventFilter: ((String) -> Boolean)? = null,

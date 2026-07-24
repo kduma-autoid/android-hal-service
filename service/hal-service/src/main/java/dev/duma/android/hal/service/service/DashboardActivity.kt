@@ -15,23 +15,31 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.text.InputType
+import java.net.Inet4Address
+import java.net.NetworkInterface
+import java.util.Collections
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.widget.Button
 import android.widget.CheckBox
+import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
+import dev.duma.android.hal.service.BuildConfig
 import dev.duma.android.hal.service.auth.DeviceKeyManager
+import dev.duma.android.hal.service.config.ServerConfig
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.pm.PackageInfoCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import android.view.Gravity
@@ -107,7 +115,7 @@ class DashboardActivity : AppCompatActivity() {
 
             val versionText = try {
                 val info = packageManager.getPackageInfo(packageName, 0)
-                "v${info.versionName} (${info.versionCode})"
+                "v${info.versionName} (${PackageInfoCompat.getLongVersionCode(info)})"
             } catch (_: Exception) { "" }
 
             addHeaderView(LinearLayout(this@DashboardActivity).apply {
@@ -254,12 +262,27 @@ class DashboardActivity : AppCompatActivity() {
         layout.addView(row)
 
         // Endpoint info
+        val boundHost = HalService.boundHost
+        val boundPort = HalService.boundPort
+        val displayHost = boundHost.takeIf { it != "0.0.0.0" } ?: "localhost"
+        // When bound to all interfaces (development "LAN access" mode), surface the device's
+        // own LAN addresses so it's clear where other machines on the network can reach it.
+        val lanAddresses = if (boundHost == "0.0.0.0") deviceLanAddresses() else emptyList()
         layout.addView(sectionHeader("Endpoints"))
         layout.addView(TextView(this).apply {
             text = buildString {
-                appendLine("Port: ${HalService.PORT}")
-                appendLine("WebSocket: ws://localhost:${HalService.PORT}/ws")
-                appendLine("HTTP API: http://localhost:${HalService.PORT}/api")
+                appendLine("Bind address: $boundHost")
+                appendLine("Port: $boundPort")
+                appendLine("WebSocket: ws://$displayHost:$boundPort/ws")
+                appendLine("HTTP API: http://$displayHost:$boundPort/api")
+                if (lanAddresses.isNotEmpty()) {
+                    appendLine()
+                    appendLine("Reachable on this network:")
+                    for (ip in lanAddresses) {
+                        appendLine("  http://$ip:$boundPort/api")
+                        appendLine("  ws://$ip:$boundPort/ws")
+                    }
+                }
                 appendLine()
                 appendLine("POST /api/token — Request token")
                 appendLine("POST /api/execute — Execute command")
@@ -270,6 +293,67 @@ class DashboardActivity : AppCompatActivity() {
             textSize = 13f
             setTypeface(Typeface.MONOSPACE, Typeface.NORMAL)
         })
+
+        // Development-only server toggles. Defaults match a production build (localhost:8400);
+        // each option is opt-in. "LAN access as local" treats remote/LAN callers like local ones
+        // until a proper remote-access mode exists.
+        if (BuildConfig.DEVELOPMENT) {
+            val serverConfig = HalService.serverConfig ?: ServerConfig(this)
+            layout.addView(sectionHeader("Server (development)"))
+
+            val portField = EditText(this).apply {
+                setText(serverConfig.getPort().toString())
+                hint = ServerConfig.DEFAULT_PORT.toString()
+                inputType = InputType.TYPE_CLASS_NUMBER
+                isEnabled = serverConfig.isCustomPortEnabled()
+            }
+            val customPortCheck = CheckBox(this).apply {
+                text = "Custom port"
+                textSize = 14f
+                isChecked = serverConfig.isCustomPortEnabled()
+                setOnCheckedChangeListener { _, checked -> portField.isEnabled = checked }
+            }
+            layout.addView(customPortCheck)
+            layout.addView(portField)
+
+            val lanCheck = CheckBox(this).apply {
+                text = "LAN access as local (bind 0.0.0.0 instead of 127.0.0.1)"
+                textSize = 14f
+                isChecked = serverConfig.isLanAccessAsLocal()
+            }
+            layout.addView(lanCheck)
+
+            layout.addView(Button(this).apply {
+                text = "Save server settings"
+                setOnClickListener {
+                    val customPort = customPortCheck.isChecked
+                    val port = portField.text.toString().trim().toIntOrNull()
+                    if (customPort && (port == null || port !in 1..65535)) {
+                        Toast.makeText(
+                            this@DashboardActivity,
+                            "Invalid port (1-65535)",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        return@setOnClickListener
+                    }
+                    serverConfig.setCustomPortEnabled(customPort)
+                    if (port != null && port in 1..65535) serverConfig.setPort(port)
+                    serverConfig.setLanAccessAsLocal(lanCheck.isChecked)
+                    Toast.makeText(
+                        this@DashboardActivity,
+                        "Saved. Restarting server…",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    restartService()
+                }
+            })
+            layout.addView(TextView(this).apply {
+                text = "Saving restarts the server to apply. Development builds only."
+                textSize = 12f
+                setTextColor(Color.GRAY)
+                setPadding(0, 4, 0, 0)
+            })
+        }
 
         return wrapInScrollView(layout)
     }
@@ -689,7 +773,7 @@ class DashboardActivity : AppCompatActivity() {
         val touchHelper = ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
             override fun onMove(rv: RecyclerView, vh: RecyclerView.ViewHolder, target: RecyclerView.ViewHolder) = false
             override fun onSwiped(vh: RecyclerView.ViewHolder, direction: Int) {
-                val position = vh.adapterPosition
+                val position = vh.bindingAdapterPosition
                 val token = adapter.tokens[position]
                 AlertDialog.Builder(this@DashboardActivity)
                     .setTitle("Revoke token")
@@ -983,6 +1067,40 @@ class DashboardActivity : AppCompatActivity() {
                     return@launch
                 }
             }
+        }
+    }
+
+    /** Non-loopback IPv4 addresses of this device, used to show reachable URLs when the server is
+     *  bound to all interfaces (development "LAN access" mode). Empty on any lookup error. */
+    private fun deviceLanAddresses(): List<String> =
+        try {
+            Collections.list(NetworkInterface.getNetworkInterfaces())
+                .filter { it.isUp && !it.isLoopback }
+                .flatMap { Collections.list(it.inetAddresses) }
+                .filterIsInstance<Inet4Address>()
+                .filterNot { it.isLoopbackAddress }
+                .mapNotNull { it.hostAddress }
+                .distinct()
+        } catch (_: Exception) {
+            emptyList()
+        }
+
+    /** Stops the service and starts a fresh instance so config changes (e.g. bind address/port)
+     *  take effect. */
+    private fun restartService() {
+        stopService(Intent(this, HalService::class.java))
+        lifecycleScope.launch {
+            // Wait for the running instance to tear down before starting a fresh one.
+            var waited = 0
+            while (HalService.isServiceRunning && waited < 3000) {
+                delay(100)
+                waited += 100
+            }
+            delay(200)
+            val intent = Intent(this@DashboardActivity, HalService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent)
+            else startService(intent)
+            pollServiceReady()
         }
     }
 

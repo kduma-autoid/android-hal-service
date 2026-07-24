@@ -8,6 +8,7 @@ import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.PluginDescriptor
+import dev.duma.android.hal.contract.stripExperimental
 import dev.duma.android.hal.plugins.sunmi.printerx.printer.handler.*
 import dev.duma.android.hal.plugins.sunmi.printerx.printer.receiver.PrinterBroadcastReceiver
 import dev.duma.android.hal.plugins.sunmi.printerx.sdk.BasePrinterXPlugin
@@ -34,7 +35,11 @@ class SunmiPrinterXPrinterPlugin(context: Context? = null) : BasePrinterXPlugin(
 
     override fun getCapabilities() = listOf("sunmi.printerx.printer")
 
-    override fun getDescriptor() = PluginDescriptor(
+    override fun getDescriptor() = fullDescriptor().let {
+        if (BuildConfig.WITH_EXPERIMENTAL) it else it.stripExperimental()
+    }
+
+    private fun fullDescriptor() = PluginDescriptor(
         pluginId = pluginId,
         name = "Sunmi: Printer",
         version = version,

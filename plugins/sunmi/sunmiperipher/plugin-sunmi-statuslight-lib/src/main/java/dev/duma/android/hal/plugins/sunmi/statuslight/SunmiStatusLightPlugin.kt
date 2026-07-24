@@ -9,6 +9,7 @@ import android.hardware.usb.UsbManager
 import androidx.core.content.ContextCompat
 import com.sunmi.peripheralsdk.Color
 import com.sunmi.peripheralsdk.StatusLightManager
+import dev.duma.android.hal.contract.BaseHalPlugin
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
@@ -35,7 +36,7 @@ import org.json.JSONObject
  */
 class SunmiStatusLightPlugin(
     private val context: Context? = null
-) : HalPlugin {
+) : BaseHalPlugin() {
 
     override val pluginId = "sunmi.statuslight"
     override val version = 1
@@ -149,7 +150,7 @@ class SunmiStatusLightPlugin(
         }
     }
 
-    override suspend fun execute(method: String, params: String): CommandResult = mutex.withLock {
+    override suspend fun onExecute(method: String, params: String): CommandResult = mutex.withLock {
         return@withLock try {
             // Operation is the last dotted segment, so native "sunmi.statuslight.*" and unified
             // "light.*" interface methods share one dispatch.

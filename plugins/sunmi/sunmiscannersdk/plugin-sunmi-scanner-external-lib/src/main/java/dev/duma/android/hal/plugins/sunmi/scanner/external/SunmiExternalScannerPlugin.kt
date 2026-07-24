@@ -5,6 +5,7 @@ import com.sunmi.scanner.connector.InitStatusCallback
 import com.sunmi.scanner.connector.ScanResultCallback
 import com.sunmi.scanner.manager.LittleFlashScanner
 import com.sunmi.sdk.ServiceConnectStatus
+import dev.duma.android.hal.contract.BaseHalPlugin
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
@@ -12,6 +13,7 @@ import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
+import dev.duma.android.hal.contract.stripExperimental
 import dev.duma.android.hal.plugins.sunmi.scanner.common.ScannerServiceManager
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -25,7 +27,7 @@ import org.json.JSONObject
  */
 class SunmiExternalScannerPlugin(
     private val appContext: Context? = null
-) : HalPlugin {
+) : BaseHalPlugin() {
 
     override val pluginId = "sunmi.scanner.external"
     override val version = 1
@@ -45,13 +47,15 @@ class SunmiExternalScannerPlugin(
     }
 
     private val scanResultCallback = object : ScanResultCallback {
-        override fun onScanResultAvailable(data: String?, rawData: ByteArray?, format: String?, status: String?) {
+        // Parameter names mirror the SDK's ScanResultCallback. The JSON keys below are the event's
+        // existing payload contract, so they don't map 1:1 onto the parameter names.
+        override fun onScanResultAvailable(qrResult: String?, barcodeSource: ByteArray?, status: String?, subStatus: String?) {
             val payload = JSONObject()
-                .put("data", data ?: "")
-                .put("format", format ?: "")
-                .put("status", status ?: "")
-            if (rawData != null) {
-                payload.put("rawData", rawData.joinToString("") { "%02x".format(it) })
+                .put("data", qrResult ?: "")
+                .put("format", status ?: "")
+                .put("status", subStatus ?: "")
+            if (barcodeSource != null) {
+                payload.put("rawData", barcodeSource.joinToString("") { "%02x".format(it) })
             }
             emitEvent(EVENT_BARCODE, payload.toString())
         }
@@ -94,9 +98,9 @@ class SunmiExternalScannerPlugin(
                 emitEvent(EVENT_INITIALIZED, "{}")
             }
 
-            override fun onFail(message: String?) {
+            override fun onFail(failCode: String?) {
                 initialized = false
-                emitEvent(EVENT_INIT_FAILED, JSONObject().put("message", message ?: "Unknown error").toString())
+                emitEvent(EVENT_INIT_FAILED, JSONObject().put("message", failCode ?: "Unknown error").toString())
             }
         })
     }
@@ -107,7 +111,11 @@ class SunmiExternalScannerPlugin(
 
     override fun getCapabilities() = listOf("sunmi.scanner.external")
 
-    override fun getDescriptor() = PluginDescriptor.withFlatLists(
+    override fun getDescriptor() = fullDescriptor().let {
+        if (BuildConfig.WITH_EXPERIMENTAL) it else it.stripExperimental()
+    }
+
+    private fun fullDescriptor() = PluginDescriptor.withFlatLists(
         pluginId = pluginId,
         name = "Sunmi: Scanner (External)",
         version = version,
@@ -207,7 +215,7 @@ class SunmiExternalScannerPlugin(
 
     // --- Execute ---
 
-    override suspend fun execute(method: String, params: String): CommandResult = mutex.withLock {
+    override suspend fun onExecute(method: String, params: String): CommandResult = mutex.withLock {
         val scanner = LittleFlashScanner.getInstance()
         val json = if (params.isBlank() || params == "{}") JSONObject() else JSONObject(params)
 

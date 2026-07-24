@@ -49,3 +49,28 @@ val PluginDescriptor.allMethods: List<MethodDescriptor>
 
 val PluginDescriptor.allEvents: List<EventDescriptor>
     get() = groups.flatMap { it.events }
+
+/**
+ * Returns a copy of this descriptor with all experimental content removed.
+ *
+ * - If the whole plugin is experimental, the result exposes nothing (empty groups, flag cleared) —
+ *   the plugin has no stable surface.
+ * - Otherwise, experimental methods and events are dropped, and groups left empty by that filter
+ *   are removed.
+ *
+ * Used by plugins built in the `stable` stability flavor so experimental methods are absent from the
+ * descriptor (and, together with the descriptor guard, non-invocable) in production builds.
+ */
+fun PluginDescriptor.stripExperimental(): PluginDescriptor =
+    if (experimental) {
+        copy(experimental = false, groups = emptyList())
+    } else {
+        copy(
+            groups = groups.map { group ->
+                group.copy(
+                    methods = group.methods.filterNot { it.experimental },
+                    events = group.events.filterNot { it.experimental }
+                )
+            }.filter { it.methods.isNotEmpty() || it.events.isNotEmpty() }
+        )
+    }

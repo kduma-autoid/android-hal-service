@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import com.sunmi.scanner.sdk.CameraScanner
+import dev.duma.android.hal.contract.BaseHalPlugin
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
@@ -11,6 +12,7 @@ import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
+import dev.duma.android.hal.contract.stripExperimental
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,7 +29,7 @@ import org.json.JSONObject
  */
 class SunmiCameraScannerPlugin(
     private val appContext: Context? = null
-) : HalPlugin {
+) : BaseHalPlugin() {
 
     override val pluginId = "sunmi.scanner.camera"
     override val version = 1
@@ -74,7 +76,11 @@ class SunmiCameraScannerPlugin(
 
     override fun getCapabilities() = listOf("sunmi.scanner.camera")
 
-    override fun getDescriptor() = PluginDescriptor.withFlatLists(
+    override fun getDescriptor() = fullDescriptor().let {
+        if (BuildConfig.WITH_EXPERIMENTAL) it else it.stripExperimental()
+    }
+
+    private fun fullDescriptor() = PluginDescriptor.withFlatLists(
         pluginId = pluginId,
         name = "Sunmi: Scanner (Camera)",
         version = version,
@@ -128,7 +134,7 @@ class SunmiCameraScannerPlugin(
 
     // --- Execute ---
 
-    override suspend fun execute(method: String, params: String): CommandResult {
+    override suspend fun onExecute(method: String, params: String): CommandResult {
         val json = if (params.isBlank() || params == "{}") JSONObject() else JSONObject(params)
 
         return try {

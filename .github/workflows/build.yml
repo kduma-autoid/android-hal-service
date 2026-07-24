@@ -174,11 +174,26 @@ jobs:
             base=$(basename "$apk" -release.apk)
             # Detect flavor from directory structure: apk/{flavor}/release/ vs apk/release/
             grandparent=$(basename "$(dirname "$(dirname "$apk")")")
-            if [[ "$grandparent" != "apk" ]]; then
-              module="${base%-"$grandparent"}"
-              cp "$apk" "/tmp/android-artifacts/${module}-${VERSION}-${grandparent}.apk"
-            else
+            if [[ "$grandparent" == "apk" ]]; then
               cp "$apk" "/tmp/android-artifacts/${base}-${VERSION}.apk"
+            else
+              module="${base%-"$grandparent"}"
+              # Device part (sunmi/generic) goes before the version, edition (development) after it;
+              # stable is dropped. App variants: {generic,sunmi}{Stable,Development}; bundles: stable/development.
+              device=""
+              edition=""
+              case "$grandparent" in
+                stable) ;;
+                development) edition="development" ;;
+                *Development) device="${grandparent%Development}"; edition="development" ;;
+                *Stable) device="${grandparent%Stable}" ;;
+                *) device="$grandparent" ;;
+              esac
+              name="$module"
+              if [[ -n "$device" ]]; then name="${name}-${device}"; fi
+              name="${name}-${VERSION}"
+              if [[ -n "$edition" ]]; then name="${name}-${edition}"; fi
+              cp "$apk" "/tmp/android-artifacts/${name}.apk"
             fi
           done
 
@@ -188,7 +203,14 @@ jobs:
           mkdir -p /tmp/aars
           find . -name '*-release.aar' -path '*/build/outputs/aar/*' | while read -r aar; do
             base=$(basename "$aar" -release.aar)
-            cp "$aar" "/tmp/android-artifacts/library_${base}-${VERSION}.aar"
+            # Flavour goes after the version (like the APKs); stable drops its suffix entirely.
+            if [[ "$base" == *-stable ]]; then
+              cp "$aar" "/tmp/android-artifacts/library_${base%-stable}-${VERSION}.aar"
+            elif [[ "$base" == *-development ]]; then
+              cp "$aar" "/tmp/android-artifacts/library_${base%-development}-${VERSION}-development.aar"
+            else
+              cp "$aar" "/tmp/android-artifacts/library_${base}-${VERSION}.aar"
+            fi
           done
 
       - name: Upload android-artifacts as workflow artifact

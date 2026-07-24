@@ -287,6 +287,12 @@ class PluginRegistry {
     suspend fun executeOnPlugin(method: String, params: String): CommandResult {
         val plugin = findForMethod(method)
             ?: return CommandResult.notFound("No plugin handles method: $method")
+        // The descriptor is the single source of truth for what is invocable. Methods absent from a
+        // plugin's (possibly stability-filtered) descriptor — e.g. experimental methods stripped in a
+        // `stable` plugin build — are not callable, even by name.
+        if (plugin.getDescriptor().allMethods.none { it.name == method }) {
+            return CommandResult.unsupportedMethod(method)
+        }
         return plugin.execute(method, params)
     }
 

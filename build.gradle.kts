@@ -37,7 +37,11 @@ subprojects {
     plugins.withId("com.android.library") {
         extensions.configure<com.android.build.api.dsl.LibraryExtension> {
             publishing {
-                singleVariant("release") {
+                // Publish every release variant. Plugin libraries carrying a `stability` flavor
+                // dimension publish both their `stable` and `development` release variants;
+                // flavourless libraries publish their single release variant.
+                multipleVariants("release") {
+                    includeBuildTypeValues("release")
                     withSourcesJar()
                     withJavadocJar()
                 }

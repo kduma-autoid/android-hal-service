@@ -2,8 +2,8 @@ package dev.duma.android.hal.plugins.sunmi.printerx.sdk
 
 import android.content.Context
 import android.content.Intent
+import dev.duma.android.hal.contract.BaseHalPlugin
 import dev.duma.android.hal.contract.CommandResult
-import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.PluginContext
 import kotlinx.coroutines.sync.Mutex
@@ -19,7 +19,7 @@ import org.json.JSONObject
  */
 abstract class BasePrinterXPlugin(
     protected val context: Context? = null
-) : HalPlugin {
+) : BaseHalPlugin() {
 
     private var _eventCallback: HalPluginEventCallback? = null
     protected val mutex = Mutex()
@@ -43,7 +43,7 @@ abstract class BasePrinterXPlugin(
         _eventCallback?.onEvent(event, payload)
     }
 
-    override suspend fun execute(method: String, params: String): CommandResult {
+    override suspend fun onExecute(method: String, params: String): CommandResult {
         val json = if (params.isBlank() || params == "{}") JSONObject() else JSONObject(params)
         return try {
             handleExecute(method, params, json)

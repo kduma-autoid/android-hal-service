@@ -1,5 +1,6 @@
 package dev.duma.android.hal.plugins.generic
 
+import dev.duma.android.hal.contract.BaseHalPlugin
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
@@ -13,7 +14,7 @@ import dev.duma.android.hal.contract.PluginDescriptor
  * scanner plugins and transforms vendor events into unified format
  * (e.g. "sunmi.scanner.barcode" -> "scanner.barcode"). Must be in-process.
  */
-class GenericScannerPlugin : HalPlugin {
+class GenericScannerPlugin : BaseHalPlugin() {
 
     override val pluginId = "scanner"
     override val version = 1
@@ -73,7 +74,7 @@ class GenericScannerPlugin : HalPlugin {
         }
     }
 
-    override suspend fun execute(method: String, params: String): CommandResult {
+    override suspend fun onExecute(method: String, params: String): CommandResult {
         val context = ctx ?: return CommandResult.unavailable("Plugin not initialized")
 
         val operation = method.removePrefix("scanner.")

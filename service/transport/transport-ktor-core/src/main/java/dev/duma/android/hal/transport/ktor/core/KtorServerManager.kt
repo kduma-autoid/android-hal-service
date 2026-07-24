@@ -34,10 +34,13 @@ class KtorServerManager {
     /**
      * Start the Ktor server with all registered modules.
      * Called by hal-service after all transports have registered their modules.
+     *
+     * @param host bind address. Defaults to all interfaces; hal-service passes localhost for
+     *   production builds and the configured address for development builds.
      */
-    fun start(port: Int) {
+    fun start(port: Int, host: String = "0.0.0.0") {
         check(!started) { "Server already started" }
-        server = embeddedServer(Netty, port = port) {
+        server = embeddedServer(Netty, host = host, port = port) {
             install(ContentNegotiation) { json() }
             install(CORS) {
                 anyHost()

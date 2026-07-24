@@ -29,6 +29,23 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+
+    buildFeatures {
+        buildConfig = true
+    }
+
+    // Experimental methods are compiled in only for the `development` variant.
+    flavorDimensions += "stability"
+    productFlavors {
+        create("development") {
+            dimension = "stability"
+            buildConfigField("boolean", "WITH_EXPERIMENTAL", "true")
+        }
+        create("stable") {
+            dimension = "stability"
+            buildConfigField("boolean", "WITH_EXPERIMENTAL", "false")
+        }
+    }
 }
 
 dependencies {

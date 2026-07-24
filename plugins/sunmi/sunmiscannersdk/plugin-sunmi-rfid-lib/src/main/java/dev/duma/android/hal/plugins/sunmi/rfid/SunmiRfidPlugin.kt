@@ -9,6 +9,7 @@ import com.sunmi.rfid.constant.CMD
 import com.sunmi.sdk.ServiceConnectStatus
 import com.sunmi.rfid.constant.ParamCts
 import com.sunmi.rfid.entity.DataParameter
+import dev.duma.android.hal.contract.BaseHalPlugin
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
@@ -35,7 +36,7 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class SunmiRfidPlugin(
     private val context: Context? = null
-) : HalPlugin {
+) : BaseHalPlugin() {
 
     override val pluginId = "sunmi.rfid"
     override val version = 1
@@ -132,7 +133,7 @@ class SunmiRfidPlugin(
 
     // --- Execute ---
 
-    override suspend fun execute(method: String, params: String): CommandResult = mutex.withLock {
+    override suspend fun onExecute(method: String, params: String): CommandResult = mutex.withLock {
         val helper = RFIDManager.getInstance().getHelper()
             ?: return@withLock CommandResult.unavailable("RFID helper not available")
         val json = if (params.isBlank() || params == "{}") JSONObject() else JSONObject(params)
