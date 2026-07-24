@@ -15,6 +15,14 @@ function closeMenu() {
   demosOpen.value = false;
 }
 
+function toggleMenu() {
+  menuOpen.value = !menuOpen.value;
+  // The hamburger only shows on mobile, where Demos is an inline accordion — expand it by
+  // default each time the menu opens. On desktop the menu toggle is hidden, so the floating
+  // Demos dropdown stays closed on load.
+  if (menuOpen.value) demosOpen.value = true;
+}
+
 // Close the (desktop) Demos dropdown when clicking anywhere outside of it.
 const dropdownRef = ref<HTMLElement | null>(null);
 function onDocumentClick(e: MouseEvent) {
@@ -46,7 +54,7 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick));
               <span class="connect-label">Connect</span>
             </button>
           </div>
-          <button class="menu-toggle" @click="menuOpen = !menuOpen" aria-label="Toggle menu">
+          <button class="menu-toggle" @click="toggleMenu" aria-label="Toggle menu">
             <span class="hamburger" :class="{ open: menuOpen }" />
           </button>
         </div>
