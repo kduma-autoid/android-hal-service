@@ -122,16 +122,8 @@ class InterfaceDetailActivity : AppCompatActivity() {
             if (!ref.available || !ref.supported) alpha = 0.5f
         }
 
-        val upBtn = Button(this).apply {
-            text = "↑"
-            isEnabled = index > 0
-            setOnClickListener { moveAndRebuild(reg, container, impls, index, -1) }
-        }
-        val downBtn = Button(this).apply {
-            text = "↓"
-            isEnabled = index < impls.size - 1
-            setOnClickListener { moveAndRebuild(reg, container, impls, index, +1) }
-        }
+        val upBtn = reorderButton("↑", index > 0) { moveAndRebuild(reg, container, impls, index, -1) }
+        val downBtn = reorderButton("↓", index < impls.size - 1) { moveAndRebuild(reg, container, impls, index, +1) }
 
         val sourceText = when (ref.source) {
             PluginRegistry.PluginSource.EXTERNAL -> "External"
@@ -172,6 +164,25 @@ class InterfaceDetailActivity : AppCompatActivity() {
         row.addView(infoCol, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { marginStart = 12 })
         row.addView(toggle)
         return row
+    }
+
+    /** Compact ↑/↓ reorder button — the default Button min-width/padding is too wide for the row. */
+    private fun reorderButton(label: String, enabled: Boolean, onClick: () -> Unit): Button {
+        val d = resources.displayMetrics.density
+        return Button(this).apply {
+            text = label
+            textSize = 16f
+            isEnabled = enabled
+            minWidth = 0
+            minimumWidth = 0
+            minHeight = 0
+            minimumHeight = 0
+            setPadding((14 * d).toInt(), (4 * d).toInt(), (14 * d).toInt(), (4 * d).toInt())
+            layoutParams = LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).apply {
+                marginEnd = (4 * d).toInt()
+            }
+            setOnClickListener { onClick() }
+        }
     }
 
     private fun moveAndRebuild(
