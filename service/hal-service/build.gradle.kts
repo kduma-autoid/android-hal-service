@@ -41,29 +41,27 @@ android {
         }
     }
 
-    flavorDimensions += "device"
+    // Two orthogonal dimensions:
+    //   device    — which vendor plugins are on the classpath (generic vs sunmi)
+    //   stability  — whether experimental methods are compiled in (stable vs development)
+    // The `stability` dimension is shared with the plugin modules, so selecting a single Build
+    // Variant in Android Studio switches the app and every plugin together (no per-module fiddling).
+    flavorDimensions += listOf("device", "stability")
     productFlavors {
         create("generic") {
             dimension = "device"
-            // Plugins with a `stability` dimension are consumed in their `stable` variant.
-            missingDimensionStrategy("stability", "stable")
         }
         create("sunmi") {
             dimension = "device"
+        }
+        create("stable") {
+            dimension = "stability"
             // Production build: experimental methods are compiled out of the plugins.
-            missingDimensionStrategy("stability", "stable")
         }
-        create("sunmiDevelopment") {
-            dimension = "device"
-            // Full build: every plugin and method, including experimental.
-            missingDimensionStrategy("stability", "development")
-            buildConfigField("boolean", "DEVELOPMENT", "true")
-        }
-        create("genericDevelopment") {
-            dimension = "device"
-            // Generic development build: no vendor plugins, but the development options
-            // (configurable listen address/port) are enabled.
-            missingDimensionStrategy("stability", "development")
+        create("development") {
+            dimension = "stability"
+            // Full build: every plugin and method, including experimental, plus the
+            // development-only options (configurable listen address/port).
             buildConfigField("boolean", "DEVELOPMENT", "true")
         }
     }
@@ -101,8 +99,9 @@ dependencies {
 
     // Project modules - plugins
     implementation(project(":plugins:generic:plugin-generic-lib"))
-    // Sunmi plugins shared by both sunmi builds (production subset). Consumed in their `stable`
-    // variant by the `sunmi` flavor and `development` variant by `sunmiDevelopment`.
+    // Sunmi plugins shared by both sunmi builds (production subset). Added to the `sunmi` device
+    // flavour, so they land in both sunmiStable and sunmiDevelopment; AGP matches each plugin's
+    // `stability` variant to the app's (stable → experimental compiled out, development → kept).
     val sunmiCommonPlugins = listOf(
         ":plugins:sunmi:plugin-sunmi-scanner-lib",
         ":plugins:sunmi:sunmiperipher:plugin-sunmi-statuslight-lib",
@@ -118,6 +117,7 @@ dependencies {
         ":plugins:sunmi:printerx:plugin-sunmi-lcd-lib",
     )
     // Sunmi plugins only in the full development build — experimental at the whole-plugin level.
+    // Added to the sunmi+development flavour combination only, so they never reach a stable APK.
     val sunmiDevelopmentOnlyPlugins = listOf(
         ":plugins:sunmi:plugin-sunmi-printer-lib",
         ":plugins:sunmi:sunmiperipher:plugin-sunmi-card-lib",
@@ -131,7 +131,6 @@ dependencies {
     )
     sunmiCommonPlugins.forEach {
         add("sunmiImplementation", project(it))
-        add("sunmiDevelopmentImplementation", project(it))
     }
     sunmiDevelopmentOnlyPlugins.forEach {
         add("sunmiDevelopmentImplementation", project(it))

@@ -179,13 +179,14 @@ jobs:
             else
               module="${base%-"$grandparent"}"
               # Device part (sunmi/generic) goes before the version, edition (development) after it;
-              # stable is dropped. App flavours: sunmi/generic(+Development); bundles: stable/development.
+              # stable is dropped. App variants: {generic,sunmi}{Stable,Development}; bundles: stable/development.
               device=""
               edition=""
               case "$grandparent" in
                 stable) ;;
                 development) edition="development" ;;
                 *Development) device="${grandparent%Development}"; edition="development" ;;
+                *Stable) device="${grandparent%Stable}" ;;
                 *) device="$grandparent" ;;
               esac
               name="$module"

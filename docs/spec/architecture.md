@@ -53,18 +53,41 @@ hal-service                  ← hal-contract + transport-core + transport-ktor-
 
 ## Build flavors hal-service
 
+Dwa niezależne wymiary flavorów:
+
+- **`device`** — które vendor-pluginy trafiają na classpath (`generic` bez vendor-pluginów,
+  `sunmi` + sunmi plugins).
+- **`stability`** — czy metody experimental są wkompilowane (`stable` = wycięte, `development` =
+  obecne, plus opcje developerskie jak konfigurowalny adres/port nasłuchu).
+
+Wymiar `stability` jest **wspólny z modułami pluginów**, więc wybór jednego Build Variantu w
+Android Studio przełącza aplikację i wszystkie pluginy naraz (AGP dopasowuje warianty po nazwie
+wymiaru — bez `missingDimensionStrategy`). Cztery warianty: `genericStable`, `genericDevelopment`,
+`sunmiStable`, `sunmiDevelopment`.
+
 ```kotlin
-flavorDimensions += "device"
+flavorDimensions += listOf("device", "stability")
 productFlavors {
-    create("generic") { dimension = "device" }  // bez vendor pluginów
-    create("sunmi") { dimension = "device" }    // + sunmi plugins
+    create("generic") { dimension = "device" }   // bez vendor pluginów
+    create("sunmi")   { dimension = "device" }    // + sunmi plugins
+    create("stable")  { dimension = "stability" } // experimental wycięte
+    create("development") {                        // pełny build + opcje dev
+        dimension = "stability"
+        buildConfigField("boolean", "DEVELOPMENT", "true")
+    }
 }
 dependencies {
     implementation(project(":plugins:generic:plugin-generic-lib"))  // zawsze
-    "sunmiImplementation"(project(":plugins:sunmi:plugin-sunmi-printer-lib"))
+    // Podzbiór produkcyjny — w sunmiStable i sunmiDevelopment:
     "sunmiImplementation"(project(":plugins:sunmi:plugin-sunmi-scanner-lib"))
+    // Tylko w pełnym buildzie (kombinacja sunmi+development):
+    "sunmiDevelopmentImplementation"(project(":plugins:sunmi:tms:plugin-sunmi-system-lib"))
 }
 ```
+
+Metody experimental są wycinane na etapie kompilacji modułu pluginu (wariant `stable` →
+`stripExperimental()` w `getDescriptor()` na podstawie `BuildConfig.WITH_EXPERIMENTAL`), a deskryptor
+jest jedynym źródłem prawdy o tym, co wywoływalne (guard w `BaseHalPlugin` i `PluginRegistry`).
 
 Transporty NIE są flavorami — są compile-time dependencies.
 Wyłączenie kanału = zakomentowanie linii w dependencies.
