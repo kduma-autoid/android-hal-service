@@ -84,6 +84,25 @@ android {
     }
 }
 
+// AGP generates dependency configurations per flavour and per build type, but NOT for
+// multi-dimension flavour combinations, so there is no `sunmiDevelopmentImplementation`. Collect
+// the plugins that belong only to the sunmi+development combination in this dependency bucket and
+// extend just the matching variants' classpaths with it (see the androidComponents block below).
+val sunmiDevelopmentOnly = configurations.create("sunmiDevelopmentOnly") {
+    isCanBeResolved = false
+    isCanBeConsumed = false
+}
+
+androidComponents {
+    onVariants { variant ->
+        // Variant names are the flavour combination + build type, e.g. sunmiDevelopmentRelease.
+        if (variant.name.startsWith("sunmiDevelopment")) {
+            variant.compileConfiguration.extendsFrom(sunmiDevelopmentOnly)
+            variant.runtimeConfiguration.extendsFrom(sunmiDevelopmentOnly)
+        }
+    }
+}
+
 dependencies {
     // Project modules - core
     implementation(project(":service:hal-contract"))
@@ -117,7 +136,8 @@ dependencies {
         ":plugins:sunmi:printerx:plugin-sunmi-lcd-lib",
     )
     // Sunmi plugins only in the full development build — experimental at the whole-plugin level.
-    // Added to the sunmi+development flavour combination only, so they never reach a stable APK.
+    // Added to the sunmi+development flavour combination only (via `sunmiDevelopmentOnly`, wired
+    // below), so they never reach a stable APK.
     val sunmiDevelopmentOnlyPlugins = listOf(
         ":plugins:sunmi:plugin-sunmi-printer-lib",
         ":plugins:sunmi:sunmiperipher:plugin-sunmi-card-lib",
@@ -133,7 +153,7 @@ dependencies {
         add("sunmiImplementation", project(it))
     }
     sunmiDevelopmentOnlyPlugins.forEach {
-        add("sunmiDevelopmentImplementation", project(it))
+        add("sunmiDevelopmentOnly", project(it))
     }
 
     // AndroidX
