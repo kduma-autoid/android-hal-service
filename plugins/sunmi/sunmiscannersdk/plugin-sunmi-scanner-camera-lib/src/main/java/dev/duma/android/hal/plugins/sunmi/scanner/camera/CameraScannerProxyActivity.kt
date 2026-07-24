@@ -57,7 +57,7 @@ class CameraScannerProxyActivity : Activity() {
         finish()
     }
 
-    @Suppress("DEPRECATION")
+    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
     override fun onBackPressed() {
         pendingResult?.complete(null)
         activeInstance = null

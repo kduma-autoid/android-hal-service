@@ -47,6 +47,7 @@ class SunmiExternalScannerPlugin(
     }
 
     private val scanResultCallback = object : ScanResultCallback {
+        @Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
         override fun onScanResultAvailable(data: String?, rawData: ByteArray?, format: String?, status: String?) {
             val payload = JSONObject()
                 .put("data", data ?: "")
@@ -96,9 +97,9 @@ class SunmiExternalScannerPlugin(
                 emitEvent(EVENT_INITIALIZED, "{}")
             }
 
-            override fun onFail(message: String?) {
+            override fun onFail(failCode: String?) {
                 initialized = false
-                emitEvent(EVENT_INIT_FAILED, JSONObject().put("message", message ?: "Unknown error").toString())
+                emitEvent(EVENT_INIT_FAILED, JSONObject().put("message", failCode ?: "Unknown error").toString())
             }
         })
     }
