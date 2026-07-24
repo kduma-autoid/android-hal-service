@@ -276,39 +276,41 @@ class DashboardActivity : AppCompatActivity() {
             setTypeface(Typeface.MONOSPACE, Typeface.NORMAL)
         })
 
-        // Development-only: configurable listen address + port ("instead of only localhost").
+        // Development-only server toggles. Defaults match a production build (localhost:8400);
+        // each option is opt-in. "LAN access as local" treats remote/LAN callers like local ones
+        // until a proper remote-access mode exists.
         if (BuildConfig.DEVELOPMENT) {
             val serverConfig = HalService.serverConfig ?: ServerConfig(this)
             layout.addView(sectionHeader("Server (development)"))
-            layout.addView(TextView(this).apply {
-                text = "Listen address"
-                textSize = 13f
-                setPadding(0, 8, 0, 2)
-            })
-            val addressField = EditText(this).apply {
-                setText(serverConfig.getBindAddress())
-                hint = "0.0.0.0 or 127.0.0.1"
-                inputType = InputType.TYPE_CLASS_TEXT
-            }
-            layout.addView(addressField)
-            layout.addView(TextView(this).apply {
-                text = "Port"
-                textSize = 13f
-                setPadding(0, 8, 0, 2)
-            })
+
             val portField = EditText(this).apply {
                 setText(serverConfig.getPort().toString())
-                hint = "8400"
+                hint = ServerConfig.DEFAULT_PORT.toString()
                 inputType = InputType.TYPE_CLASS_NUMBER
+                isEnabled = serverConfig.isCustomPortEnabled()
             }
+            val customPortCheck = CheckBox(this).apply {
+                text = "Custom port"
+                textSize = 14f
+                isChecked = serverConfig.isCustomPortEnabled()
+                setOnCheckedChangeListener { _, checked -> portField.isEnabled = checked }
+            }
+            layout.addView(customPortCheck)
             layout.addView(portField)
+
+            val lanCheck = CheckBox(this).apply {
+                text = "LAN access as local (bind 0.0.0.0 instead of 127.0.0.1)"
+                textSize = 14f
+                isChecked = serverConfig.isLanAccessAsLocal()
+            }
+            layout.addView(lanCheck)
+
             layout.addView(Button(this).apply {
                 text = "Save server settings"
                 setOnClickListener {
-                    val addr = addressField.text.toString().trim()
-                        .ifEmpty { ServerConfig.DEFAULT_BIND_ADDRESS }
+                    val customPort = customPortCheck.isChecked
                     val port = portField.text.toString().trim().toIntOrNull()
-                    if (port == null || port !in 1..65535) {
+                    if (customPort && (port == null || port !in 1..65535)) {
                         Toast.makeText(
                             this@DashboardActivity,
                             "Invalid port (1-65535)",
@@ -316,8 +318,9 @@ class DashboardActivity : AppCompatActivity() {
                         ).show()
                         return@setOnClickListener
                     }
-                    serverConfig.setBindAddress(addr)
-                    serverConfig.setPort(port)
+                    serverConfig.setCustomPortEnabled(customPort)
+                    if (port != null && port in 1..65535) serverConfig.setPort(port)
+                    serverConfig.setLanAccessAsLocal(lanCheck.isChecked)
                     Toast.makeText(
                         this@DashboardActivity,
                         "Saved. Restart the service to apply.",

@@ -189,10 +189,10 @@ class HalService : Service() {
         val broadcastConfig = BroadcastConfig(applicationContext)
         val serverConfig = ServerConfig(applicationContext)
 
-        // Production binds localhost on the fixed port; development builds honour the configurable
-        // bind address + port from ServerConfig ("instead of only localhost").
-        val bindHost = if (BuildConfig.DEVELOPMENT) serverConfig.getBindAddress() else "127.0.0.1"
-        val bindPort = if (BuildConfig.DEVELOPMENT) serverConfig.getPort() else PORT
+        // Production binds localhost on the fixed port. Development builds default to the same
+        // (localhost:8400) but honour the opt-in ServerConfig toggles (custom port, LAN access).
+        val bindHost = if (BuildConfig.DEVELOPMENT) serverConfig.resolvedBindAddress() else "127.0.0.1"
+        val bindPort = if (BuildConfig.DEVELOPMENT) serverConfig.resolvedPort() else PORT
 
         val config = TransportConfig(
             port = bindPort,
