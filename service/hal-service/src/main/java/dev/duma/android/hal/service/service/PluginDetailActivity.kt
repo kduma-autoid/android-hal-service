@@ -259,6 +259,56 @@ class PluginDetailActivity : AppCompatActivity() {
             }
         }
 
+        // Interfaces — descriptor-only parity with the web plugin detail page. Provided interfaces
+        // (bindings) pull their method/event surface from the registered contract; defined interfaces
+        // carry the contract inline. Execution + reorder/enable live in the dedicated Interfaces tab.
+        val providedBindings = desc.interfaces
+        val definedContracts = desc.definesInterfaces
+        if (providedBindings.isNotEmpty() || definedContracts.isNotEmpty()) {
+            layout.addView(sectionHeader("Interfaces"))
+        }
+
+        for (binding in providedBindings) {
+            val contract = pluginReg.getInterfaceContract(binding.interfaceId)
+            layout.addView(interfaceHeader(binding.interfaceId, "provided", contract?.version))
+            if (binding.features.isNotEmpty()) {
+                layout.addView(infoRow("Advertised features", binding.features.joinToString(", ")))
+            }
+            if (contract == null) {
+                layout.addView(emptyText("Interface not registered"))
+                continue
+            }
+            if (contract.methods.isEmpty() && contract.events.isEmpty()) {
+                layout.addView(emptyText("No methods or events"))
+            }
+            for (method in contract.methods) {
+                val gatingFeature = contract.features.firstOrNull { method.name in it.methods }?.key
+                val supported = gatingFeature == null || gatingFeature in binding.features
+                layout.addView(buildInterfaceMethodBlock(method, gatingFeature, supported))
+            }
+            for (event in contract.events) {
+                layout.addView(buildEventBlock(event))
+            }
+        }
+
+        for (contract in definedContracts) {
+            layout.addView(interfaceHeader(contract.interfaceId, "defined", contract.version))
+            if (contract.features.isNotEmpty()) {
+                layout.addView(infoRow("Features", contract.features.joinToString(", ") { it.key }))
+            }
+            if (contract.methods.isEmpty() && contract.events.isEmpty()) {
+                layout.addView(emptyText("No methods or events"))
+            }
+            for (method in contract.methods) {
+                val gatingFeature = contract.features.firstOrNull { method.name in it.methods }?.key
+                // On the definer there is no single provider, so every gated method is shown as available.
+                layout.addView(buildInterfaceMethodBlock(method, gatingFeature, supported = true))
+            }
+            for (event in contract.events) {
+                layout.addView(buildEventBlock(event))
+            }
+        }
+
         setContentWithToolbar(toolbar, ScrollView(this).apply { addView(layout) })
     }
 
@@ -358,6 +408,36 @@ class PluginDetailActivity : AppCompatActivity() {
                 addView(codeBlock("Example", example))
             }
         }
+    }
+
+    private fun interfaceHeader(interfaceId: String, mode: String, version: Int?): TextView = TextView(this).apply {
+        text = "⬡ $interfaceId  ($mode${if (version != null) " · v$version" else ""})"
+        textSize = 15f
+        setTypeface(null, Typeface.BOLD)
+        setPadding(0, 20, 0, 4)
+        setTextColor(Color.parseColor("#5B21B6"))
+    }
+
+    /** A descriptor-only interface method block, annotated with its gating feature (if any) and greyed
+     * out when the current provider does not advertise that feature. */
+    private fun buildInterfaceMethodBlock(
+        method: dev.duma.android.hal.contract.MethodDescriptor,
+        gatingFeature: String?,
+        supported: Boolean
+    ): LinearLayout {
+        val block = buildMethodBlock(method, isExperimental = false)
+        if (gatingFeature != null) {
+            block.addView(TextView(this).apply {
+                text = if (supported) "needs feature: $gatingFeature" else "needs feature: $gatingFeature — UNSUPPORTED HERE"
+                textSize = 11f
+                setTypeface(null, Typeface.BOLD)
+                setTextColor(if (supported) Color.parseColor("#065F46") else Color.parseColor("#991B1B"))
+                setBackgroundColor(if (supported) Color.parseColor("#ECFDF5") else Color.parseColor("#FEE2E2"))
+                setPadding(12, 4, 12, 4)
+            })
+        }
+        if (!supported) block.alpha = 0.5f
+        return block
     }
 
     private fun sectionHeader(title: String): TextView = TextView(this).apply {
