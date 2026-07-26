@@ -42,6 +42,13 @@ Bez klucza (triggeruje dialog):
 {"id":"3","type":"response","result":{"jobId":"job_123","status":"queued"}}
 ```
 
+Dla metod interfejsu ramka niesie dodatkowo `provider` — `pluginId` handlera, który faktycznie
+obsłużył wywołanie (rozwiązany domyślny albo wskazany przez `__provider`) — w nagłówku, obok `result`:
+```json
+{"id":"3","type":"response","provider":"sunmi.tms.led","result":{}}
+```
+Metody natywne/systemowe nie mają handlera interfejsu, więc `provider` jest wtedy pominięty.
+
 **Error:**
 ```json
 {"id":"1","type":"error","error":{"code":"unauthorized","message":"..."}}
@@ -53,7 +60,7 @@ Bez klucza (triggeruje dialog):
 ```
 
 `source` to `pluginId` nadawcy eventu — w nagłówku ramki, obok `data` (nie w środku payloadu),
-aby konsument mógł rozpoznać providera bez polegania na treści. Nieobecny na starszych serwerach.
+aby konsument mógł rozpoznać providera bez polegania na treści.
 
 ## Subskrypcje eventów
 
@@ -64,6 +71,17 @@ Klient MUSI jawnie zasubskrybować eventy. Bez subskrypcji — zero eventów.
 - `"scanner.barcode"` — konkretny event
 - `"rfid.*"` — wszystkie z prefixem rfid. (rfid.tag, rfid.batch, rfid.stateChanged)
 - `"*"` — wszystkie eventy (ograniczone uprawnieniami tokenu)
+
+### Filtrowanie po źródle (`@`)
+
+Wpis subskrypcji ma postać `wzorzec-nazwy[@wzorzec-źródła]` — obie połowy używają tych samych
+wildcardów, dopasowywane wobec `source` eventu. Brak `@` = dowolny nadawca (subskrypcje działają
+jak dotąd).
+
+- `"demo.notice@demo.beta"` — tylko `demo.notice` od providera `demo.beta`
+- `"scanner.*@sunmi.*"` — eventy `scanner.*` tylko od providerów `sunmi.*`
+
+Uprawnienie liczone jest z połowy-nazwy; sufiks `@źródło` nie poszerza dostępu.
 
 ### Podwójne filtrowanie
 

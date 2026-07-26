@@ -76,6 +76,25 @@ Wymaga tokenu. Klient widzi tylko metody/eventy do których ma uprawnienia.
 
 HTTP: `GET /api/describe` (z Bearer)
 
+Obok `plugins`, `system.describe` zwraca `interfaces: [...]` (warstwa interfejsów) oraz — dla
+każdego pluginu — `providesInterfaces` / `definesInterfaces`. Szczegóły: [`interfaces.md`](interfaces.md).
+
+## system.interface.setOrder / system.interface.setEnabled
+
+Konfiguracja kolejności i włączenia providerów interfejsu (persystowane; wymaga tokenu). Zmiana
+emituje event `system.interfaces.changed`.
+
+```
+→ execute("system.interface.setOrder",
+          "{\"interfaceId\":\"light\",\"order\":[\"sunmi.statuslight\",\"sunmi.tms.led\"]}")
+→ execute("system.interface.setEnabled",
+          "{\"interfaceId\":\"light\",\"pluginId\":\"sunmi.tms.led\",\"enabled\":false}")
+```
+
+Kolejność steruje też domyślnym providerem (pierwszy dostępny+włączony). Wybór providera w pojedynczym
+wywołaniu: zarezerwowany param `__provider`. Handler zwracany jest w nagłówku odpowiedzi (`provider`).
+Pełny opis: [`interfaces.md`](interfaces.md).
+
 ## Filtrowanie per uprawnienia
 
 system.describe filtruje wynik na podstawie uprawnień tokenu:
