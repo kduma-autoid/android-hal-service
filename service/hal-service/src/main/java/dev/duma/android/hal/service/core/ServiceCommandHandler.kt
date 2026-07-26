@@ -217,6 +217,10 @@ class ServiceCommandHandler(
 
     override fun getStatus(): String = handleStatus()
 
+    /**
+     * Same shape as [handleDescribe]'s experimental step: events are filtered alongside methods, and
+     * a plugin the filter emptied out is dropped instead of being advertised with nothing in it.
+     */
     override fun describeApi(): String {
         val descriptors = pluginRegistry.getSupportedDescriptors().mapNotNull { desc ->
             if (experimentalConfig.isPluginEnabled(desc.pluginId)) {
@@ -224,9 +228,9 @@ class ServiceCommandHandler(
             } else if (desc.experimental) {
                 null
             } else {
-                desc.copy(groups = filterGroups(desc.groups, methodPredicate = { !it.experimental }))
+                desc.copy(groups = filterGroups(desc.groups, methodPredicate = { !it.experimental }, eventPredicate = { !it.experimental }))
             }
-        }
+        }.filter { it.allMethods.isNotEmpty() || it.allEvents.isNotEmpty() }
         return Json.encodeToString(Json.encodeToJsonElement(descriptors))
     }
 

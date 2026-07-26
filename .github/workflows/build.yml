@@ -163,23 +163,27 @@ jobs:
           mkdir -p /tmp/android-artifacts
           find . -name '*-release.apk' -not -name '*-unsigned.apk' -path '*/build/outputs/apk/*' | while read -r apk; do
             base=$(basename "$apk" -release.apk)
-            # Detect flavor from directory structure: apk/{flavor}/release/ vs apk/release/
-            grandparent=$(basename "$(dirname "$(dirname "$apk")")")
-            if [[ "$grandparent" == "apk" ]]; then
+            # Detect flavor from directory structure: apk/{variant}/release/ vs apk/release/
+            variant=$(basename "$(dirname "$(dirname "$apk")")")
+            if [[ "$variant" == "apk" ]]; then
               cp "$apk" "/tmp/android-artifacts/${base}-${VERSION}.apk"
             else
-              module="${base%-"$grandparent"}"
+              # AGP names the file with the flavours dash-separated and lower-cased, while the
+              # output directory is camelCase (genericStable -> hal-service-generic-stable). Convert
+              # the directory name the same way so the flavour part can be stripped off the module.
+              flavors=$(echo "$variant" | sed -E 's/([a-z0-9])([A-Z])/\1-\2/g' | tr '[:upper:]' '[:lower:]')
+              module="${base%-"$flavors"}"
               # Device part (sunmi/generic) goes before the version, edition (development) after it;
               # stable is dropped. App variants: {generic,sunmi}{Stable,Development}; bundles: stable/development.
               device=""
               edition=""
-              case "$grandparent" in
-                stable) ;;
-                development) edition="development" ;;
-                *Development) device="${grandparent%Development}"; edition="development" ;;
-                *Stable) device="${grandparent%Stable}" ;;
-                *) device="$grandparent" ;;
-              esac
+              for flavor in ${flavors//-/ }; do
+                case "$flavor" in
+                  stable) ;;
+                  development) edition="development" ;;
+                  *) device="$flavor" ;;
+                esac
+              done
               name="$module"
               if [[ -n "$device" ]]; then name="${name}-${device}"; fi
               name="${name}-${VERSION}"
