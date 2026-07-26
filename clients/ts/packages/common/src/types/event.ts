@@ -8,7 +8,7 @@ export interface HalEvent<T = unknown> {
 
 /** Transport-level event header, delivered alongside the payload. */
 export interface EventMeta {
-  /** Plugin id that emitted the event. Absent on older services that don't send it. */
+  /** Plugin id that emitted the event. */
   source?: string;
 }
 

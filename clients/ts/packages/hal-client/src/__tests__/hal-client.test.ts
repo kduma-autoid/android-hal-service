@@ -86,7 +86,7 @@ describe('HalClient', () => {
       await client.requestToken();
       const result = await client.execute('test.method', { foo: 'bar' });
 
-      expect(commandTransport.execute).toHaveBeenCalledWith('test.method', { foo: 'bar' });
+      expect(commandTransport.execute).toHaveBeenCalledWith('test.method', { foo: 'bar' }, undefined);
       expect(result).toEqual({ result: 'ok' });
     });
 
@@ -139,7 +139,7 @@ describe('HalClient', () => {
       );
     });
 
-    it('calls the transport without an options arg when none is given', async () => {
+    it('forwards undefined options to the transport when none are given', async () => {
       const client = new HalClient({ clientId: 'test' })
         .useAuthTransport(authTransport)
         .useCommandTransport(commandTransport);
@@ -147,7 +147,7 @@ describe('HalClient', () => {
       await client.requestToken();
       await client.execute('test.method', { foo: 'bar' });
 
-      expect(commandTransport.execute).toHaveBeenCalledWith('test.method', { foo: 'bar' });
+      expect(commandTransport.execute).toHaveBeenCalledWith('test.method', { foo: 'bar' }, undefined);
     });
   });
 
@@ -315,7 +315,7 @@ describe('HalClient', () => {
       await client.requestToken();
       const result = await client.getHealth();
 
-      expect(commandTransport.execute).toHaveBeenCalledWith('system.ping', undefined);
+      expect(commandTransport.execute).toHaveBeenCalledWith('system.ping', undefined, undefined);
       expect(result).toEqual(healthResponse);
     });
 
@@ -330,7 +330,7 @@ describe('HalClient', () => {
       await client.requestToken();
       const result = await client.getStatus();
 
-      expect(commandTransport.execute).toHaveBeenCalledWith('system.status', undefined);
+      expect(commandTransport.execute).toHaveBeenCalledWith('system.status', undefined, undefined);
       expect(result).toEqual(statusResponse);
     });
 
@@ -345,7 +345,7 @@ describe('HalClient', () => {
       await client.requestToken();
       const result = await client.getDescribe({ withSuper: true });
 
-      expect(commandTransport.execute).toHaveBeenCalledWith('system.describe', { withSuper: true });
+      expect(commandTransport.execute).toHaveBeenCalledWith('system.describe', { withSuper: true }, undefined);
       expect(result).toEqual(describeResponse);
     });
   });

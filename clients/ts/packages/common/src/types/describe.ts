@@ -5,7 +5,7 @@ export interface DescribeOptions {
 
 export interface DescribeResponse {
   plugins: PluginDescriptor[];
-  /** Registered interfaces (server-side interface layer). Absent on older services. */
+  /** Registered interfaces (server-side interface layer). */
   interfaces?: InterfaceDescriptor[];
 }
 

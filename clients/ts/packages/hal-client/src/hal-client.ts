@@ -97,9 +97,7 @@ export class HalClient implements IHalClient {
     }
 
     await this.tokenManager.ensureValidToken();
-    return options
-      ? this.commandTransport.execute<T>(method, params, options)
-      : this.commandTransport.execute<T>(method, params);
+    return this.commandTransport.execute<T>(method, params, options);
   }
 
   // --- System convenience ---
