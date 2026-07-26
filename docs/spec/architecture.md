@@ -89,6 +89,17 @@ Metody experimental są wycinane na etapie kompilacji modułu pluginu (wariant `
 `stripExperimental()` w `getDescriptor()` na podstawie `BuildConfig.WITH_EXPERIMENTAL`), a deskryptor
 jest jedynym źródłem prawdy o tym, co wywoływalne (guard w `BaseHalPlugin` i `PluginRegistry`).
 
+Jeśli po wycięciu w pluginie nie zostaje nic — tak jest dla pluginu experimental jako całości, gdzie
+`stripExperimental()` zwraca pusty deskryptor — `PluginRegistry` go **nie rejestruje**. Klasa jest
+wprawdzie dalej na classpath, ale plugin bez metod i bez eventów nie ma czego oferować, więc nie
+pojawia się ani na liście w Dashboardzie, ani w `system.describe`. Tak samo traktowany jest plugin
+zewnętrzny, który przyszedł pusty ze swojego builda `stable` — bez tego stable hal-service z
+zewnętrznym bundlem pokazywał puste wpisy pluginów.
+
+Runtime'owe bramkowanie experimental (uprawnienie `experimental` z tokenu, ręczne włączenie per
+plugin w Dashboardzie, filtr w `system.describe`) jest niezależne od tego, jak zbudowano usługę, i
+działa tak samo dla pluginów wbudowanych i zewnętrznych.
+
 Transporty NIE są flavorami — są compile-time dependencies.
 Wyłączenie kanału = zakomentowanie linii w dependencies.
 

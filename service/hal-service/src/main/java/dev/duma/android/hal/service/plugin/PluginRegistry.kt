@@ -13,6 +13,7 @@ import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.IHardwarePlugin
 import dev.duma.android.hal.contract.PluginDescriptor
+import dev.duma.android.hal.contract.allEvents
 import dev.duma.android.hal.contract.allMethods
 import java.util.concurrent.ConcurrentHashMap
 
@@ -54,7 +55,28 @@ class PluginRegistry {
 
     fun getPluginInfo(pluginId: String): PluginInfo? = pluginInfo[pluginId]
 
+    /**
+     * A plugin that declares no methods and no events has nothing to offer. That is what a `stable`
+     * build leaves behind for a plugin which is experimental as a whole: `stripExperimental()` empties
+     * its descriptor, but the class itself is still on the classpath and still registers. Listing it
+     * shows a plugin with an empty API in the Dashboard and in describe, so treat it as absent from
+     * this build instead.
+     */
+    private fun hasEmptyApi(plugin: HalPlugin): Boolean {
+        val descriptor = try {
+            plugin.getDescriptor()
+        } catch (e: Exception) {
+            Log.w(TAG, "getDescriptor() failed for ${plugin.pluginId}: ${e.message}")
+            return false
+        }
+        return descriptor.allMethods.isEmpty() && descriptor.allEvents.isEmpty()
+    }
+
     fun registerBuiltIn(plugin: HalPlugin) {
+        if (hasEmptyApi(plugin)) {
+            Log.i(TAG, "Plugin has no methods or events in this build, skipping: ${plugin.pluginId}")
+            return
+        }
         if (plugin.isSupported()) {
             if (tryRegister(plugin, PluginInfo(PluginSource.BUILT_IN))) {
                 Log.i(TAG, "Registered built-in plugin: ${plugin.pluginId} v${plugin.version}")
@@ -141,6 +163,11 @@ class PluginRegistry {
                 override fun onServiceConnected(name: ComponentName, service: IBinder) {
                     val binder = IHardwarePlugin.Stub.asInterface(service)
                     val adapter = AidlPluginAdapter(binder)
+                    if (hasEmptyApi(adapter)) {
+                        // Same as a built-in: the other app's `stable` build emptied this plugin out.
+                        Log.i(TAG, "External plugin has no methods or events, skipping: $pluginId from ${name.packageName}")
+                        return
+                    }
                     if (adapter.isSupported()) {
                         val extInfo = PluginInfo(PluginSource.EXTERNAL, name.packageName)
                         if (tryRegister(adapter, extInfo)) {
