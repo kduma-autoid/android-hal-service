@@ -67,12 +67,7 @@ jobs:
     timeout-minutes: 10
     if: github.event_name != 'pull_request'
     permissions:
-      contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      contents: write   # push to the gh-pages branch (peaceiris)
 
     steps:
       - name: Checkout repository
@@ -116,17 +111,13 @@ jobs:
           pnpm exec vite build --base="/"
         working-directory: clients/ts/example
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v6
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v4
-        with:
-          path: clients/ts/example/dist
-
       - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./clients/ts/example/dist
+          cname: hal.duma.dev   # keep the apex domain after switching the Pages source to a branch
+          keep_files: true      # preserve pr-preview/ subdirectories when production redeploys
 
   publish-android:
     name: Build and publish Android packages
