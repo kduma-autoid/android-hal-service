@@ -54,6 +54,12 @@ describe('SunmiScannerClient (scanner interface)', () => {
         /No scanner backend/,
       );
     });
+
+    it('lists all backends in service order', async () => {
+      const backends = await SunmiScannerClient.listBackends(clientWithScanner([INNER, CAMERA]));
+      expect(backends.map((b) => b.pluginId)).toEqual(['sunmi.scanner.inner', 'sunmi.scanner.camera']);
+      expect(await SunmiScannerClient.listBackends(clientWithScanner([]))).toEqual([]);
+    });
   });
 
   describe('calls', () => {

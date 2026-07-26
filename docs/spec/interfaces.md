@@ -176,9 +176,15 @@ const scanner = await SunmiScannerClient.create(client);   // domyślny provider
 const off = await scanner.onScan(({ data, format }) => console.log(data, format));
 await scanner.trigger();
 
-// pinowanie konkretnego backendu:
+// lista backendów (do pickera) + pinowanie konkretnego:
+const backends = await SunmiScannerClient.listBackends(client);   // InterfaceProvider[]
 const cam = await SunmiScannerClient.forBackend(client, 'sunmi.scanner.camera');
 ```
+
+Demo (`clients/ts/example`) ma widoki oparte o te fasady: **Printer** (karta per wspierany format —
+nieobsługiwane są wypisane jako brakujące, bo interfejs po prostu nie ma tych metod) i **Scanner**
+(trigger/stop + żywa lista skanów z widocznym filtrem `scanner.onScan@<backend>`); oba z pickerem
+providera. Generyczny `InterfacesView` dalej pokazuje surowo każdy zarejestrowany interfejs.
 
 ## Kluczowe pliki
 

@@ -35,6 +35,12 @@ importers:
       '@kduma-autoid/hal-client-plugin-sunmi-nfc':
         specifier: workspace:*
         version: link:../packages/sunmi-nfc
+      '@kduma-autoid/hal-client-plugin-sunmi-printer-facade':
+        specifier: workspace:*
+        version: link:../packages/sunmi-printer-facade
+      '@kduma-autoid/hal-client-plugin-sunmi-scanner-facade':
+        specifier: workspace:*
+        version: link:../packages/sunmi-scanner-facade
       '@kduma-autoid/hal-client-plugin-sunmi-screen':
         specifier: workspace:*
         version: link:../packages/sunmi-screen

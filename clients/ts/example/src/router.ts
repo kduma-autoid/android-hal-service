@@ -3,6 +3,8 @@ import DashboardView from './views/DashboardView.vue';
 import DescribeView from './views/DescribeView.vue';
 import PluginDetailView from './views/PluginDetailView.vue';
 import StatusLightView from './views/StatusLightView.vue';
+import PrinterView from './views/PrinterView.vue';
+import ScannerView from './views/ScannerView.vue';
 import InterfacesView from './views/InterfacesView.vue';
 import InterfaceDetailView from './views/InterfaceDetailView.vue';
 import ScreensNfcView from './views/ScreensNfcView.vue';
@@ -16,6 +18,8 @@ export const router = createRouter({
     { path: '/describe', name: 'describe', component: DescribeView },
     { path: '/describe/:pluginId', name: 'describe-detail', component: PluginDetailView },
     { path: '/statuslight', name: 'statuslight', component: StatusLightView },
+    { path: '/printer', name: 'printer', component: PrinterView },
+    { path: '/scanner', name: 'scanner', component: ScannerView },
     { path: '/interfaces', name: 'interfaces', component: InterfacesView },
     { path: '/interfaces/:interfaceId', name: 'interface-detail', component: InterfaceDetailView },
     { path: '/screens', name: 'screens', component: ScreensNfcView },

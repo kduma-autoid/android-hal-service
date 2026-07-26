@@ -66,6 +66,13 @@ describe('SunmiPrinterClient (printer interface)', () => {
         /No printer backend/,
       );
     });
+
+    it('lists all backends in service order', async () => {
+      const others = [PRINTERX, { pluginId: 'other.printer', features: ['escpos'] }];
+      const backends = await SunmiPrinterClient.listBackends(clientWithPrinter(others));
+      expect(backends.map((b) => b.pluginId)).toEqual(['sunmi.printerx.printer', 'other.printer']);
+      expect(await SunmiPrinterClient.listBackends(clientWithPrinter([]))).toEqual([]);
+    });
   });
 
   describe('feature-gated methods', () => {

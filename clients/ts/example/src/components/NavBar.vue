@@ -8,7 +8,8 @@ const { isConnected, error, connect, disconnect } = useHalClient();
 const menuOpen = ref(false);
 const demosOpen = ref(false);
 const isDescribeActive = computed(() => route.path.startsWith('/describe'));
-const isDemosActive = computed(() => route.path === '/statuslight' || route.path === '/screens');
+const DEMO_PATHS = ['/statuslight', '/printer', '/scanner', '/screens'];
+const isDemosActive = computed(() => DEMO_PATHS.includes(route.path));
 
 function closeMenu() {
   menuOpen.value = false;
@@ -70,6 +71,8 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick));
             </button>
             <div class="nav-dropdown-menu">
               <router-link to="/statuslight" class="nav-link dropdown-link" @click="closeMenu">Status Light</router-link>
+              <router-link to="/printer" class="nav-link dropdown-link" @click="closeMenu">Printer</router-link>
+              <router-link to="/scanner" class="nav-link dropdown-link" @click="closeMenu">Scanner</router-link>
               <router-link to="/screens" class="nav-link dropdown-link" @click="closeMenu">Screens &amp; NFC</router-link>
             </div>
           </div>
