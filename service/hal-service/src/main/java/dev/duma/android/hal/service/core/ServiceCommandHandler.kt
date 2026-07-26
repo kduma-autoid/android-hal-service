@@ -103,19 +103,27 @@ class ServiceCommandHandler(
                 val tokenEntity = requireToken(token, callerContext)
                     ?: return CommandResult.unauthorized("Invalid token")
 
+                // Provider selector: `method@providerId` pins one provider of an interface for this
+                // call, mirroring the `event@source` subscription syntax. It must be split off before
+                // everything below — permissions, descriptor lookup and routing all key on the bare
+                // method name.
+                val selector = method.indexOf('@')
+                val baseMethod = if (selector >= 0) method.substring(0, selector) else method
+                val provider = if (selector >= 0) method.substring(selector + 1).ifEmpty { null } else null
+
                 val permissions = tokenEntity.permissions.split(",")
-                val methodCapability = method.substringBeforeLast(".")
+                val methodCapability = baseMethod.substringBeforeLast(".")
                 if ("*" !in permissions && permissions.none { methodCapability.startsWith(it) }) {
                     return CommandResult.forbidden("No permission for method: $method")
                 }
 
                 // Super permission check
-                val methodDescriptor = pluginRegistry.getMethodDescriptor(method)
+                val methodDescriptor = pluginRegistry.getMethodDescriptor(baseMethod)
                 if (methodDescriptor?.superRequired == true) {
                     val hasSuperAccess = permissions.any { perm ->
                         perm == "super" ||                          // global super
                         perm == "$methodCapability.super" ||        // capability-level super
-                        perm == "$method.super"                     // method-level super
+                        perm == "$baseMethod.super"                 // method-level super
                     }
                     if (!hasSuperAccess) {
                         return CommandResult.forbidden("Super permission required for: $method")
@@ -123,14 +131,14 @@ class ServiceCommandHandler(
                 }
 
                 // Experimental method check
-                val pluginForMethod = pluginRegistry.findForMethod(method)
+                val pluginForMethod = pluginRegistry.findForMethod(baseMethod)
                 val pluginDescriptor = pluginForMethod?.getDescriptor()
                 val isExperimental = methodDescriptor?.experimental == true || pluginDescriptor?.experimental == true
                 if (isExperimental) {
                     val hasExperimentalAccess = permissions.any { perm ->
                         perm == "experimental" ||                          // global experimental
                         perm == "$methodCapability.experimental" ||        // capability-level
-                        perm == "$method.experimental"                     // method-level
+                        perm == "$baseMethod.experimental"                 // method-level
                     }
                     val isEnabledViaPrefs = pluginDescriptor?.pluginId?.let {
                         experimentalConfig.isPluginEnabled(it)
@@ -140,27 +148,18 @@ class ServiceCommandHandler(
                     }
                 }
 
-                val interfaceId = pluginRegistry.interfaceIdForMethod(method)
+                val interfaceId = pluginRegistry.interfaceIdForMethod(baseMethod)
                 if (interfaceId != null) {
-                    val (provider, cleanParams) = extractProviderSelector(params)
-                    pluginRegistry.executeInterface(interfaceId, provider, method, cleanParams)
+                    pluginRegistry.executeInterface(interfaceId, provider, baseMethod, params)
+                } else if (provider != null) {
+                    // Native methods are owned by exactly one plugin, so pinning a provider is
+                    // meaningless there — reject it instead of silently ignoring the selector.
+                    CommandResult.badRequest("Provider selector is only supported for interface methods: $method")
                 } else {
-                    pluginRegistry.executeOnPlugin(method, params)
+                    pluginRegistry.executeOnPlugin(baseMethod, params)
                 }
             }
         }
-    }
-
-    /**
-     * Extracts the reserved `__provider` selector from an interface call's params and returns
-     * (providerPluginId, paramsWithoutSelector). Absent/malformed selector -> (null, params) so the
-     * interface's default provider is used and the plugin receives clean params.
-     */
-    private fun extractProviderSelector(params: String): Pair<String?, String> {
-        val obj = try { Json.parseToJsonElement(params) as? JsonObject } catch (_: Exception) { null }
-            ?: return null to params
-        val provider = obj["__provider"]?.jsonPrimitive?.contentOrNull ?: return null to params
-        return provider to JsonObject(obj - "__provider").toString()
     }
 
     private fun handleSetInterfaceOrder(params: String): CommandResult {

@@ -35,7 +35,7 @@ Przed rozpoczeciem pracy musisz ustalisc, jaki typ pluginu tworzysz. Istnieja tr
   *rejestruje* `InterfaceContract` (`definesInterfaces`) -- nie ma sprzetu ani capabilities.
 - **Provider** to zwykly vendor-plugin, ktory dodaje `interfaces = [InterfaceBinding(...)]` i routuje metody
   kontraktu do swoich handlerow. Zero edycji definera przy dodaniu nowego providera (open/closed).
-- Rdzen wybiera providera per-wywolanie (`__provider`) albo domyslnego; eventy niosa `source`.
+- Rdzen wybiera providera per-wywolanie (sufiks `metoda@providerId`) albo domyslnego; eventy niosa `source`.
 - Zastepuje dawne „generic abstraction" pluginy (owijki z zaszyta lista vendorow).
 
 **Wybierz ten typ gdy:** chcesz zunifikowany interfejs dla danego typu urzadzenia z wieloma wymiennymi
@@ -541,7 +541,7 @@ odrzucone przez rdzen). `priority` decyduje o domyslnym providerze. Szczegoly: [
 ### 7.1 Test interfejsu (WYMAGANY dla definera/providera)
 
 Interfejsy testuje sie na poziomie **rejestru** (`PluginRegistry`) -- rejestracja kontraktu, rozwiazanie
-providera (domyslny vs `__provider`), bramkowanie cech, filtr dostepnosci. Wzor:
+providera (domyslny vs sufiks `@provider`), bramkowanie cech, filtr dostepnosci. Wzor:
 `service/hal-service/src/test/java/dev/duma/android/hal/service/plugin/PluginRegistryInterfaceTest.kt`.
 
 ```kotlin
@@ -554,7 +554,7 @@ fun `interface resolves to highest-priority provider and gates features`() = run
             InterfaceBinding("{device}", priority = 100, features = listOf("{cecha}")))
     )
 
-    // Domyslny provider (bez __provider) -> najwyzszy priorytet, zwracany w naglowku:
+    // Domyslny provider (bez sufiksu) -> najwyzszy priorytet, zwracany w naglowku:
     val ok = registry.executeInterface("{device}", null, "{device}.{operacjaWspierana}", "{}")
     assertEquals("{vendor}.{device}", (ok as CommandResult.Success).provider)
 

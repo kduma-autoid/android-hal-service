@@ -419,7 +419,7 @@ class SubscriptionFilterTest {
 ## Etap 5: interfejsy (rejestr)
 
 Interfejsy (`printer`, `barcodeScanner`, `light`, …) testuje sie na poziomie `PluginRegistry` -- rejestracja
-kontraktu, rozwiazanie providera (domyslny vs `__provider`), bramkowanie cech method-level, filtr
+kontraktu, rozwiazanie providera (domyslny vs sufiks `@provider`), bramkowanie cech method-level, filtr
 dostepnosci. Pelny zestaw: `service/hal-service/.../plugin/PluginRegistryInterfaceTest.kt`.
 
 ### Rozwiazanie providera + bramkowanie cechy

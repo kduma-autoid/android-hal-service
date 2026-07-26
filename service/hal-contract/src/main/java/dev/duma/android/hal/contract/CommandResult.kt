@@ -6,8 +6,8 @@ import android.os.Parcelable
 sealed class CommandResult : Parcelable {
     /**
      * @property provider For interface-method calls, the plugin id of the provider that actually
-     *   handled the call (the resolved default, or the one pinned via `__provider`). Delivered in the
-     *   response header, not merged into [body]. Null for native/system methods.
+     *   handled the call (the resolved default, or the one pinned via `method@providerId`).
+     *   Delivered in the response header, not merged into [body]. Null for native/system methods.
      */
     data class Success(val body: String? = null, val provider: String? = null) : CommandResult() {
         override fun writeToParcel(parcel: Parcel, flags: Int) {

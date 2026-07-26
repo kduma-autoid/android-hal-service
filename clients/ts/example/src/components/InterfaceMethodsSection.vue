@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import type { InterfaceDescriptor } from '@kduma-autoid/hal-client-common';
-import { PROVIDER_PARAM_KEY } from '@kduma-autoid/hal-client-common';
 import MethodExecutor from './MethodExecutor.vue';
 import EventMonitor from './EventMonitor.vue';
 
@@ -15,7 +14,7 @@ const props = defineProps<{
   contract: InterfaceDescriptor;
   /** 'provider' — this plugin implements the interface (methods callable); 'definer' — read-only. */
   mode: 'provider' | 'definer';
-  /** For provider mode: the plugin id to pin via __provider, and its advertised features. */
+  /** For provider mode: the plugin id to pin via the `method@providerId` suffix, and its features. */
   providerId?: string;
   providerFeatures?: string[];
   receivedEvents?: Record<string, ReceivedEvent[]>;
@@ -30,8 +29,8 @@ function toggleEvent(n: string) {
   expandedEvents.value.has(n) ? expandedEvents.value.delete(n) : expandedEvents.value.add(n);
 }
 
-const injectParams = computed<Record<string, unknown>>(() =>
-  props.mode === 'provider' && props.providerId ? { [PROVIDER_PARAM_KEY]: props.providerId } : {},
+const pinnedProvider = computed<string | undefined>(() =>
+  props.mode === 'provider' ? props.providerId : undefined,
 );
 
 // Feature a method is gated by (if any), and whether the current provider supports it.
@@ -95,7 +94,7 @@ function prettyJson(raw: string): string {
             </tr>
             <tr v-if="expandedMethods.has(m.name)" class="detail-row">
               <td colspan="4">
-                <MethodExecutor v-if="mode === 'provider' && isSupported(m.name)" :method="m" :inject-params="injectParams" />
+                <MethodExecutor v-if="mode === 'provider' && isSupported(m.name)" :method="m" :provider-id="pinnedProvider" />
                 <div v-else class="readonly">
                   <template v-if="mode === 'provider'">
                     <p class="note">This provider does not support the “{{ featureFor(m.name) }}” feature, so this method is unavailable here.</p>

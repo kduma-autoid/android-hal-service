@@ -3,12 +3,11 @@ import type {
   IHalClient,
   InterfaceDescriptor,
   InterfaceProvider,
-  IPrinter,
   PrinterCapabilities,
   PrinterFeature,
   PrinterImageStyle,
 } from '@kduma-autoid/hal-client-common';
-import { PROVIDER_PARAM_KEY } from '@kduma-autoid/hal-client-common';
+import { methodForProvider } from '@kduma-autoid/hal-client-common';
 
 const PRINTER_INTERFACE = 'printer';
 
@@ -21,14 +20,14 @@ export const INTERFACES_CHANGED_EVENT = 'system.interfaces.changed';
 export type PrinterBackend = string;
 
 /**
- * Unified {@link IPrinter} client backed by the server-side `printer` interface. Calls
+ * Unified printer client backed by the server-side `printer` interface. Calls
  * `printer.printEscPos/printTspl/printZpl/printImage/cut`, targeting the interface's default
  * provider — or a specific one pinned via {@link SunmiPrinterClient.forBackend}, injected through
- * the reserved `__provider` param. Each method is exposed only when the chosen provider advertises
+ * the `method@providerId` suffix. Each method is exposed only when the chosen provider advertises
  * the matching interface feature in `system.describe`, so the caller programs against one type and
  * the backend is transparent.
  */
-export class SunmiPrinterClient implements IPrinter {
+export class SunmiPrinterClient {
   /** The active provider's pluginId (e.g. "sunmi.printerx.printer"). */
   readonly backend: string;
   readonly capabilities: PrinterCapabilities;
@@ -118,14 +117,17 @@ export class SunmiPrinterClient implements IPrinter {
     return new SunmiPrinterClient(client, provider.pluginId, capabilities, provider.isDefault);
   }
 
-  /** Adds the `__provider` selector unless this client is bound to the interface's default provider. */
-  private params(base: Record<string, unknown>): Record<string, unknown> {
-    return this.isDefaultProvider ? base : { ...base, [PROVIDER_PARAM_KEY]: this.backend };
+  /**
+   * Appends the `@provider` selector to a method name unless this client is bound to the
+   * interface's default provider, in which case the bare name routes to that default.
+   */
+  private method(name: string): string {
+    return methodForProvider(name, this.isDefaultProvider ? null : this.backend);
   }
 
   /**
    * Builds a call bound function for a feature-gated method, or `undefined` when the backend does
-   * not advertise the feature (so the method is absent, matching the {@link IPrinter} contract).
+   * not advertise the feature (so the method is absent, matching the `printer` interface contract).
    */
   private gated<A extends unknown[]>(
     feature: PrinterFeature,
@@ -134,7 +136,7 @@ export class SunmiPrinterClient implements IPrinter {
   ): ((...args: A) => Promise<void>) | undefined {
     if (!this.capabilities[feature]) return undefined;
     return async (...args: A): Promise<void> => {
-      await this.client.execute(method, this.params(toParams(...args)));
+      await this.client.execute(this.method(method), toParams(...args));
     };
   }
 

@@ -63,7 +63,7 @@ describe('SunmiLightClient (light interface)', () => {
   });
 
   describe('calls', () => {
-    it('calls light.* on the default provider without a __provider selector', async () => {
+    it('calls light.* on the default provider without a selector suffix', async () => {
       const client = clientWithLight([TMS_LED]);
       const light = await SunmiLightClient.create(client);
 
@@ -74,16 +74,13 @@ describe('SunmiLightClient (light interface)', () => {
       expect(client.execute).toHaveBeenCalledWith('light.off', {});
     });
 
-    it('injects __provider when bound to a non-default provider', async () => {
+    it('appends the @provider suffix when bound to a non-default provider', async () => {
       const client = clientWithLight([TMS_LED, STATUSLIGHT]);
       const flex = await SunmiLightClient.forBackend(client, 'sunmi.statuslight');
       expect(flex.backend).toBe('sunmi.statuslight');
 
       await flex.on('red');
-      expect(client.execute).toHaveBeenCalledWith('light.on', {
-        color: 'red',
-        __provider: 'sunmi.statuslight',
-      });
+      expect(client.execute).toHaveBeenCalledWith('light.on@sunmi.statuslight', { color: 'red' });
     });
 
     it('exposes multiFlash only when the provider supports it', async () => {

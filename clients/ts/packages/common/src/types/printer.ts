@@ -9,7 +9,7 @@ export const PRINTER_FEATURES = ['escpos', 'tspl', 'zpl', 'image', 'cut'] as con
 
 export type PrinterFeature = typeof PRINTER_FEATURES[number];
 
-/** Optional rendering style for {@link IPrinter.printImage}; forwarded opaquely to the backend. */
+/** Optional rendering style for `printer.printImage`; forwarded opaquely to the backend. */
 export interface PrinterImageStyle {
   /** Dithering / threshold algorithm, e.g. "BINARIZATION" or "DITHERING". */
   algorithm?: string;

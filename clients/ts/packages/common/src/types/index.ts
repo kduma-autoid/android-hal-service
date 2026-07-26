@@ -21,10 +21,16 @@ export type {
   InterfaceFeature,
   InterfaceProvider,
 } from './describe.js';
-export { allMethods, allEvents, PROVIDER_PARAM_KEY } from './describe.js';
+export { allMethods, allEvents, PROVIDER_SELECTOR, methodForProvider } from './describe.js';
 export type { StatusResponse, PluginStatus, TransportStatus } from './status.js';
 export type { HealthResponse } from './health.js';
-export type { LightColor, FlashStep, LightOptions, LightCapabilities } from './light.js';
+export type {
+  LightColor,
+  FlashStep,
+  LightOptions,
+  LightCapabilities,
+  MultiFlash,
+} from './light.js';
 export { LIGHT_COLORS } from './light.js';
 export type { PrinterFeature, PrinterImageStyle, PrinterCapabilities } from './printer.js';
 export { PRINTER_FEATURES } from './printer.js';

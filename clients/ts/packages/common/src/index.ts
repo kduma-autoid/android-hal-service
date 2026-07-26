@@ -29,6 +29,7 @@ export type {
   FlashStep,
   LightOptions,
   LightCapabilities,
+  MultiFlash,
   PrinterFeature,
   PrinterImageStyle,
   PrinterCapabilities,
@@ -44,7 +45,8 @@ export {
   createHalError,
   allMethods,
   allEvents,
-  PROVIDER_PARAM_KEY,
+  PROVIDER_SELECTOR,
+  methodForProvider,
 } from './types/index.js';
 
 export { LIGHT_COLORS } from './types/index.js';
@@ -66,10 +68,6 @@ export type {
   IHalClient,
   ITokenStore,
   ILogger,
-  ILight,
-  MultiFlash,
-  IPrinter,
-  IBarcodeScanner,
 } from './interfaces/index.js';
 
 // Implementations

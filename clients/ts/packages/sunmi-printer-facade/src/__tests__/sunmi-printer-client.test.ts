@@ -86,7 +86,7 @@ describe('SunmiPrinterClient (printer interface)', () => {
       expect(printer.printZpl).toBeUndefined();
     });
 
-    it('calls printer.* on the default provider without a __provider selector', async () => {
+    it('calls printer.* on the default provider without a selector suffix', async () => {
       const client = clientWithPrinter([PRINTERX]);
       const printer = await SunmiPrinterClient.create(client);
 
@@ -112,7 +112,7 @@ describe('SunmiPrinterClient (printer interface)', () => {
   });
 
   describe('forBackend', () => {
-    it('injects __provider when bound to a non-default provider', async () => {
+    it('appends the @provider suffix when bound to a non-default provider', async () => {
       const client = clientWithPrinter([
         PRINTERX,
         { pluginId: 'other.printer', features: ['escpos'] },
@@ -121,9 +121,8 @@ describe('SunmiPrinterClient (printer interface)', () => {
       expect(other.backend).toBe('other.printer');
 
       await other.printEscPos!('G0A=');
-      expect(client.execute).toHaveBeenCalledWith('printer.printEscPos', {
+      expect(client.execute).toHaveBeenCalledWith('printer.printEscPos@other.printer', {
         data: 'G0A=',
-        __provider: 'other.printer',
       });
     });
 

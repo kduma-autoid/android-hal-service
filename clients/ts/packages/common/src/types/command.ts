@@ -13,7 +13,7 @@ export interface ExecuteResponse<T = unknown> {
 export interface CommandMeta {
   /**
    * Plugin id of the provider that handled the call — present for interface methods (the resolved
-   * default, or the one pinned via `__provider`), absent for native/system methods.
+   * default, or the one pinned via `method@providerId`), absent for native/system methods.
    */
   provider?: string;
 }

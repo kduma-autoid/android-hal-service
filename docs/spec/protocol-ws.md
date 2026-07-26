@@ -43,7 +43,7 @@ Bez klucza (triggeruje dialog):
 ```
 
 Dla metod interfejsu ramka niesie dodatkowo `provider` — `pluginId` handlera, który faktycznie
-obsłużył wywołanie (rozwiązany domyślny albo wskazany przez `__provider`) — w nagłówku, obok `result`:
+obsłużył wywołanie (rozwiązany domyślny albo wskazany sufiksem `@provider`) — w nagłówku, obok `result`:
 ```json
 {"id":"3","type":"response","provider":"sunmi.tms.led","result":{}}
 ```

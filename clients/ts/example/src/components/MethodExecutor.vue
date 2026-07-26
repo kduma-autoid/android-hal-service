@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import type { MethodDescriptor } from '@kduma-autoid/hal-client-common';
+import { methodForProvider } from '@kduma-autoid/hal-client-common';
 import { useHalClient } from '../composables/useHalClient';
 
 const props = defineProps<{
   method: MethodDescriptor;
-  /** Extra params merged into the request (e.g. a provider selector for interface calls). */
-  injectParams?: Record<string, unknown>;
+  /** Interface provider to pin for this call, appended to the method name as `method@providerId`. */
+  providerId?: string;
 }>();
 const { client } = useHalClient();
 
@@ -32,10 +33,10 @@ async function execute() {
   responseError.value = false;
   try {
     const parsed = params.value.trim() ? JSON.parse(params.value) : undefined;
-    const inject = props.injectParams;
-    const finalParams =
-      inject && Object.keys(inject).length > 0 ? { ...(parsed ?? {}), ...inject } : parsed;
-    const result = await client.value.execute(props.method.name, finalParams);
+    const result = await client.value.execute(
+      methodForProvider(props.method.name, props.providerId),
+      parsed,
+    );
     response.value = JSON.stringify(result, null, 2);
     responseError.value = false;
   } catch (e) {

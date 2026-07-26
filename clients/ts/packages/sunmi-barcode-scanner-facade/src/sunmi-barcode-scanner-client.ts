@@ -3,10 +3,9 @@ import type {
   IHalClient,
   InterfaceDescriptor,
   InterfaceProvider,
-  IBarcodeScanner,
   ScanResult,
 } from '@kduma-autoid/hal-client-common';
-import { PROVIDER_PARAM_KEY } from '@kduma-autoid/hal-client-common';
+import { methodForProvider } from '@kduma-autoid/hal-client-common';
 
 const BARCODE_SCANNER_INTERFACE = 'barcodeScanner';
 const ON_SCAN_EVENT = 'barcodeScanner.onScan';
@@ -20,15 +19,15 @@ export const INTERFACES_CHANGED_EVENT = 'system.interfaces.changed';
 export type BarcodeScannerBackend = string;
 
 /**
- * Unified {@link IBarcodeScanner} client backed by the server-side `barcodeScanner` interface.
+ * Unified barcode scanner client backed by the server-side `barcodeScanner` interface.
  * Calls `barcodeScanner.trigger/stop`, targeting the interface's default provider — or a specific one pinned via
- * {@link SunmiBarcodeScannerClient.forBackend}, injected through the reserved `__provider` param.
+ * {@link SunmiBarcodeScannerClient.forBackend}, selected with the `method@providerId` suffix.
  *
  * {@link SunmiBarcodeScannerClient.onScan} subscribes to `barcodeScanner.onScan` filtered to THIS
  * backend by event source (`barcodeScanner.onScan@<backend>`), so a client bound to the built-in
  * scanner never sees an external scanner's barcodes.
  */
-export class SunmiBarcodeScannerClient implements IBarcodeScanner {
+export class SunmiBarcodeScannerClient {
   /** The active provider's pluginId (e.g. "sunmi.scanner.inner"). */
   readonly backend: string;
 
@@ -103,17 +102,20 @@ export class SunmiBarcodeScannerClient implements IBarcodeScanner {
     return new SunmiBarcodeScannerClient(client, provider.pluginId, provider.isDefault);
   }
 
-  /** Adds the `__provider` selector unless this client is bound to the interface's default provider. */
-  private params(base: Record<string, unknown>): Record<string, unknown> {
-    return this.isDefaultProvider ? base : { ...base, [PROVIDER_PARAM_KEY]: this.backend };
+  /**
+   * Appends the `@provider` selector to a method name unless this client is bound to the
+   * interface's default provider, in which case the bare name routes to that default.
+   */
+  private method(name: string): string {
+    return methodForProvider(name, this.isDefaultProvider ? null : this.backend);
   }
 
   async trigger(): Promise<void> {
-    await this.client.execute('barcodeScanner.trigger', this.params({}));
+    await this.client.execute(this.method('barcodeScanner.trigger'), {});
   }
 
   async stop(): Promise<void> {
-    await this.client.execute('barcodeScanner.stop', this.params({}));
+    await this.client.execute(this.method('barcodeScanner.stop'), {});
   }
 
   async onScan(handler: (scan: ScanResult) => void): Promise<() => Promise<void>> {

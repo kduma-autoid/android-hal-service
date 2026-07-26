@@ -63,7 +63,7 @@ describe('SunmiBarcodeScannerClient (barcodeScanner interface)', () => {
   });
 
   describe('calls', () => {
-    it('calls barcodeScanner.* on the default provider without a __provider selector', async () => {
+    it('calls barcodeScanner.* on the default provider without a selector suffix', async () => {
       const client = clientWithScanner([INNER]);
       const scanner = await SunmiBarcodeScannerClient.create(client);
 
@@ -74,15 +74,13 @@ describe('SunmiBarcodeScannerClient (barcodeScanner interface)', () => {
       expect(client.execute).toHaveBeenCalledWith('barcodeScanner.stop', {});
     });
 
-    it('injects __provider when bound to a non-default provider', async () => {
+    it('appends the @provider suffix when bound to a non-default provider', async () => {
       const client = clientWithScanner([INNER, CAMERA]);
       const cam = await SunmiBarcodeScannerClient.forBackend(client, 'sunmi.scanner.camera');
       expect(cam.backend).toBe('sunmi.scanner.camera');
 
       await cam.trigger();
-      expect(client.execute).toHaveBeenCalledWith('barcodeScanner.trigger', {
-        __provider: 'sunmi.scanner.camera',
-      });
+      expect(client.execute).toHaveBeenCalledWith('barcodeScanner.trigger@sunmi.scanner.camera', {});
     });
   });
 

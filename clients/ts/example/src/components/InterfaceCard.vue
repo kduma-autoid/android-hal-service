@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import type { InterfaceDescriptor } from '@kduma-autoid/hal-client-common';
-import { PROVIDER_PARAM_KEY } from '@kduma-autoid/hal-client-common';
 import { useHalClient } from '../composables/useHalClient';
 import MethodExecutor from './MethodExecutor.vue';
 import EventMonitor from './EventMonitor.vue';
@@ -31,11 +30,12 @@ watch(
   },
 );
 
-// Params merged into every call from this card: pin the chosen provider unless it is the default.
-const injectParams = computed<Record<string, unknown>>(() =>
+// Provider pinned for every call from this card, appended to the method name — omitted when the
+// selection is already the server default, so those calls go out with a bare method name.
+const pinnedProvider = computed<string | undefined>(() =>
   selectedProvider.value && selectedProvider.value !== defaultProviderId.value
-    ? { [PROVIDER_PARAM_KEY]: selectedProvider.value }
-    : {},
+    ? selectedProvider.value
+    : undefined,
 );
 
 const expandedMethods = ref<Set<string>>(new Set());
@@ -131,8 +131,8 @@ function breakableName(name: string): string {
         </li>
       </ul>
       <p class="hint">
-        Order sets the server default (top). The selected radio pins calls below via
-        <code>__provider</code>.
+        Order sets the server default (top). The selected radio pins calls below via the
+        <code>method@providerId</code> suffix.
       </p>
     </div>
 
@@ -160,7 +160,7 @@ function breakableName(name: string): string {
                 <td data-label="Permission"><code>{{ breakableName(m.requiredPermission) }}</code></td>
               </tr>
               <tr v-if="expandedMethods.has(m.name)" class="executor-row">
-                <td colspan="3"><MethodExecutor :method="m" :inject-params="injectParams" /></td>
+                <td colspan="3"><MethodExecutor :method="m" :provider-id="pinnedProvider" /></td>
               </tr>
             </template>
           </tbody>

@@ -2,7 +2,6 @@ import type {
   DescribeResponse,
   FlashStep,
   IHalClient,
-  ILight,
   InterfaceDescriptor,
   InterfaceProvider,
   LightCapabilities,
@@ -10,7 +9,7 @@ import type {
   LightOptions,
   MultiFlash,
 } from '@kduma-autoid/hal-client-common';
-import { PROVIDER_PARAM_KEY } from '@kduma-autoid/hal-client-common';
+import { methodForProvider } from '@kduma-autoid/hal-client-common';
 
 const LIGHT_INTERFACE = 'light';
 
@@ -23,14 +22,14 @@ export const INTERFACES_CHANGED_EVENT = 'system.interfaces.changed';
 export type LightBackend = string;
 
 /**
- * Unified {@link ILight} client backed by the server-side `light` interface. Calls
+ * Unified light client backed by the server-side `light` interface. Calls
  * `light.on/off/flash/multiFlash`, targeting the interface's default provider — or a specific one
- * pinned via {@link SunmiLightClient.forBackend}, injected through the reserved `__provider` param.
+ * pinned via {@link SunmiLightClient.forBackend}, selected with the `method@providerId` suffix.
  * Feature flags (`timeout`, `multiFlash`) come from the chosen provider's advertised interface
  * features in `system.describe`, so the caller programs against one type and the backend is
  * transparent.
  */
-export class SunmiLightClient implements ILight {
+export class SunmiLightClient {
   /** The active provider's pluginId (e.g. "sunmi.tms.led"). */
   readonly backend: string;
   readonly capabilities: LightCapabilities;
@@ -116,13 +115,16 @@ export class SunmiLightClient implements ILight {
     return new SunmiLightClient(client, provider.pluginId, capabilities, provider.isDefault);
   }
 
-  /** Adds the `__provider` selector unless this client is bound to the interface's default provider. */
-  private params(base: Record<string, unknown>): Record<string, unknown> {
-    return this.isDefaultProvider ? base : { ...base, [PROVIDER_PARAM_KEY]: this.backend };
+  /**
+   * Appends the `@provider` selector to a method name unless this client is bound to the
+   * interface's default provider, in which case the bare name routes to that default.
+   */
+  private method(name: string): string {
+    return methodForProvider(name, this.isDefaultProvider ? null : this.backend);
   }
 
   async off(): Promise<void> {
-    await this.client.execute('light.off', this.params({}));
+    await this.client.execute(this.method('light.off'), {});
   }
 
   async on(color: LightColor, options?: LightOptions): Promise<void> {
@@ -132,7 +134,7 @@ export class SunmiLightClient implements ILight {
     } else if (options?.timeoutMs) {
       throw new Error(`timeoutMs is not supported by ${this.backend}`);
     }
-    await this.client.execute('light.on', this.params(base));
+    await this.client.execute(this.method('light.on'), base);
   }
 
   async flash(color: LightColor, onMs: number, offMs: number, options?: LightOptions): Promise<void> {
@@ -142,7 +144,7 @@ export class SunmiLightClient implements ILight {
     } else if (options?.timeoutMs) {
       throw new Error(`timeoutMs is not supported by ${this.backend}`);
     }
-    await this.client.execute('light.flash', this.params(base));
+    await this.client.execute(this.method('light.flash'), base);
   }
 
   get multiFlash(): MultiFlash | undefined {
@@ -156,7 +158,7 @@ export class SunmiLightClient implements ILight {
         onMs === undefined
           ? { steps: a as FlashStep[] }
           : { colors: a as LightColor[], onMs, offMs };
-      await this.client.execute('light.multiFlash', this.params(payload));
+      await this.client.execute(this.method('light.multiFlash'), payload);
     };
     return impl as unknown as MultiFlash;
   }

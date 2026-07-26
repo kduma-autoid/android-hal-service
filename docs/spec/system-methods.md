@@ -96,7 +96,7 @@ emituje event `system.interfaces.changed`.
 ```
 
 Kolejność steruje też domyślnym providerem (pierwszy dostępny+włączony). Wybór providera w pojedynczym
-wywołaniu: zarezerwowany param `__provider`. Handler zwracany jest w nagłówku odpowiedzi (`provider`).
+wywołaniu: sufiks `metoda@providerId`. Handler zwracany jest w nagłówku odpowiedzi (`provider`).
 Pełny opis: [`interfaces.md`](interfaces.md).
 
 ## Filtrowanie per uprawnienia

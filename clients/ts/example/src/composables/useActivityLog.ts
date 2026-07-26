@@ -1,7 +1,7 @@
 import { ref } from 'vue';
 import type { HalClient } from '@kduma-autoid/hal-client';
 import type { EventMeta } from '@kduma-autoid/hal-client-common';
-import { PROVIDER_PARAM_KEY } from '@kduma-autoid/hal-client-common';
+import { PROVIDER_SELECTOR } from '@kduma-autoid/hal-client-common';
 
 export type LogEntryType = 'method' | 'event';
 
@@ -19,21 +19,12 @@ export interface ActivityLogEntry {
   provider?: string;
 }
 
-/** Splits the reserved `__provider` selector out of method params so it shows as the handler header
- * instead of leaking into the displayed request body. */
-function stripProvider(params: unknown): { display: unknown; sent?: string } {
-  if (
-    params &&
-    typeof params === 'object' &&
-    !Array.isArray(params) &&
-    PROVIDER_PARAM_KEY in (params as Record<string, unknown>)
-  ) {
-    const clone = { ...(params as Record<string, unknown>) };
-    const sent = clone[PROVIDER_PARAM_KEY];
-    delete clone[PROVIDER_PARAM_KEY];
-    return { display: clone, sent: typeof sent === 'string' ? sent : undefined };
-  }
-  return { display: params };
+/** Splits the `@providerId` selector off a method name, so the log lists the bare method and shows
+ * the pinned provider as the handler header instead. */
+function splitProviderSelector(method: string): { name: string; pinned?: string } {
+  const at = method.indexOf(PROVIDER_SELECTOR);
+  if (at < 0) return { name: method };
+  return { name: method.substring(0, at), pinned: method.substring(at + 1) || undefined };
 }
 
 const MAX_ENTRIES = 100;
@@ -55,12 +46,12 @@ function clearLogs() {
 function startLogging(client: HalClient) {
   stopLogging();
 
-  // Monkey-patch execute — observe the handling provider via the onMeta callback, and keep
-  // `__provider` out of the displayed params (it becomes the handler header instead).
+  // Monkey-patch execute — observe the handling provider via the onMeta callback, and keep the
+  // `@providerId` selector out of the displayed method name (it becomes the handler header).
   const originalExecute = client.execute.bind(client);
   client.execute = async <T = unknown>(method: string, params?: unknown): Promise<T> => {
     const start = Date.now();
-    const { display, sent } = stripProvider(params);
+    const { name, pinned } = splitProviderSelector(method);
     let handler: string | undefined;
     try {
       const result = await originalExecute<T>(method, params, {
@@ -69,22 +60,22 @@ function startLogging(client: HalClient) {
       addLog({
         type: 'method',
         timestamp: start,
-        name: method,
-        params: display,
+        name,
+        params,
         result,
         duration: Date.now() - start,
-        provider: handler ?? sent,
+        provider: handler ?? pinned,
       });
       return result;
     } catch (e) {
       addLog({
         type: 'method',
         timestamp: start,
-        name: method,
-        params: display,
+        name,
+        params,
         error: e instanceof Error ? e.message : String(e),
         duration: Date.now() - start,
-        provider: sent,
+        provider: pinned,
       });
       throw e;
     }

@@ -9,8 +9,21 @@ export interface DescribeResponse {
   interfaces?: InterfaceDescriptor[];
 }
 
-/** Reserved params key selecting a specific interface provider for a call. */
-export const PROVIDER_PARAM_KEY = '__provider';
+/**
+ * Separator introducing the provider selector in a method name — `light.on@sunmi.tms.led` pins one
+ * provider of an interface for a single call. Mirrors the `event@source` subscription syntax, so
+ * commands and events target a provider the same way.
+ */
+export const PROVIDER_SELECTOR = '@';
+
+/**
+ * Builds the method name for a call, appending the `@providerId` selector when a specific interface
+ * provider is pinned. Returns the bare method name when `providerId` is absent, which routes to the
+ * interface's default provider.
+ */
+export function methodForProvider(method: string, providerId?: string | null): string {
+  return providerId ? `${method}${PROVIDER_SELECTOR}${providerId}` : method;
+}
 
 export interface InterfaceFeature {
   key: string;

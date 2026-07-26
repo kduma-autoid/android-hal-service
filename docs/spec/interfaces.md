@@ -17,8 +17,8 @@ backendów — nowy provider = deklaracja, zero edycji kodu interfejsu.
 - **`PluginDescriptor`**: `definesInterfaces: List<InterfaceContract>` (interfejsy, które plugin
   **definiuje**) oraz `interfaces: List<InterfaceBinding>` (interfejsy, które plugin **udostępnia**).
 
-Provider identyfikowany jest wszędzie przez **`pluginId`** (`__provider`, `source` eventu, filtr
-subskrypcji) — bez osobnego aliasu.
+Provider identyfikowany jest wszędzie przez **`pluginId`** (sufiks `@provider` w nazwie metody,
+`source` eventu, filtr subskrypcji) — bez osobnego aliasu.
 
 ## Rejestracja (brama)
 
@@ -27,14 +27,18 @@ jego metody są niewołalne — `executeInterface(...)` zwraca `not_found`, nawe
 providerzy. Definer może być zewnętrznym pluginem. Gdy definer się rozłącza, interfejs znika z
 rejestru (metody znów niewołalne).
 
-## Wybór providera per-wywołanie — `__provider`
+## Wybór providera per-wywołanie — `metoda@providerId`
 
-Zarezerwowany parametr `__provider` w params wskazuje providera dla danego wywołania:
-```json
-{ "__provider": "sunmi.tms.led", "color": "green" }
+Providera dla danego wywołania wskazuje sufiks w **nazwie metody**, tą samą składnią, którą filtruje
+się eventy po źródle (`event@source`):
 ```
-Rdzeń wyłuskuje i **usuwa** `__provider` przed przekazaniem params do pluginu. Pominięcie → provider
-**domyślny**. Wskazanie providera niedostępnego/wyłączonego/niepodpiętego → `unavailable`.
+light.on@sunmi.tms.led   params: { "color": "green" }
+```
+Rdzeń odcina sufiks przed sprawdzeniem uprawnień, wyszukaniem deskryptora i routingiem, więc params
+pozostają wyłącznie ładunkiem użytkownika — żaden klucz nie jest zarezerwowany. Pominięcie sufiksu →
+provider **domyślny**. Wskazanie providera niedostępnego/wyłączonego/niepodpiętego → `unavailable`.
+Sufiks na metodzie natywnej (spoza interfejsu) → `bad_request`, bo taka metoda ma dokładnie jednego
+właściciela.
 
 ### Kolejność / domyślny provider
 
@@ -46,7 +50,7 @@ providerów, posortowanych:
 3. external przed built-in,
 4. `version` malejąco.
 
-Pierwszy na liście = `isDefault` = provider dla wywołań bez `__provider`. Zmiana kolejności przez
+Pierwszy na liście = `isDefault` = provider dla wywołań bez sufiksu. Zmiana kolejności przez
 użytkownika automatycznie zmienia default.
 
 ## Handler w nagłówku odpowiedzi
@@ -152,7 +156,7 @@ Surowo, przez `client.execute` / `client.on`:
 // domyślny provider:
 await client.execute('light.on', { color: 'green' });
 // konkretny provider + podgląd handlera:
-await client.execute('light.on', { color: 'green', __provider: 'sunmi.statuslight' },
+await client.execute('light.on@sunmi.statuslight', { color: 'green' },
   { onMeta: (m) => console.log(m.provider) });
 // providerzy interfejsu:
 const { interfaces } = await client.getDescribe();
@@ -160,9 +164,9 @@ const { interfaces } = await client.getDescribe();
 await client.on('demo.notice@demo.beta', (name, data, meta) => { /* meta.source */ });
 ```
 
-Albo przez typowane fasady (`I<Interfejs>` + `Sunmi<Interfejs>Client`), które same wykrywają
-providerów przez `system.describe`, wstrzykują `__provider` dla nie-domyślnego backendu i wystawiają
-cechy jako flagi/opcjonalne metody:
+Albo przez fasady `Sunmi<Interfejs>Client`, które same wykrywają providerów przez
+`system.describe`, dokleją sufiks `@provider` dla nie-domyślnego backendu i wystawiają cechy jako
+flagi/opcjonalne metody:
 
 ```ts
 // printer — metody bramkowane cechą są obecne tylko gdy backend je wspiera:
@@ -191,12 +195,14 @@ providera. Generyczny `InterfacesView` dalej pokazuje surowo każdy zarejestrowa
 - Kontrakt: `InterfaceContract.kt`, `InterfaceBinding.kt`, `PluginDescriptor.kt`.
 - Rdzeń: `plugin/PluginRegistry.kt` (rejestr, `executeInterface`, `getInterfaceProviders`,
   `getAllInterfaceImplementors`, `setInterfaceOrder`/`setInterfaceEnabled`),
-  `core/ServiceCommandHandler.kt` (`__provider`, `system.interface.*`, sekcja `interfaces` w describe),
+  `core/ServiceCommandHandler.kt` (sufiks `@provider`, `system.interface.*`, sekcja `interfaces`
+  w describe),
   `config/InterfacePreferenceConfig.kt`.
 - Definery/providerzy: `plugin-generic-lib` (`LightInterface`, `PrinterInterface`, `BarcodeScannerInterface`,
   `DemoInterface`, `DemoProviders`), `SunmiTmsLedPlugin`, `SunmiStatusLightPlugin`,
   `SunmiPrinterXPrinterPlugin` (interfejs `printer`), `SunmiInnerScannerPlugin`/
   `SunmiExternalScannerPlugin`/`SunmiCameraScannerPlugin` (interfejs `barcodeScanner`).
-- Klient: `common` (`InterfaceDescriptor`, `PROVIDER_PARAM_KEY`, `matchSubscription`, interfejsy
-  `ILight`/`IPrinter`/`IBarcodeScanner`), fasady `sunmi-light-facade` (`ILight` na `light`),
-  `sunmi-printer-facade` (`IPrinter` na `printer`), `sunmi-barcode-scanner-facade` (`IBarcodeScanner` na `barcodeScanner`).
+- Klient: `common` (`InterfaceDescriptor`, `PROVIDER_SELECTOR`/`methodForProvider`,
+  `matchSubscription`), fasady `sunmi-light-facade` (`light`), `sunmi-printer-facade` (`printer`),
+  `sunmi-barcode-scanner-facade` (`barcodeScanner`). Powierzchnię opisują same klasy fasad — nie ma
+  osobnych typów `I<Interfejs>`.
