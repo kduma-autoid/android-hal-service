@@ -61,9 +61,12 @@ class IntentGatewayActivity : Activity() {
             is CommandResult.Success -> commandResult.body ?: "{}"
             is CommandResult.Failure -> """{"error":"${commandResult.code}","message":"${commandResult.message}"}"""
         }
+        // Handling provider (interface methods) goes in a separate extra, not the result body.
+        val provider = (commandResult as? CommandResult.Success)?.provider
 
         setResult(RESULT_OK, android.content.Intent().apply {
             putExtra("result", jsonResult)
+            provider?.let { putExtra("provider", it) }
         })
         finish()
     }

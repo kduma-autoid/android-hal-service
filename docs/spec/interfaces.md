@@ -54,9 +54,11 @@ użytkownika automatycznie zmienia default.
 Odpowiedź na wywołanie interfejsu niesie `provider` — `pluginId` handlera, który je obsłużył
 (rozwiązany default albo wskazany) — **w nagłówku, nie w ciele**:
 - WS: pole `provider` w ramce `response` (obok `result`).
+- HTTP: nagłówek odpowiedzi `X-Hal-Provider`.
 - AIDL: `CommandResult.Success.provider` (Parcelable).
-- Klient TS: `execute(method, params, { onMeta })` → `onMeta({ provider })` (samo `execute` dalej
-  zwraca ciało).
+- Intent: extra `provider` w zwrotnym Intent (obok `result`).
+- Klient TS: `execute(method, params, { onMeta })` → `onMeta({ provider })` — jednolicie dla WS i HTTP
+  (samo `execute` dalej zwraca ciało).
 
 Metody natywne/systemowe nie mają handlera interfejsu → `provider` jest wtedy pusty.
 

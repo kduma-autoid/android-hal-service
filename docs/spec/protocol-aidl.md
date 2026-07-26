@@ -53,6 +53,7 @@ a nie wewnątrz `jsonData`, aby klient rozpoznał providera bez parsowania paylo
 4. registerCallback(callback)
 5. subscribe(["scanner.barcode","rfid.*"])
 6. execute("printer.print", params) → result
+   (dla metod interfejsu `CommandResult.Success.provider` niesie handlera — w kopercie, nie w ciele)
 7. Eventy przychodzą przez callback.onEvent()
 
 ## Sesja AIDL
