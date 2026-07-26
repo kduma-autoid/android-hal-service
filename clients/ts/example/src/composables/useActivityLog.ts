@@ -1,5 +1,7 @@
 import { ref } from 'vue';
 import type { HalClient } from '@kduma-autoid/hal-client';
+import type { EventMeta } from '@kduma-autoid/hal-client-common';
+import { PROVIDER_PARAM_KEY } from '@kduma-autoid/hal-client-common';
 
 export type LogEntryType = 'method' | 'event';
 
@@ -13,6 +15,25 @@ export interface ActivityLogEntry {
   error?: string;
   duration?: number;
   data?: unknown;
+  /** Provider pluginId: the handler for a method call, or the emitter (source) of an event. */
+  provider?: string;
+}
+
+/** Splits the reserved `__provider` selector out of method params so it shows as the handler header
+ * instead of leaking into the displayed request body. */
+function stripProvider(params: unknown): { display: unknown; sent?: string } {
+  if (
+    params &&
+    typeof params === 'object' &&
+    !Array.isArray(params) &&
+    PROVIDER_PARAM_KEY in (params as Record<string, unknown>)
+  ) {
+    const clone = { ...(params as Record<string, unknown>) };
+    const sent = clone[PROVIDER_PARAM_KEY];
+    delete clone[PROVIDER_PARAM_KEY];
+    return { display: clone, sent: typeof sent === 'string' ? sent : undefined };
+  }
+  return { display: params };
 }
 
 const MAX_ENTRIES = 100;
@@ -34,19 +55,23 @@ function clearLogs() {
 function startLogging(client: HalClient) {
   stopLogging();
 
-  // Monkey-patch execute
+  // Monkey-patch execute — route through executeWithMeta so we can record the handling provider,
+  // and keep `__provider` out of the displayed params (it becomes the handler header instead).
   const originalExecute = client.execute.bind(client);
+  const executeWithMeta = client.executeWithMeta.bind(client);
   client.execute = async <T = unknown>(method: string, params?: unknown): Promise<T> => {
     const start = Date.now();
+    const { display, sent } = stripProvider(params);
     try {
-      const result = await originalExecute<T>(method, params);
+      const { result, meta } = await executeWithMeta<T>(method, params);
       addLog({
         type: 'method',
         timestamp: start,
         name: method,
-        params,
+        params: display,
         result,
         duration: Date.now() - start,
+        provider: meta.provider ?? sent,
       });
       return result;
     } catch (e) {
@@ -54,9 +79,10 @@ function startLogging(client: HalClient) {
         type: 'method',
         timestamp: start,
         name: method,
-        params,
+        params: display,
         error: e instanceof Error ? e.message : String(e),
         duration: Date.now() - start,
+        provider: sent,
       });
       throw e;
     }
@@ -64,12 +90,13 @@ function startLogging(client: HalClient) {
 
   // Subscribe to all events via IEventSubscriber (auto subscribe/unsubscribe)
   let offEvents: (() => Promise<void>) | null = null;
-  client.on('*', (eventName: string, data: unknown) => {
+  client.on('*', (eventName: string, data: unknown, meta?: EventMeta) => {
     addLog({
       type: 'event',
       timestamp: Date.now(),
       name: eventName,
       data,
+      provider: meta?.source,
     });
   }).then(off => {
     offEvents = off;

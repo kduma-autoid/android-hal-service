@@ -473,7 +473,10 @@ class PluginRegistry {
                 )
             }
         }
-        return plugin.execute(method, params)
+        // Report which provider actually handled the call (resolved default, or the pinned one),
+        // exposed in the response header so clients don't have to rely on the plugin echoing it.
+        val result = plugin.execute(method, params)
+        return if (result is CommandResult.Success) result.copy(provider = plugin.pluginId) else result
     }
 
     fun allCapabilities(): List<String> {

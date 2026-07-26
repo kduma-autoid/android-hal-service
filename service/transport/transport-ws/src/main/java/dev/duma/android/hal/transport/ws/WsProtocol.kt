@@ -55,10 +55,13 @@ object WsProtocol {
         }
     }
 
-    fun serializeResponse(id: String, result: String): String {
+    fun serializeResponse(id: String, result: String, provider: String? = null): String {
         return buildJsonObject {
             put("id", id)
             put("type", "response")
+            // Provider that handled the call (interface methods), in the frame header — sibling of
+            // `result`, not inside it. Absent for native/system methods.
+            provider?.let { put("provider", it) }
             put("result", json.parseToJsonElement(result))
         }.toString()
     }

@@ -10,6 +10,8 @@ export type {
   EventSubscription,
   ExecuteRequest,
   ExecuteResponse,
+  CommandMeta,
+  CommandResultWithMeta,
   DescribeOptions,
   DescribeResponse,
   PluginDescriptor,

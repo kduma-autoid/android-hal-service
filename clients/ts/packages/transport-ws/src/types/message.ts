@@ -49,6 +49,8 @@ export interface WsResponseMessage {
   id: string;
   type: 'response';
   result: unknown;
+  /** Provider that handled the call (interface methods), in the frame header. Absent otherwise. */
+  provider?: string;
 }
 
 export interface WsErrorMessage {

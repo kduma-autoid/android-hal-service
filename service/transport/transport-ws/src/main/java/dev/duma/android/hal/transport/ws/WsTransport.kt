@@ -169,7 +169,7 @@ class WsTransport : CommandTransport, EventTransport {
     }
 
     private fun serializeCommandResult(id: String, result: CommandResult): String = when (result) {
-        is CommandResult.Success -> WsProtocol.serializeResponse(id, result.body ?: "{}")
+        is CommandResult.Success -> WsProtocol.serializeResponse(id, result.body ?: "{}", result.provider)
         is CommandResult.Failure -> WsProtocol.serializeError(id, result.code, result.message)
     }
 }

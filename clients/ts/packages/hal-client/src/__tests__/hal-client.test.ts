@@ -112,6 +112,36 @@ describe('HalClient', () => {
     });
   });
 
+  describe('executeWithMeta', () => {
+    it('delegates to the transport when it supports executeWithMeta', async () => {
+      commandTransport.executeWithMeta = vi
+        .fn()
+        .mockResolvedValue({ result: { ok: true }, meta: { provider: 'demo.beta' } });
+      const client = new HalClient({ clientId: 'test' })
+        .useAuthTransport(authTransport)
+        .useCommandTransport(commandTransport);
+
+      await client.requestToken();
+      const out = await client.executeWithMeta('demo.emit', { message: 'hi' });
+
+      expect(commandTransport.executeWithMeta).toHaveBeenCalledWith('demo.emit', { message: 'hi' });
+      expect(out).toEqual({ result: { ok: true }, meta: { provider: 'demo.beta' } });
+    });
+
+    it('falls back to execute with empty meta when the transport lacks executeWithMeta', async () => {
+      // commandTransport mock has no executeWithMeta.
+      const client = new HalClient({ clientId: 'test' })
+        .useAuthTransport(authTransport)
+        .useCommandTransport(commandTransport);
+
+      await client.requestToken();
+      const out = await client.executeWithMeta('test.method', { foo: 'bar' });
+
+      expect(commandTransport.execute).toHaveBeenCalledWith('test.method', { foo: 'bar' });
+      expect(out).toEqual({ result: { result: 'ok' }, meta: {} });
+    });
+  });
+
   describe('auth', () => {
     it('should request and store token', async () => {
       const client = new HalClient({ clientId: 'test' })
