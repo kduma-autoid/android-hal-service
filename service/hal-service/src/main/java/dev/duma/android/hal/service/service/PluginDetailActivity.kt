@@ -284,7 +284,10 @@ class PluginDetailActivity : AppCompatActivity() {
             for (method in contract.methods) {
                 val gatingFeature = contract.features.firstOrNull { method.name in it.methods }?.key
                 val supported = gatingFeature == null || gatingFeature in binding.features
-                layout.addView(buildInterfaceMethodBlock(method, gatingFeature, supported))
+                // Skip methods this provider doesn't support — the full contract (incl. optional
+                // methods) is still visible on the interface's own page and on the definer.
+                if (!supported) continue
+                layout.addView(buildMethodBlock(method, isExperimental = false))
             }
             for (event in contract.events) {
                 layout.addView(buildEventBlock(event))
@@ -301,8 +304,8 @@ class PluginDetailActivity : AppCompatActivity() {
             }
             for (method in contract.methods) {
                 val gatingFeature = contract.features.firstOrNull { method.name in it.methods }?.key
-                // On the definer there is no single provider, so every gated method is shown as available.
-                layout.addView(buildInterfaceMethodBlock(method, gatingFeature, supported = true))
+                // On the definer there is no single provider: list every method, annotating optional (gated) ones.
+                layout.addView(buildInterfaceMethodBlock(method, gatingFeature))
             }
             for (event in contract.events) {
                 layout.addView(buildEventBlock(event))
@@ -418,25 +421,23 @@ class PluginDetailActivity : AppCompatActivity() {
         setTextColor(Color.parseColor("#5B21B6"))
     }
 
-    /** A descriptor-only interface method block, annotated with its gating feature (if any) and greyed
-     * out when the current provider does not advertise that feature. */
+    /** An interface method block annotated with its gating feature — used on the definer view, which
+     * lists every method (including optional/gated ones). */
     private fun buildInterfaceMethodBlock(
         method: dev.duma.android.hal.contract.MethodDescriptor,
-        gatingFeature: String?,
-        supported: Boolean
+        gatingFeature: String?
     ): LinearLayout {
         val block = buildMethodBlock(method, isExperimental = false)
         if (gatingFeature != null) {
             block.addView(TextView(this).apply {
-                text = if (supported) "needs feature: $gatingFeature" else "needs feature: $gatingFeature — UNSUPPORTED HERE"
+                text = "needs feature: $gatingFeature"
                 textSize = 11f
                 setTypeface(null, Typeface.BOLD)
-                setTextColor(if (supported) Color.parseColor("#065F46") else Color.parseColor("#991B1B"))
-                setBackgroundColor(if (supported) Color.parseColor("#ECFDF5") else Color.parseColor("#FEE2E2"))
+                setTextColor(Color.parseColor("#065F46"))
+                setBackgroundColor(Color.parseColor("#ECFDF5"))
                 setPadding(12, 4, 12, 4)
             })
         }
-        if (!supported) block.alpha = 0.5f
         return block
     }
 
