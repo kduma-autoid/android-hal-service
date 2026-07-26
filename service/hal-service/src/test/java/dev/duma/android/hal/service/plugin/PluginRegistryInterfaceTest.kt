@@ -306,4 +306,15 @@ class PluginRegistryInterfaceTest {
         val exp = registry.executeInterface("light", null, "light.on", "{}", callerHasExperimental = true)
         assertEquals("p.exp", (exp as CommandResult.Success).provider)
     }
+
+    @Test
+    fun `definers and pure providers survive the empty-API skip`() {
+        // Registration drops plugins with an empty API, but interface work never appears in `groups`:
+        // a definer only carries definesInterfaces, and a provider only carries an InterfaceBinding
+        // (it does not redeclare the contract's method descriptors). Judging either by methods/events
+        // alone unregisters them and takes the whole interface layer down silently.
+        val registry = registryWithProviders()
+        assertNotNull(registry.getInterfaceContract("light"))
+        assertEquals(listOf("p.high", "p.low"), registry.getInterfaceProviders("light").map { it.pluginId })
+    }
 }

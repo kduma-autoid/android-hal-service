@@ -90,11 +90,18 @@ class PluginRegistry {
     fun getPluginInfo(pluginId: String): PluginInfo? = pluginInfo[pluginId]
 
     /**
-     * A plugin that declares no methods and no events has nothing to offer. That is what a `stable`
+     * A plugin that offers nothing at all has no reason to be registered. That is what a `stable`
      * build leaves behind for a plugin which is experimental as a whole: `stripExperimental()` empties
      * its descriptor, but the class itself is still on the classpath and still registers. Listing it
      * shows a plugin with an empty API in the Dashboard and in describe, so treat it as absent from
      * this build instead.
+     *
+     * Interface work does not go through `groups`, so it must be checked separately: a definer's
+     * entire contribution is [PluginDescriptor.definesInterfaces], and a provider implements the
+     * contract's methods without redeclaring their descriptors, leaving only
+     * [PluginDescriptor.interfaces]. Both legitimately have empty groups — judging them by
+     * methods/events alone would unregister every definer and every pure provider, which silently
+     * takes the whole interface layer down.
      */
     private fun hasEmptyApi(plugin: HalPlugin): Boolean {
         val descriptor = try {
@@ -103,6 +110,7 @@ class PluginRegistry {
             Log.w(TAG, "getDescriptor() failed for ${plugin.pluginId}: ${e.message}")
             return false
         }
+        if (descriptor.definesInterfaces.isNotEmpty() || descriptor.interfaces.isNotEmpty()) return false
         return descriptor.allMethods.isEmpty() && descriptor.allEvents.isEmpty()
     }
 
