@@ -104,26 +104,35 @@ class ServiceCommandHandler(
                     ?: return CommandResult.unauthorized("Invalid token")
 
                 // Provider selector: `method@providerId` pins one provider of an interface for this
-                // call, mirroring the `event@source` subscription syntax. It must be split off before
-                // everything below — permissions, descriptor lookup and routing all key on the bare
-                // method name.
+                // call, mirroring the `event@source` subscription syntax. Split it off up front: the
+                // descriptor lookup and routing key on the bare name, while the super/experimental
+                // gates below deliberately use the full name so they can be granted per provider.
                 val selector = method.indexOf('@')
                 val baseMethod = if (selector >= 0) method.substring(0, selector) else method
                 val provider = if (selector >= 0) method.substring(selector + 1).ifEmpty { null } else null
 
                 val permissions = tokenEntity.permissions.split(",")
-                val methodCapability = baseMethod.substringBeforeLast(".")
-                if ("*" !in permissions && permissions.none { methodCapability.startsWith(it) }) {
+                val methodDescriptor = pluginRegistry.getMethodDescriptor(baseMethod)
+
+                // The descriptor's declared permission is the source of truth — the same field
+                // `system.describe` filters on, so the catalogue and enforcement cannot disagree.
+                // Only when there is no descriptor (unknown method, or one filtered out of a stable
+                // build) do we fall back to deriving it, so such calls still reach the plugin lookup
+                // and surface as `not_found` rather than a misleading `forbidden`.
+                val requiredPermission = methodDescriptor?.requiredPermission
+                    ?: baseMethod.substringBeforeLast(".")
+                if ("*" !in permissions && permissions.none { requiredPermission.startsWith(it) }) {
                     return CommandResult.forbidden("No permission for method: $method")
                 }
 
-                // Super permission check
-                val methodDescriptor = pluginRegistry.getMethodDescriptor(baseMethod)
+                // Super and experimental gates are evaluated against the full method name *including*
+                // the `@providerId` selector, so they can be granted per provider — the CPad LED and
+                // the FLEX status light are different hardware behind one interface method.
                 if (methodDescriptor?.superRequired == true) {
                     val hasSuperAccess = permissions.any { perm ->
-                        perm == "super" ||                          // global super
-                        perm == "$methodCapability.super" ||        // capability-level super
-                        perm == "$baseMethod.super"                 // method-level super
+                        perm == "super" ||                            // global super
+                        perm == "$requiredPermission.super" ||        // capability-level super
+                        perm == "$method.super"                       // method-level, provider-specific
                     }
                     if (!hasSuperAccess) {
                         return CommandResult.forbidden("Super permission required for: $method")
@@ -136,9 +145,9 @@ class ServiceCommandHandler(
                 val isExperimental = methodDescriptor?.experimental == true || pluginDescriptor?.experimental == true
                 if (isExperimental) {
                     val hasExperimentalAccess = permissions.any { perm ->
-                        perm == "experimental" ||                          // global experimental
-                        perm == "$methodCapability.experimental" ||        // capability-level
-                        perm == "$baseMethod.experimental"                 // method-level
+                        perm == "experimental" ||                            // global experimental
+                        perm == "$requiredPermission.experimental" ||        // capability-level
+                        perm == "$method.experimental"                       // method-level, provider-specific
                     }
                     val isEnabledViaPrefs = pluginDescriptor?.pluginId?.let {
                         experimentalConfig.isPluginEnabled(it)

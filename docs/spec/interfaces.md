@@ -34,11 +34,27 @@ się eventy po źródle (`event@source`):
 ```
 light.on@sunmi.tms.led   params: { "color": "green" }
 ```
-Rdzeń odcina sufiks przed sprawdzeniem uprawnień, wyszukaniem deskryptora i routingiem, więc params
-pozostają wyłącznie ładunkiem użytkownika — żaden klucz nie jest zarezerwowany. Pominięcie sufiksu →
-provider **domyślny**. Wskazanie providera niedostępnego/wyłączonego/niepodpiętego → `unavailable`.
-Sufiks na metodzie natywnej (spoza interfejsu) → `bad_request`, bo taka metoda ma dokładnie jednego
+Rdzeń odcina sufiks przed wyszukaniem deskryptora i routingiem, więc params pozostają wyłącznie
+ładunkiem użytkownika — żaden klucz nie jest zarezerwowany. Pominięcie sufiksu → provider
+**domyślny**. Wskazanie providera niedostępnego/wyłączonego/niepodpiętego → `unavailable`. Sufiks na
+metodzie natywnej (spoza interfejsu) → `bad_request`, bo taka metoda ma dokładnie jednego
 właściciela.
+
+### Uprawnienia a sufiks
+
+Wymagane uprawnienie bierze się z **deskryptora** (`MethodDescriptor.requiredPermission`) — z tego
+samego pola, którym `system.describe` filtruje widoczność, więc katalog i egzekwowanie nie mogą się
+rozjechać. Nie jest wyprowadzane z nazwy metody, a więc sufiks go nie dotyczy.
+
+Bramki `super` i `experimental` przeciwnie — na poziomie metody używają **pełnej nazwy razem
+z sufiksem**, dzięki czemu można je nadać dla konkretnego providera:
+
+| uprawnienie | zakres |
+|---|---|
+| `super` / `experimental` | globalnie |
+| `light.super` | wszystkie metody o uprawnieniu `light` |
+| `light.on.super` | `light.on` na domyślnym providerze |
+| `light.on@sunmi.statuslight.super` | `light.on` wyłącznie na FLEX-ie |
 
 ### Kolejność / domyślny provider
 
