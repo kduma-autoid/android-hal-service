@@ -10,9 +10,13 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
+import dev.duma.android.hal.plugins.generic.PrinterInterface
+import dev.duma.android.hal.plugins.generic.ScannerInterface
 import dev.duma.android.hal.service.config.InterfacePreferenceConfig
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -172,5 +176,73 @@ class PluginRegistryInterfaceTest {
         assertTrue(!all.getValue("p.low").enabled)
         // p.high is the only enabled+available implementor, so it is the effective default.
         assertTrue(all.getValue("p.high").isDefault)
+    }
+
+    // --- Real `printer` / `scanner` definers (replace the former generic wrappers) ---
+
+    @Test
+    fun `printer and scanner definers register real contracts`() = runTest {
+        val registry = PluginRegistry()
+        registry.registerBuiltIn(PrinterInterface())
+        registry.registerBuiltIn(ScannerInterface())
+
+        val printer = registry.getInterfaceContract("printer")
+        assertNotNull(printer)
+        assertEquals(
+            listOf("printer.printEscPos", "printer.printTspl", "printer.printZpl", "printer.printImage", "printer.cut"),
+            printer!!.methods.map { it.name }
+        )
+        // Every printer method is feature-gated (feature.methods is non-empty).
+        assertEquals(
+            setOf("escpos", "tspl", "zpl", "image", "cut"),
+            printer.features.map { it.key }.toSet()
+        )
+
+        val scanner = registry.getInterfaceContract("scanner")
+        assertNotNull(scanner)
+        assertEquals(listOf("scanner.trigger", "scanner.stop"), scanner!!.methods.map { it.name })
+        assertEquals(listOf("scanner.onScan"), scanner.events.map { it.name })
+    }
+
+    @Test
+    fun `printer resolves to sunmi provider and feature-gates zpl`() = runTest {
+        val registry = PluginRegistry()
+        registry.registerBuiltIn(PrinterInterface())
+        // Mirrors SunmiPrinterXPrinterPlugin's binding: everything except ZPL.
+        registry.registerBuiltIn(
+            FakeProvider(
+                "sunmi.printerx.printer",
+                InterfaceBinding("printer", priority = 100, features = listOf("escpos", "tspl", "image", "cut")),
+                body = "{}"
+            )
+        )
+
+        assertEquals(listOf("sunmi.printerx.printer"), registry.getInterfaceProviders("printer").map { it.pluginId })
+        assertFalse("zpl" in registry.getInterfaceProviders("printer").first().features)
+
+        val escpos = registry.executeInterface("printer", null, "printer.printEscPos", "{}")
+        assertTrue(escpos is CommandResult.Success)
+        assertEquals("sunmi.printerx.printer", (escpos as CommandResult.Success).provider)
+
+        // No provider advertises `zpl`, so the method-level feature gate rejects it.
+        val zpl = registry.executeInterface("printer", null, "printer.printZpl", "{}")
+        assertTrue(zpl is CommandResult.Failure)
+        assertEquals("unavailable", (zpl as CommandResult.Failure).code)
+    }
+
+    @Test
+    fun `scanner resolves to inner scanner by priority`() = runTest {
+        val registry = PluginRegistry()
+        registry.registerBuiltIn(ScannerInterface())
+        registry.registerBuiltIn(FakeProvider("sunmi.scanner.inner", InterfaceBinding("scanner", priority = 100), body = """{"status":"scanning"}"""))
+        registry.registerBuiltIn(FakeProvider("sunmi.scanner.camera", InterfaceBinding("scanner", priority = 40), body = """{"status":"scanning"}"""))
+
+        val providers = registry.getInterfaceProviders("scanner")
+        assertEquals(listOf("sunmi.scanner.inner", "sunmi.scanner.camera"), providers.map { it.pluginId })
+        assertTrue(providers.first().isDefault)
+
+        val result = registry.executeInterface("scanner", null, "scanner.trigger", "{}")
+        assertTrue(result is CommandResult.Success)
+        assertEquals("sunmi.scanner.inner", (result as CommandResult.Success).provider)
     }
 }

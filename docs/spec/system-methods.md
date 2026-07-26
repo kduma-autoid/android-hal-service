@@ -24,7 +24,7 @@ Status usługi. Wymaga tokenu.
     "uptime": 3600,
     "plugins": {
       "sunmi.printer": {"version":1,"capabilities":["sunmi.printer"],"type":"built_in","connected":true},
-      "scanner": {"version":1,"capabilities":["scanner"],"type":"built_in","connected":true}
+      "sunmi.scanner.inner": {"version":1,"capabilities":["sunmi.scanner.inner"],"type":"built_in","connected":true}
     },
     "transports": {
       "aidl": {"running":true,"toggleable":false},
@@ -59,15 +59,17 @@ Wymaga tokenu. Klient widzi tylko metody/eventy do których ma uprawnienia.
         "events": []
       },
       {
-        "pluginId": "scanner",
+        "pluginId": "sunmi.scanner.inner",
         "version": 1,
-        "capabilities": ["scanner"],
+        "capabilities": ["sunmi.scanner.inner"],
+        "providesInterfaces": ["scanner"],
         "methods": [
-          {"name":"scanner.trigger","description":"Trigger scan","permission":"scanner"},
-          {"name":"scanner.stop","description":"Stop scanning","permission":"scanner"}
+          {"name":"sunmi.scanner.inner.trigger","description":"Trigger scan","permission":"sunmi.scanner.inner"},
+          {"name":"sunmi.scanner.inner.stop","description":"Stop scanning","permission":"sunmi.scanner.inner"}
         ],
         "events": [
-          {"name":"scanner.barcode","description":"Barcode scanned","permission":"scanner"}
+          {"name":"sunmi.scanner.inner.barcode","description":"Barcode scanned","permission":"sunmi.scanner.inner"},
+          {"name":"scanner.onScan","description":"Unified scanner event","permission":"scanner"}
         ]
       }
     ]
@@ -76,8 +78,10 @@ Wymaga tokenu. Klient widzi tylko metody/eventy do których ma uprawnienia.
 
 HTTP: `GET /api/describe` (z Bearer)
 
-Obok `plugins`, `system.describe` zwraca `interfaces: [...]` (warstwa interfejsów) oraz — dla
-każdego pluginu — `providesInterfaces` / `definesInterfaces`. Szczegóły: [`interfaces.md`](interfaces.md).
+Obok `plugins`, `system.describe` zwraca `interfaces: [...]` (warstwa interfejsów — m.in. `printer`,
+`scanner`, `light`) oraz — dla każdego pluginu — `providesInterfaces` / `definesInterfaces`. Skaner
+`sunmi.scanner.inner` udostępnia interfejs `scanner` (metoda `scanner.trigger`, event `scanner.onScan`),
+a `sunmi.printerx.printer` — interfejs `printer`. Szczegóły: [`interfaces.md`](interfaces.md).
 
 ## system.interface.setOrder / system.interface.setEnabled
 

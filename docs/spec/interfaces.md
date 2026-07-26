@@ -132,6 +132,15 @@ szyny.
 - **`light`** (definer `LightInterface` w `plugin-generic-lib`): `light.on/off/flash/multiFlash`;
   providerzy `sunmi.tms.led` (CPad, `priority` wyższy, feature `timeout`) i `sunmi.statuslight`
   (FLEX, feature `multiFlash`). `multiFlash` woła się tylko na FLEX; `timeout` działa tylko na CPad.
+- **`printer`** (definer `PrinterInterface`): `printer.printEscPos/printTspl/printZpl/printImage/cut`,
+  każda metoda bramkowana cechą (`escpos`/`tspl`/`zpl`/`image`/`cut`). Provider `sunmi.printerx.printer`
+  ogłasza `escpos, tspl, image, cut` (SDK nie ma ZPL — `printer.printZpl` → `unavailable`); `printer.cut`
+  mapuje na sprzętowe `autoOut` (feed+cut). Zastępuje dawny `GenericPrinterPlugin`.
+- **`scanner`** (definer `ScannerInterface`): `scanner.trigger/stop`, event `scanner.onScan
+  {data, format, rawData?}`. Providerzy `sunmi.scanner.inner` (wbudowany, `priority` najwyższy, default),
+  `sunmi.scanner.external` i `sunmi.scanner.camera` (dev-only). Każdy emituje `scanner.onScan` obok
+  swojego natywnego eventu — `source` = `pluginId`, więc `scanner.onScan@sunmi.scanner.inner` filtruje
+  konkretny skaner. Zastępuje dawny `GenericScannerPlugin`.
 - **`demo`** (definer `DemoInterface`): bezsprzętowy interfejs testowy — providerzy `demo.alpha`
   (uppercase, default) i `demo.beta` (reverse), metody `demo.echo/ping/emit` i event `demo.notice`.
 
@@ -156,7 +165,9 @@ await client.on('demo.notice@demo.beta', (name, data, meta) => { /* meta.source 
   `getAllInterfaceImplementors`, `setInterfaceOrder`/`setInterfaceEnabled`),
   `core/ServiceCommandHandler.kt` (`__provider`, `system.interface.*`, sekcja `interfaces` w describe),
   `config/InterfacePreferenceConfig.kt`.
-- Definery/providerzy: `plugin-generic-lib` (`LightInterface`, `DemoInterface`, `DemoProviders`),
-  `SunmiTmsLedPlugin`, `SunmiStatusLightPlugin`.
+- Definery/providerzy: `plugin-generic-lib` (`LightInterface`, `PrinterInterface`, `ScannerInterface`,
+  `DemoInterface`, `DemoProviders`), `SunmiTmsLedPlugin`, `SunmiStatusLightPlugin`,
+  `SunmiPrinterXPrinterPlugin` (interfejs `printer`), `SunmiInnerScannerPlugin`/
+  `SunmiExternalScannerPlugin`/`SunmiCameraScannerPlugin` (interfejs `scanner`).
 - Klient: `common` (`InterfaceDescriptor`, `PROVIDER_PARAM_KEY`, `matchSubscription`),
   `sunmi-light-facade` (`ILight` na interfejsie `light`).

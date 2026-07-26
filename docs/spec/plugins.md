@@ -85,96 +85,59 @@ class SunmiScannerService : Service() {
 AndroidManifest: dwa Service z intent-filter `dev.duma.android.hal.HARDWARE_PLUGIN`
 i meta-data plugin.id / plugin.label.
 
-## plugin-generic-lib: GenericPrinterPlugin
+## plugin-generic-lib: PrinterInterface (definer interfejsu `printer`)
 
-Abstrakcja drukarki — deleguje do vendor-specific.
+Abstrakcja drukarki jako **interfejs**, nie owijka. `PrinterInterface` (pluginId `interface.printer`)
+tylko *rejestruje* kontrakt `printer` — nie ma sprzętu ani capabilities. Providerzy podpinają się
+jawnie przez `InterfaceBinding("printer", …)` i sami routują metody kontraktu. Zastępuje dawny
+`GenericPrinterPlugin` (owijkę z zaszytą listą vendorów). Szczegóły warstwy: [`interfaces.md`](interfaces.md).
 
 ```kotlin
-pluginId = "printer"
+pluginId = "interface.printer"      // definer
 version = 1
-capabilities = ["printer"]
+capabilities = []                    // definer nie udostępnia sprzętu
+definesInterfaces = [InterfaceContract("printer", …)]
 ```
 
-WYMAGA PluginContext (musi być in-process).
+**Metody kontraktu** (każda bramkowana cechą — provider musi ogłosić cechę w `binding.features`):
 
-**execute():**
-| Metoda | Działanie |
-|--------|-----------|
-| printer.print | Szukaj vendor → ctx.execute("sunmi.printer.print", params) |
-| printer.status | Szukaj vendor → ctx.execute("sunmi.printer.status", params) |
-| inne | `{"error":"unsupported_method"}` |
+| Metoda | Cecha | Params |
+|--------|-------|--------|
+| printer.printEscPos | `escpos` | `{"data": base64}` |
+| printer.printTspl | `tspl` | `{"data": base64}` |
+| printer.printZpl | `zpl` | `{"data": base64}` |
+| printer.printImage | `image` | `{"bitmap": base64, "style"?: {…}}` |
+| printer.cut | `cut` | `{}` |
 
-Priorytet vendorów: `["sunmi.printer", "zebra.printer", "chainway.printer"]`
-Brak vendora: `{"error":"no_printer_backend","message":"No vendor printer plugin available"}`
+**Provider:** `sunmi.printerx.printer` (`SunmiPrinterXPrinterPlugin`, oba buildy sunmi) —
+`InterfaceBinding("printer", priority = 100, features = ["escpos","tspl","image","cut"])`. Nie ma `zpl`
+(SDK go nie wspiera), więc `printer.printZpl` → `unavailable`. `printer.cut` mapuje na sprzętowe
+`autoOut` (feed+cut). Flavor `generic` nie ma providera → `printer.*` = `unavailable`.
 
-```kotlin
-private fun findVendorMethod(operation: String): String? {
-    val vendors = listOf("sunmi.printer", "zebra.printer", "chainway.printer")
-    for (vendor in vendors) {
-        if (ctx.hasCapability(vendor)) return "$vendor.$operation"
-    }
-    return null
-}
-```
+## plugin-generic-lib: ScannerInterface (definer interfejsu `scanner`)
 
-**getDescriptor():**
-```kotlin
-PluginDescriptor(
-    pluginId = "printer", version = 1,
-    capabilities = listOf("printer"),
-    methods = listOf(
-        MethodDescriptor("printer.print", "Print using available printer", "printer"),
-        MethodDescriptor("printer.status", "Get printer status", "printer")
-    ),
-    events = emptyList()
-)
-```
-
-## plugin-generic-lib: GenericScannerPlugin
-
-Abstrakcja skanera — deleguje komendy + transformuje eventy.
+Abstrakcja skanera jako **interfejs**. `ScannerInterface` (pluginId `interface.scanner`) rejestruje
+kontrakt `scanner`; providerzy podpinają się przez `InterfaceBinding("scanner", …)`, obsługują
+`scanner.trigger/stop` i emitują znormalizowany event `scanner.onScan` **obok** swojego natywnego
+eventu. Zastępuje dawny `GenericScannerPlugin` (transformację eventów z zaszytej listy vendorów).
 
 ```kotlin
-pluginId = "scanner"
+pluginId = "interface.scanner"      // definer
 version = 1
-capabilities = ["scanner"]
+capabilities = []
+definesInterfaces = [InterfaceContract("scanner", …)]
 ```
 
-WYMAGA PluginContext.
+**Metody:** `scanner.trigger {}` → `{"status":"scanning"}`, `scanner.stop {}`.
+**Event:** `scanner.onScan {data, format, rawData?}` — `source` = `pluginId` skanera-nadawcy, więc
+subskrypcja `scanner.onScan@sunmi.scanner.inner` filtruje konkretny skaner.
 
-**initialize(ctx):**
-Rejestruje event listenery dla transformacji vendor → unified:
-```kotlin
-val vendors = listOf("sunmi", "zebra", "chainway")
-for (vendor in vendors) {
-    ctx.onEvent("$vendor.scanner.*") { event, data ->
-        // "sunmi.scanner.barcode" → "scanner.barcode"
-        val unifiedEvent = event.replaceFirst("$vendor.", "")
-        ctx.emitEvent(unifiedEvent, data)
-    }
-}
-```
+**Providerzy** (bez features):
 
-**execute():**
-| Metoda | Działanie |
-|--------|-----------|
-| scanner.trigger | Szukaj vendor → ctx.execute("sunmi.scanner.trigger", params) |
-| scanner.stop | Szukaj vendor → ctx.execute("sunmi.scanner.stop", params) |
-| inne | `{"error":"unsupported_method"}` |
+| plugin | priority | build |
+|--------|----------|-------|
+| `sunmi.scanner.inner` (`SunmiInnerScannerPlugin`) | 100 (default) | sunmi stable + development |
+| `sunmi.scanner.external` (`SunmiExternalScannerPlugin`) | 50 | sunmi development (experimental) |
+| `sunmi.scanner.camera` (`SunmiCameraScannerPlugin`) | 40 | sunmi development (experimental) |
 
-Priorytet: `["sunmi.scanner", "zebra.scanner", "chainway.scanner"]`
-
-**getDescriptor():**
-```kotlin
-PluginDescriptor(
-    pluginId = "scanner", version = 1,
-    capabilities = listOf("scanner"),
-    methods = listOf(
-        MethodDescriptor("scanner.trigger", "Trigger barcode scan", "scanner"),
-        MethodDescriptor("scanner.stop", "Stop scanning", "scanner")
-    ),
-    events = listOf(
-        EventDescriptor("scanner.barcode", "Barcode scanned (unified)", "scanner")
-    )
-)
-```
+Flavor `generic` nie ma providera → `scanner.*` = `unavailable`.

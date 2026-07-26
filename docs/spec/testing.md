@@ -416,74 +416,48 @@ class SubscriptionFilterTest {
 }
 ```
 
-## Etap 5: plugin testy
+## Etap 5: interfejsy (rejestr)
 
-### Generic plugin delegation
+Interfejsy (`printer`, `scanner`, `light`, …) testuje sie na poziomie `PluginRegistry` -- rejestracja
+kontraktu, rozwiazanie providera (domyslny vs `__provider`), bramkowanie cech method-level, filtr
+dostepnosci. Pelny zestaw: `service/hal-service/.../plugin/PluginRegistryInterfaceTest.kt`.
+
+### Rozwiazanie providera + bramkowanie cechy
 
 ```kotlin
-class GenericPrinterPluginTest {
-    private lateinit var plugin: GenericPrinterPlugin
-    private lateinit var mockContext: PluginContext
+@Test fun `printer resolves to sunmi provider and feature-gates zpl`() = runTest {
+    val registry = PluginRegistry()
+    registry.registerBuiltIn(PrinterInterface())                 // definer rejestruje kontrakt
+    registry.registerBuiltIn(
+        FakeProvider("sunmi.printerx.printer",
+            InterfaceBinding("printer", priority = 100, features = listOf("escpos", "tspl", "image", "cut")))
+    )
 
-    @BeforeEach
-    fun setup() {
-        mockContext = mockk<PluginContext>()
-        plugin = GenericPrinterPlugin()
-        plugin.initialize(mockContext)
-    }
+    // Domyslny provider -> najwyzszy priorytet, zwracany w naglowku odpowiedzi:
+    val escpos = registry.executeInterface("printer", null, "printer.printEscPos", "{}")
+    assertEquals("sunmi.printerx.printer", (escpos as CommandResult.Success).provider)
 
-    @Test fun `delegates to sunmi when available`() = runTest {
-        every { mockContext.hasCapability("sunmi.printer") } returns true
-        coEvery { mockContext.execute("sunmi.printer.print", any()) } returns
-            """{"jobId":"123","status":"queued"}"""
-
-        val result = plugin.execute("printer.print", """{"template":"receipt"}""")
-        assertTrue(result.contains("jobId"))
-        coVerify { mockContext.execute("sunmi.printer.print", any()) }
-    }
-
-    @Test fun `returns error when no vendor available`() = runTest {
-        every { mockContext.hasCapability(any()) } returns false
-
-        val result = plugin.execute("printer.print", "{}")
-        assertTrue(result.contains("no_printer_backend"))
-    }
-
-    @Test fun `tries vendors in priority order`() = runTest {
-        every { mockContext.hasCapability("sunmi.printer") } returns false
-        every { mockContext.hasCapability("zebra.printer") } returns true
-        coEvery { mockContext.execute("zebra.printer.print", any()) } returns "{}"
-
-        plugin.execute("printer.print", "{}")
-        coVerify { mockContext.execute("zebra.printer.print", any()) }
-    }
+    // Zaden provider nie ma cechy `zpl` -> metoda odrzucona przez rdzen:
+    val zpl = registry.executeInterface("printer", null, "printer.printZpl", "{}")
+    assertEquals("unavailable", (zpl as CommandResult.Failure).code)
 }
 ```
 
-### Generic scanner event transformation
+### Brama rejestracji (wymog 3)
 
 ```kotlin
-class GenericScannerPluginTest {
-    @Test fun `transforms vendor event to unified`() = runTest {
-        val mockContext = mockk<PluginContext>(relaxed = true)
-        val capturedEvents = mutableListOf<Pair<String, String>>()
-        every { mockContext.emitEvent(capture(capturedEvents.map { it.first }),
-            capture(capturedEvents.map { it.second })) } just runs
-        // Uproszczone — w praktyce użyj slot() z mockk
-
-        val plugin = GenericScannerPlugin()
-        plugin.initialize(mockContext)
-
-        // Symuluj event od sunmi pluginu
-        val onEventSlot = slot<(String, String) -> Unit>()
-        verify { mockContext.onEvent("sunmi.scanner.*", capture(onEventSlot)) }
-
-        onEventSlot.captured("sunmi.scanner.barcode", """{"data":"590"}""")
-
-        verify { mockContext.emitEvent("scanner.barcode", any()) }
-    }
+@Test fun `unregistered interface is not callable even with a provider`() = runTest {
+    val registry = PluginRegistry()
+    // Provider obecny, ale zaden definer nie zarejestrowal kontraktu.
+    registry.registerBuiltIn(FakeProvider("sunmi.scanner.inner", InterfaceBinding("scanner", priority = 100)))
+    assertNull(registry.interfaceIdForMethod("scanner.trigger"))
+    assertTrue(registry.executeInterface("scanner", null, "scanner.trigger", "{}") is CommandResult.Failure)
 }
 ```
+
+Providerzy sprzetowi (Sunmi) sa weryfikowani przez CI (oba flavory); test rejestru z `FakeProvider`
+o tym samym `pluginId` sprawdza binding i routing bez realnego SDK. Eventy interfejsu (`scanner.onScan`
+z `source`) i subskrypcje `@source` -- patrz sekcja transportow/EventBus.
 
 ## Co NIE testować
 

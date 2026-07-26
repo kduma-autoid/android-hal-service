@@ -179,10 +179,11 @@ class HalService : Service() {
         pluginRegistry.discoverExternal(this)
 
         // 7. Register generic plugins (always available)
-        tryRegisterPlugin("dev.duma.android.hal.plugins.generic.GenericPrinterPlugin")
-        tryRegisterPlugin("dev.duma.android.hal.plugins.generic.GenericScannerPlugin")
         // Interface definers (register interface contracts; providers opt in via bindings).
+        // `printer`/`scanner` replace the former GenericPrinterPlugin/GenericScannerPlugin wrappers.
         tryRegisterPlugin("dev.duma.android.hal.plugins.generic.LightInterface")
+        tryRegisterPlugin("dev.duma.android.hal.plugins.generic.PrinterInterface")
+        tryRegisterPlugin("dev.duma.android.hal.plugins.generic.ScannerInterface")
         // Hardware-free demo interface + two providers (always available, for testing the interface layer).
         tryRegisterPlugin("dev.duma.android.hal.plugins.generic.DemoInterface")
         tryRegisterPlugin("dev.duma.android.hal.plugins.generic.DemoAlphaPlugin")

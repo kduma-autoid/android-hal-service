@@ -9,6 +9,7 @@ import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
+import dev.duma.android.hal.contract.InterfaceBinding
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
@@ -60,6 +61,8 @@ class SunmiCameraScannerPlugin(
     companion object {
         private const val EVENT_BARCODE = "sunmi.scanner.camera.barcode"
         private const val EVENT_CANCELLED = "sunmi.scanner.camera.cancelled"
+        // Unified `scanner` interface event (emitted alongside the native barcode event).
+        private const val EVENT_ON_SCAN = "scanner.onScan"
     }
 
     // --- Lifecycle ---
@@ -86,6 +89,8 @@ class SunmiCameraScannerPlugin(
         version = version,
         experimental = true,
         capabilities = getCapabilities(),
+        // Provides the unified `scanner` interface (lowest priority — needs the camera UI).
+        interfaces = listOf(InterfaceBinding(interfaceId = "scanner", priority = 40)),
         methods = listOf(
             MethodDescriptor(
                 "sunmi.scanner.camera.trigger",
@@ -139,7 +144,7 @@ class SunmiCameraScannerPlugin(
 
         return try {
             when (method) {
-                "sunmi.scanner.camera.trigger" -> {
+                "sunmi.scanner.camera.trigger", "scanner.trigger" -> {
                     val ctx = appContext ?: return CommandResult.internalError("Application context not available")
                     if (scanning) return CommandResult.Failure("already_scanning", "Camera scanner is already active")
 
@@ -160,7 +165,10 @@ class SunmiCameraScannerPlugin(
                                 val payload = JSONObject()
                                     .put("data", result.first)
                                     .put("format", result.second)
-                                emitEvent(EVENT_BARCODE, payload.toString())
+                                val payloadStr = payload.toString()
+                                emitEvent(EVENT_BARCODE, payloadStr)
+                                // Unified interface event; source set automatically.
+                                emitEvent(EVENT_ON_SCAN, payloadStr)
                             } else {
                                 emitEvent(EVENT_CANCELLED, "{}")
                             }
@@ -173,7 +181,7 @@ class SunmiCameraScannerPlugin(
                     CommandResult.Success("""{"status":"scanning"}""")
                 }
 
-                "sunmi.scanner.camera.stop" -> {
+                "sunmi.scanner.camera.stop", "scanner.stop" -> {
                     CameraScannerProxyActivity.activeInstance?.finish()
                     scanning = false
                     CommandResult.Success()

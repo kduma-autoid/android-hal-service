@@ -10,6 +10,7 @@ import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
+import dev.duma.android.hal.contract.InterfaceBinding
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
@@ -40,6 +41,8 @@ class SunmiExternalScannerPlugin(
 
     companion object {
         private const val EVENT_BARCODE = "sunmi.scanner.external.barcode"
+        // Unified `scanner` interface event (emitted alongside the native barcode event).
+        private const val EVENT_ON_SCAN = "scanner.onScan"
         private const val EVENT_INITIALIZED = "sunmi.scanner.external.initialized"
         private const val EVENT_INIT_FAILED = "sunmi.scanner.external.initFailed"
         private const val EVENT_SERVICE_CONNECTED = "sunmi.scanner.external.serviceConnected"
@@ -58,6 +61,12 @@ class SunmiExternalScannerPlugin(
                 payload.put("rawData", barcodeSource.joinToString("") { "%02x".format(it) })
             }
             emitEvent(EVENT_BARCODE, payload.toString())
+            // Unified interface event: normalized {data, format, rawData?(base64)}; source set automatically.
+            val onScan = JSONObject().put("data", qrResult ?: "").put("format", status ?: "")
+            if (barcodeSource != null) {
+                onScan.put("rawData", android.util.Base64.encodeToString(barcodeSource, android.util.Base64.NO_WRAP))
+            }
+            emitEvent(EVENT_ON_SCAN, onScan.toString())
         }
     }
 
@@ -121,6 +130,8 @@ class SunmiExternalScannerPlugin(
         version = version,
         experimental = true,
         capabilities = getCapabilities(),
+        // Provides the unified `scanner` interface (lower priority than the built-in scanner).
+        interfaces = listOf(InterfaceBinding(interfaceId = "scanner", priority = 50)),
         methods = listOf(
             MethodDescriptor(
                 "sunmi.scanner.external.trigger",
@@ -221,13 +232,13 @@ class SunmiExternalScannerPlugin(
 
         return@withLock try {
             when (method) {
-                "sunmi.scanner.external.trigger" -> {
+                "sunmi.scanner.external.trigger", "scanner.trigger" -> {
                     if (!initialized) return@withLock CommandResult.Failure("not_initialized", "Scanner not initialized yet")
                     scanner.start()
                     CommandResult.Success("""{"status":"scanning"}""")
                 }
 
-                "sunmi.scanner.external.stop" -> {
+                "sunmi.scanner.external.stop", "scanner.stop" -> {
                     if (!initialized) return@withLock CommandResult.Failure("not_initialized", "Scanner not initialized yet")
                     scanner.stop()
                     CommandResult.Success()

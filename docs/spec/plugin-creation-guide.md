@@ -29,15 +29,17 @@ Przed rozpoczeciem pracy musisz ustalisc, jaki typ pluginu tworzysz. Istnieja tr
 
 **Wybierz ten typ gdy:** chcesz wdrozyc pluginy vendora jako oddzielna aplikacje (out-of-process), a nie kompilowac je bezposrednio do hal-service.
 
-### Typ C: Generic abstraction plugin -- klasa w `plugin-generic-lib`
-- Klasa dodawana do istniejacego modulu `plugin-generic-lib`
-- Abstrakcja nad vendor-specific pluginami -- deleguje do dostepnego vendora
-- WYMAGA `PluginContext` (musi byc in-process)
-- Uzywa `ctx.hasCapability()`, `ctx.execute()`, `ctx.onEvent()`, `ctx.emitEvent()`
-- Pakiet: `dev.duma.android.hal.plugins.generic`
-- Przyklad: `GenericPrinterPlugin`, `GenericScannerPlugin`
+### Typ C: Interfejs (definer + provider binding)
+- Zunifikowany, autorytatywny kontrakt, pod ktory wiele pluginow podpina sie jako providerzy.
+- **Definer** (np. `PrinterInterface`, `ScannerInterface`, `LightInterface` w `plugin-generic-lib`) tylko
+  *rejestruje* `InterfaceContract` (`definesInterfaces`) -- nie ma sprzetu ani capabilities.
+- **Provider** to zwykly vendor-plugin, ktory dodaje `interfaces = [InterfaceBinding(...)]` i routuje metody
+  kontraktu do swoich handlerow. Zero edycji definera przy dodaniu nowego providera (open/closed).
+- Rdzen wybiera providera per-wywolanie (`__provider`) albo domyslnego; eventy niosa `source`.
+- Zastepuje dawne „generic abstraction" pluginy (owijki z zaszyta lista vendorow).
 
-**Wybierz ten typ gdy:** chcesz stworzyc zunifikowany interfejs dla danego typu urzadzenia, ktory automatycznie deleguje do dostepnego vendora.
+**Wybierz ten typ gdy:** chcesz zunifikowany interfejs dla danego typu urzadzenia z wieloma wymiennymi
+providerami. Pelny opis warstwy: [`interfaces.md`](interfaces.md).
 
 ---
 
@@ -57,8 +59,9 @@ Przed rozpoczeciem pracy musisz ustalisc, jaki typ pluginu tworzysz. Istnieja tr
 | Element | Format | Przyklad |
 |---|---|---|
 | pluginId vendor-specific | `{vendor}.{device}` | `sunmi.printer` |
-| pluginId generic | `{device}` | `printer` |
-| Capability | identyczny z pluginId | `sunmi.printer` / `printer` |
+| pluginId definera interfejsu | `interface.{device}` | `interface.printer` |
+| interfaceId (kontrakt) | `{device}` | `printer` |
+| Capability | identyczny z pluginId (definer: brak) | `sunmi.printer` |
 | Metoda | `{capability}.{operacja}` | `sunmi.printer.print` |
 | Event | `{capability}.{event}` | `sunmi.scanner.barcode` |
 | Modul library | `plugin-{vendor}-{device}-lib` | `plugin-sunmi-printer-lib` |
@@ -353,114 +356,105 @@ Zawiera `/build`
 
 ---
 
-## 5. Tworzenie Generic abstraction plugin (Typ C)
+## 5. Tworzenie interfejsu (Typ C)
 
-Generic plugin to klasa dodawana do istniejacego modulu `plugin-generic-lib`. NIE tworzy sie nowego modulu Gradle.
+Interfejs = **definer** (rejestruje kontrakt) + jeden lub wiele **providerow** (wiaza sie z nim). Definer
+dodajesz jako klase do istniejacego modulu `plugin-generic-lib` (NIE tworzysz nowego modulu Gradle).
+Provider to zwykly vendor-plugin (Typ A/B), ktory tylko dodaje binding i routing. Pelny opis warstwy:
+[`interfaces.md`](interfaces.md).
 
-### 5.1 Wariant BEZ transformacji eventow
+### 5.1 Definer -- rejestruje `InterfaceContract`
 
-Plik: `plugins/generic/plugin-generic-lib/src/main/java/dev/duma/android/hal/plugins/generic/Generic{Device}Plugin.kt`
+Plik: `plugins/generic/plugin-generic-lib/src/main/java/dev/duma/android/hal/plugins/generic/{Device}Interface.kt`
 
 ```kotlin
 package dev.duma.android.hal.plugins.generic
 
+import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
+import dev.duma.android.hal.contract.InterfaceContract
+import dev.duma.android.hal.contract.InterfaceFeature
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
 
-class Generic{Device}Plugin : HalPlugin {
+/** Definer interfejsu `{device}` -- tylko rejestruje kontrakt, nie ma sprzetu ani capabilities. */
+class {Device}Interface : HalPlugin {
 
-    override val pluginId = "{device}"
+    override val pluginId = "interface.{device}"     // definer, nie provider
     override val version = 1
 
-    private var ctx: PluginContext? = null
-
-    companion object {
-        // Kolejnosc = priorytet. Pierwszy dostepny vendor zostanie uzyty.
-        private val VENDOR_{DEVICE_UPPER}S = listOf(
-            "{vendor1}.{device}", "{vendor2}.{device}", "{vendor3}.{device}"
-        )
-    }
-
-    override fun getCapabilities(): List<String> = listOf("{device}")
+    override fun isSupported(): Boolean = true
+    override fun getCapabilities(): List<String> = emptyList()
 
     override fun getDescriptor(): PluginDescriptor = PluginDescriptor(
         pluginId = pluginId,
+        name = "[Interface] {Device}",
         version = version,
-        capabilities = getCapabilities(),
-        methods = listOf(
-            MethodDescriptor("{device}.{operacja1}", "Opis", "{device}"),
-            MethodDescriptor("{device}.{operacja2}", "Opis", "{device}")
-        ),
-        events = emptyList()
+        capabilities = emptyList(),
+        groups = emptyList(),
+        definesInterfaces = listOf({DEVICE}_CONTRACT)
     )
 
-    override fun initialize(pluginContext: PluginContext) {
-        this.ctx = pluginContext
-    }
+    override fun initialize(pluginContext: PluginContext) {}
 
-    override suspend fun execute(method: String, params: String): String {
-        val context = ctx ?: return """{"error":"not_initialized","message":"Plugin not initialized"}"""
-        val operation = method.removePrefix("{device}.")
-        return when (operation) {
-            "{operacja1}", "{operacja2}" -> {
-                val vendorMethod = findVendorMethod(context, operation)
-                    ?: return """{"error":"no_{device}_backend","message":"No vendor {device} plugin available"}"""
-                context.execute(vendorMethod, params)
-            }
-            else -> """{"error":"unsupported_method","method":"$method"}"""
-        }
-    }
+    // Nigdy nie routowane tutaj -- metody interfejsu wykonuje rozwiazany provider.
+    override suspend fun execute(method: String, params: String): CommandResult =
+        CommandResult.unsupportedMethod(method)
 
-    override fun setEventCallback(callback: HalPluginEventCallback?) { }
+    override fun setEventCallback(callback: HalPluginEventCallback?) {}
 
-    private fun findVendorMethod(context: PluginContext, operation: String): String? {
-        for (vendor in VENDOR_{DEVICE_UPPER}S) {
-            if (context.hasCapability(vendor)) return "$vendor.$operation"
-        }
-        return null
+    companion object {
+        private const val PERMISSION = "{device}"
+
+        val {DEVICE}_CONTRACT = InterfaceContract(
+            interfaceId = "{device}",
+            version = 1,
+            methods = listOf(
+                MethodDescriptor("{device}.{operacja1}", "Opis", PERMISSION,
+                    exampleParameters = "{}", exampleOutput = "{}"),
+                MethodDescriptor("{device}.{operacja2}", "Opis", PERMISSION,
+                    exampleParameters = "{}", exampleOutput = "{}")
+            ),
+            // Event opcjonalny -- providerzy emituja go z automatycznym `source` = pluginId.
+            events = listOf(
+                EventDescriptor("{device}.{event1}", "Opis (unified)", PERMISSION, exampleEvent = "{}")
+            ),
+            // Cecha method-level bramkuje cala metode; param-level (pusta `methods`) egzekwuje provider.
+            features = listOf(
+                InterfaceFeature("{cecha}", "Opis cechy", methods = listOf("{device}.{operacja2}"))
+            )
+        )
     }
 }
 ```
 
-### 5.2 Wariant Z transformacja eventow
+### 5.2 Provider -- opt-in `InterfaceBinding` + routing
 
-Roznice wzgledem 5.1:
+W istniejacym vendor-pluginie (Typ A/B) dodaj binding do deskryptora i gałąź routingu w `execute()`:
 
-W `companion object` dodaj prefiksy vendorow:
 ```kotlin
-private val VENDOR_PREFIXES = listOf("{vendor1}", "{vendor2}", "{vendor3}")
-```
-
-W `getDescriptor()` dodaj eventy:
-```kotlin
-events = listOf(
-    EventDescriptor("{device}.{event1}", "Opis (unified)", "{device}")
+// Deskryptor providera -- oprocz natywnych metod/groups:
+interfaces = listOf(
+    InterfaceBinding("{device}", priority = 100, features = listOf("{cecha}"))
 )
-```
 
-W `initialize()` zarejestruj listenery transformacji:
-```kotlin
-override fun initialize(pluginContext: PluginContext) {
-    this.ctx = pluginContext
-    for (vendor in VENDOR_PREFIXES) {
-        pluginContext.onEvent("$vendor.{device}.*") { event, data ->
-            // "{vendor}.{device}.{event}" -> "{device}.{event}"
-            val unifiedEvent = event.replaceFirst("$vendor.", "")
-            pluginContext.emitEvent(unifiedEvent, data)
-        }
-    }
+// execute()/handleExecute() -- metody kontraktu do wlasnych handlerow:
+if (method.startsWith("{device}.")) return when (method) {
+    "{device}.{operacja1}" -> /* -> wlasny handler / SDK */
+    "{device}.{operacja2}" -> /* -> wlasny handler / SDK */
+    else -> CommandResult.unsupportedMethod(method)
 }
 ```
 
-W `setEventCallback`:
+Jesli interfejs ma event, provider emituje go **obok** swojego natywnego eventu (`source` ustawiany
+automatycznie przez `emitEvent`/`setEventCallback`), np. skaner:
+
 ```kotlin
-override fun setEventCallback(callback: HalPluginEventCallback?) {
-    // Events are emitted via PluginContext, not direct callback
-}
+emitEvent("{vendor}.{device}.barcode", payload)   // natywny
+emitEvent("{device}.{event1}", payload)            // unified -- source = pluginId
 ```
 
 ---
@@ -496,7 +490,7 @@ create("{vendor}") { dimension = "device" }
 "sunmiImplementation"(project(":plugins:sunmi:plugin-sunmi-{nowyDevice}-lib"))
 ```
 
-#### Generic: nic nie dodawaj (juz jest).
+#### Definer interfejsu: nic nie dodawaj (`plugin-generic-lib` juz jest zaleznoscia).
 #### Bundle APK: nic nie dodawaj (osobna aplikacja).
 
 ### 6.3 `HalService.kt`
@@ -510,97 +504,70 @@ tryRegisterPlugin("dev.duma.android.hal.plugins.{vendor}.{device}.{Vendor}{Devic
 
 `tryRegisterPlugin()` automatycznie probuje najpierw konstruktor z `Context` (przekazuje `applicationContext`), a jesli taki nie istnieje -- uzywa konstruktora bezargumentowego. Dzieki temu pluginy z konstruktorem `(Context? = null)` otrzymaja `Context` automatycznie.
 
-#### Generic -- dodaj w sekcji krok 7 (generic plugins):
+#### Definer interfejsu -- dodaj w sekcji krok 7 (interface definers):
 ```kotlin
-tryRegisterPlugin("dev.duma.android.hal.plugins.generic.Generic{Device}Plugin")
+tryRegisterPlugin("dev.duma.android.hal.plugins.generic.{Device}Interface")
 ```
+Provider (vendor-plugin) rejestrujesz normalnie w sekcji krok 5 -- binding dziala z jego deskryptora.
 
 #### Bundle APK: nic nie dodawaj -- discovery automatyczne przez `discoverExternal()`.
 
-### 6.4 Aktualizacja istniejacych generic pluginow
+### 6.4 Podpiecie nowego providera pod istniejacy interfejs
 
-Jesli dodajesz nowego vendora dla typu urzadzenia z istniejacym generic pluginem, dodaj vendora do listy:
+Nie edytujesz definera. Nowy vendor-plugin, ktory ma udostepnic istniejacy interfejs (np. `printer`),
+tylko **deklaruje binding** i routuje metody kontraktu do swoich handlerow:
 
 ```kotlin
-// W GenericPrinterPlugin/GenericScannerPlugin/etc:
-private val VENDOR_{DEVICE}S = listOf(
-    "sunmi.{device}", "zebra.{device}", "chainway.{device}",
-    "{nowyVendor}.{device}"  // DODAJ
+// W deskryptorze vendor-pluginu:
+interfaces = listOf(
+    InterfaceBinding("printer", priority = 50, features = listOf("escpos", "image"))
 )
-// I jesli sa eventy:
-private val VENDOR_PREFIXES = listOf(
-    "sunmi", "zebra", "chainway",
-    "{nowyVendor}"  // DODAJ
-)
+
+// W execute()/handleExecute() -- gałąź dla metod kontraktu:
+if (method.startsWith("printer.")) return when (method) {
+    "printer.printEscPos" -> /* -> wlasny handler */
+    "printer.printImage"  -> /* -> wlasny handler */
+    else -> CommandResult.unsupportedMethod(method)
+}
 ```
+
+`features` deklaruje, ktore method-level cechy ten provider wspiera (np. brak `zpl` → `printer.printZpl`
+odrzucone przez rdzen). `priority` decyduje o domyslnym providerze. Szczegoly: [`interfaces.md`](interfaces.md).
 
 ---
 
 ## 7. Testy
 
-### 7.1 Test generic pluginu (WYMAGANY)
+### 7.1 Test interfejsu (WYMAGANY dla definera/providera)
 
-Plik: `plugins/generic/plugin-generic-lib/src/test/java/dev/duma/android/hal/plugins/generic/Generic{Device}PluginTest.kt`
+Interfejsy testuje sie na poziomie **rejestru** (`PluginRegistry`) -- rejestracja kontraktu, rozwiazanie
+providera (domyslny vs `__provider`), bramkowanie cech, filtr dostepnosci. Wzor:
+`service/hal-service/src/test/java/dev/duma/android/hal/service/plugin/PluginRegistryInterfaceTest.kt`.
 
-```kotlin
-package dev.duma.android.hal.plugins.generic
-
-import dev.duma.android.hal.contract.PluginContext
-import io.mockk.coEvery
-import io.mockk.coVerify
-import io.mockk.every
-import io.mockk.mockk
-import kotlinx.coroutines.test.runTest
-import kotlin.test.Test
-import kotlin.test.assertTrue
-
-class Generic{Device}PluginTest {
-    private val mockContext = mockk<PluginContext>(relaxed = true)
-    private val plugin = Generic{Device}Plugin().also { it.initialize(mockContext) }
-
-    @Test
-    fun `delegates to first available vendor`() = runTest {
-        every { mockContext.hasCapability("{vendor1}.{device}") } returns true
-        coEvery { mockContext.execute("{vendor1}.{device}.{operacja1}", any()) } returns """{"status":"ok"}"""
-        val result = plugin.execute("{device}.{operacja1}", "{}")
-        assertTrue(result.contains("status"))
-        coVerify { mockContext.execute("{vendor1}.{device}.{operacja1}", any()) }
-    }
-
-    @Test
-    fun `returns error when no vendor available`() = runTest {
-        every { mockContext.hasCapability(any()) } returns false
-        val result = plugin.execute("{device}.{operacja1}", "{}")
-        assertTrue(result.contains("no_{device}_backend"))
-    }
-
-    @Test
-    fun `tries vendors in priority order`() = runTest {
-        every { mockContext.hasCapability("{vendor1}.{device}") } returns false
-        every { mockContext.hasCapability("{vendor2}.{device}") } returns true
-        coEvery { mockContext.execute("{vendor2}.{device}.{operacja1}", any()) } returns "{}"
-        plugin.execute("{device}.{operacja1}", "{}")
-        coVerify { mockContext.execute("{vendor2}.{device}.{operacja1}", any()) }
-    }
-}
-```
-
-Dla wariantu z eventami dodaj test transformacji:
 ```kotlin
 @Test
-fun `transforms vendor event to unified`() = runTest {
-    val mockContext = mockk<PluginContext>(relaxed = true)
-    val plugin = Generic{Device}Plugin()
-    plugin.initialize(mockContext)
+fun `interface resolves to highest-priority provider and gates features`() = runTest {
+    val registry = PluginRegistry()
+    registry.registerBuiltIn({Device}Interface())          // definer rejestruje kontrakt
+    registry.registerBuiltIn(
+        FakeProvider("{vendor}.{device}",
+            InterfaceBinding("{device}", priority = 100, features = listOf("{cecha}")))
+    )
 
-    val callbackSlot = slot<(String, String) -> Unit>()
-    verify { mockContext.onEvent("{vendor1}.{device}.*", capture(callbackSlot)) }
-    callbackSlot.captured("{vendor1}.{device}.{event1}", """{"data":"test"}""")
-    verify { mockContext.emitEvent("{device}.{event1}", """{"data":"test"}""") }
+    // Domyslny provider (bez __provider) -> najwyzszy priorytet, zwracany w naglowku:
+    val ok = registry.executeInterface("{device}", null, "{device}.{operacjaWspierana}", "{}")
+    assertEquals("{vendor}.{device}", (ok as CommandResult.Success).provider)
+
+    // Metoda bramkowana cecha, ktorej provider nie ma -> unavailable:
+    val gated = registry.executeInterface("{device}", null, "{device}.{operacjaBezCechy}", "{}")
+    assertEquals("unavailable", (gated as CommandResult.Failure).code)
 }
 ```
 
-Uruchomienie: `./gradlew :plugins:generic:plugin-generic-lib:test`
+Providerzy sprzetowi (Sunmi) sa weryfikowani przez CI (oba flavory) -- rejestracja bindingu i routing
+metod kontraktu, bez realnego SDK, sprawdza test rejestru z `FakeProvider` o tym samym `pluginId`.
+
+Uruchomienie: `./gradlew :service:hal-service:test`
 
 ---
 
@@ -611,7 +578,7 @@ Uruchomienie: `./gradlew :plugins:generic:plugin-generic-lib:test`
 2. `settings.gradle.kts` -- dodaj `include()` (sekcja 6.1)
 3. `service/hal-service/build.gradle.kts` -- flavor + zaleznosc (sekcja 6.2)
 4. `HalService.kt` -- dodaj `tryRegisterPlugin()` w sekcji vendor (sekcja 6.3)
-5. (Opcjonalnie) Aktualizuj generic plugin (sekcja 6.4)
+5. (Opcjonalnie) Podepnij provider pod istniejacy interfejs (sekcja 6.4)
 
 ### Scenariusz B: Nowy vendor-specific plugin (out-of-process / bundle)
 1. Utworz modul `plugin-{vendor}-{device}-lib` (sekcja 3)
@@ -619,28 +586,28 @@ Uruchomienie: `./gradlew :plugins:generic:plugin-generic-lib:test`
 3. `settings.gradle.kts` -- dodaj oba moduly (sekcja 6.1)
 4. NIE dodawaj do `service/hal-service/build.gradle.kts`
 5. NIE dodawaj `tryRegisterPlugin()` -- discovery automatyczne
-6. (Opcjonalnie) Aktualizuj generic plugin (sekcja 6.4)
+6. (Opcjonalnie) Podepnij provider pod istniejacy interfejs (sekcja 6.4)
 
-### Scenariusz C: Nowy generic abstraction
-1. Utworz klase w `plugins/generic/plugin-generic-lib` (sekcja 5)
-2. `HalService.kt` -- dodaj `tryRegisterPlugin()` w sekcji generic (sekcja 6.3)
-3. Napisz testy (sekcja 7)
+### Scenariusz C: Nowy interfejs
+1. Utworz definer w `plugins/generic/plugin-generic-lib` (sekcja 5.1)
+2. `HalService.kt` -- dodaj `tryRegisterPlugin()` w sekcji interface definers (sekcja 6.3)
+3. Napisz testy rejestru (sekcja 7)
 
-### Scenariusz D: Kompletna para (vendor + generic)
-1-5 z Scenariusza A, potem 1-3 z Scenariusza C
+### Scenariusz D: Interfejs + pierwszy provider
+1-2 ze Scenariusza C, potem w vendor-pluginie dodaj `InterfaceBinding` + routing (sekcja 5.2)
 
 ---
 
 ## 9. Wazne reguly
 
-1. **Kolejnosc rejestracji:** vendor-specific PRZED generic PRZED initializeAll()
-2. **Generic MUSZA byc in-process** -- wymagaja PluginContext
+1. **Kolejnosc rejestracji:** vendor-specific PRZED interface definers PRZED initializeAll()
+2. **Definer interfejsu** nie ma capabilities ani sprzetu -- tylko `definesInterfaces`
 3. **Out-of-process NIE otrzymuja PluginContext**
 4. **`execute()` musi byc thread-safe**
 5. **Nazwy metod MUSZA odpowiadac descriptorowi**
 6. **pluginId musi byc unikalny** w calym systemie
 7. **Capabilities musza byc unikalne** -- ta sama capability nie moze byc w dwoch pluginach
-8. **Konstruktor pluginu:** Vendor-specific pluginy MUSZA miec konstruktor z opcjonalnym `Context` parametrem: `(appContext: Context? = null)`. `tryRegisterPlugin()` uzywa refleksji -- probuje najpierw konstruktor `(Context)`, potem bezargumentowy. Bundle serwisy przekazuja `applicationContext` wprost. Generic pluginy moga miec bezargumentowy konstruktor (nie potrzebuja `Context` w konstruktorze -- dostaja go przez `PluginContext.applicationContext`)
+8. **Konstruktor pluginu:** Vendor-specific pluginy MUSZA miec konstruktor z opcjonalnym `Context` parametrem: `(appContext: Context? = null)`. `tryRegisterPlugin()` uzywa refleksji -- probuje najpierw konstruktor `(Context)`, potem bezargumentowy. Bundle serwisy przekazuja `applicationContext` wprost. Definery interfejsu moga miec bezargumentowy konstruktor (nie potrzebuja `Context`)
 9. **Kazdy plugin-lib MUSI zalezec od `:service:hal-contract`**
 
 ---
@@ -665,16 +632,18 @@ Uruchomienie: `./gradlew :plugins:generic:plugin-generic-lib:test`
 - [ ] Klasa serwisu uzywa `PluginServiceWrapper` i przekazuje `applicationContext` do konstruktora pluginu
 - [ ] `settings.gradle.kts` -- `include()`
 
-### Generic plugin:
-- [ ] Klasa w `plugins/generic/plugin-generic-lib`
-- [ ] `pluginId` BEZ prefixu vendora
-- [ ] Lista vendorow z priorytetem
-- [ ] `initialize()` zapisuje PluginContext
-- [ ] `execute()` sprawdza `ctx != null`
-- [ ] `execute()` deleguje przez `findVendorMethod()`
-- [ ] (Z eventami) `initialize()` rejestruje `onEvent()` listenery
-- [ ] (Z eventami) transformacja `{vendor}.{device}.{event}` -> `{device}.{event}`
-- [ ] `HalService.kt` -- `tryRegisterPlugin()` w sekcji generic
+### Interfejs (definer):
+- [ ] Definer w `plugins/generic/plugin-generic-lib`, `pluginId` = `interface.{device}`
+- [ ] `capabilities` puste; `definesInterfaces` = `[InterfaceContract(...)]`
+- [ ] Kontrakt: metody (kanoniczne nazwy), eventy, `features` (method-level vs param-level)
+- [ ] `execute()` zwraca `unsupportedMethod` (nigdy nie routowane tutaj)
+- [ ] `HalService.kt` -- `tryRegisterPlugin()` w sekcji interface definers
+- [ ] Test rejestru (sekcja 7.1)
+
+### Provider interfejsu (w vendor-pluginie):
+- [ ] Deskryptor: `interfaces = [InterfaceBinding("{device}", priority, features)]`
+- [ ] `execute()` routuje metody kontraktu (`{device}.*`) do wlasnych handlerow
+- [ ] (Z eventami) emituje event interfejsu obok natywnego (`source` automatyczny)
 - [ ] Testy napisane i przechodza
 
 ---
@@ -692,6 +661,7 @@ Uruchomienie: `./gradlew :plugins:generic:plugin-generic-lib:test`
 | `settings.gradle.kts` | Moduly Gradle |
 | `plugins/sunmi/plugin-sunmi-printer-lib/.../SunmiPrinterPlugin.kt` | Wzorzec vendor plugin |
 | `plugins/sunmi/plugin-sunmi-scanner-lib/.../SunmiScannerPlugin.kt` | Wzorzec vendor plugin z eventami |
-| `plugins/generic/plugin-generic-lib/.../GenericPrinterPlugin.kt` | Wzorzec generic plugin |
-| `plugins/generic/plugin-generic-lib/.../GenericScannerPlugin.kt` | Wzorzec generic plugin z eventami |
+| `plugins/generic/plugin-generic-lib/.../PrinterInterface.kt` | Wzorzec definera interfejsu |
+| `plugins/generic/plugin-generic-lib/.../ScannerInterface.kt` | Wzorzec definera interfejsu z eventem |
+| `service/hal-contract/.../contract/InterfaceContract.kt` | Kontrakt + binding + feature |
 | `plugins/sunmi/plugin-sunmi-bundle/.../SunmiPrinterService.kt` | Wzorzec serwisu bundle |
