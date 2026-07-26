@@ -57,13 +57,16 @@ val PluginDescriptor.allEvents: List<EventDescriptor>
  *   the plugin has no stable surface.
  * - Otherwise, experimental methods and events are dropped, and groups left empty by that filter
  *   are removed.
+ * - Interfaces this plugin *defines* get the same treatment: an experimental contract disappears
+ *   entirely, and a stable one loses its experimental methods and events. Without this a stable
+ *   build would strip an experimental native method yet keep an experimental interface method.
  *
  * Used by plugins built in the `stable` stability flavor so experimental methods are absent from the
  * descriptor (and, together with the descriptor guard, non-invocable) in production builds.
  */
 fun PluginDescriptor.stripExperimental(): PluginDescriptor =
     if (experimental) {
-        copy(experimental = false, groups = emptyList())
+        copy(experimental = false, groups = emptyList(), definesInterfaces = emptyList())
     } else {
         copy(
             groups = groups.map { group ->
@@ -71,6 +74,14 @@ fun PluginDescriptor.stripExperimental(): PluginDescriptor =
                     methods = group.methods.filterNot { it.experimental },
                     events = group.events.filterNot { it.experimental }
                 )
-            }.filter { it.methods.isNotEmpty() || it.events.isNotEmpty() }
+            }.filter { it.methods.isNotEmpty() || it.events.isNotEmpty() },
+            definesInterfaces = definesInterfaces
+                .filterNot { it.experimental }
+                .map { contract ->
+                    contract.copy(
+                        methods = contract.methods.filterNot { it.experimental },
+                        events = contract.events.filterNot { it.experimental }
+                    )
+                }
         )
     }

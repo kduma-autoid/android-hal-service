@@ -69,6 +69,46 @@ providerów, posortowanych:
 Pierwszy na liście = `isDefault` = provider dla wywołań bez sufiksu. Zmiana kolejności przez
 użytkownika automatycznie zmienia default.
 
+## Experimental i super w warstwie interfejsów
+
+Znaczniki występują na trzech poziomach i **kontrakt jest ich właścicielem**:
+
+- **Interfejs** — `InterfaceContract.experimental` oznacza cały interfejs; każda jego metoda i event
+  wymaga dostępu experimental. Odpowiednik `PluginDescriptor.experimental` dla pluginu.
+- **Metoda interfejsu** — `MethodDescriptor.superRequired` / `.experimental` jak dla metod natywnych.
+- **Provider** — plugin implementujący może być eksperymentalny jako całość.
+
+Dostęp experimental daje token (`experimental`, `<uprawnienie>.experimental`, `<metoda>.experimental`)
+**albo** włączenie pluginu przez użytkownika w ustawieniach. Dla interfejsu kluczem w ustawieniach
+jest plugin **definiujący**, nie provider.
+
+### Implementacja nie nadpisuje bramek
+
+Provider implementuje metody kontraktu we własnym `execute()`, ale nie redeklaruje ich deskryptorów,
+a rdzeń rozwiązuje deskryptor metody interfejsowej **wyłącznie z kontraktu** (`getMethodDescriptor`
+przegląda zarejestrowane interfejsy przed deskryptorami pluginów). Provider nie może więc ani
+poluzować, ani zaostrzyć `superRequired`/`experimental` metody, którą udostępnia.
+
+### Eksperymentalny provider jest wykluczony, a nie odrzucany
+
+Provider, którego **plugin** jest eksperymentalny i nie został włączony przez użytkownika ani
+dopuszczony tokenem, **nie należy do interfejsu** dla tego wywołującego:
+
+- nie bierze udziału w wyborze domyślnego providera (nie zostanie cichym defaultem),
+- wskazanie go sufiksem `@providerId` daje `unavailable` — tak samo jak wskazanie pluginu, który
+  nigdy nie zadeklarował bindingu,
+- nie pojawia się na liście `providers` w `system.describe`.
+
+To różni się od bramki na metodzie: eksperymentalna **metoda** bez dostępu daje `forbidden`,
+natomiast eksperymentalny **provider** bez dostępu po prostu nie istnieje w rozwiązywaniu. Dashboard
+widzi go nadal (z odznaką), bo to jedyne miejsce, z którego można go włączyć.
+
+### Buildy `stable`
+
+`stripExperimental()` obejmuje też `definesInterfaces`: eksperymentalny kontrakt znika w całości,
+a ze stabilnego wycinane są eksperymentalne metody i eventy. Bez tego build `stable` usuwałby
+eksperymentalną metodę natywną, ale zostawiał eksperymentalną metodę interfejsu.
+
 ## Handler w nagłówku odpowiedzi
 
 Odpowiedź na wywołanie interfejsu niesie `provider` — `pluginId` handlera, który je obsłużył
@@ -110,9 +150,11 @@ Obok `plugins`, `describe` zwraca `interfaces: [InterfaceDescriptor]` (filtrowan
   "kind": "interface",
   "interfaceId": "light",
   "version": 1,
+  "experimental": true,          // tylko gdy kontrakt jest eksperymentalny
+  "experimentalActive": false,   // czy wywołujący faktycznie ma do niego dostęp
   "features": [{ "key": "timeout", "description": "…", "methods": [] }],
-  "methods": [ /* MethodDescriptor */ ],
-  "events":  [ /* EventDescriptor  */ ],
+  "methods": [ /* MethodDescriptor — z superRequired / experimental gdy ustawione */ ],
+  "events":  [ /* EventDescriptor  — z experimental gdy ustawione */ ],
   "providers": [
     { "pluginId": "sunmi.tms.led", "source": "built_in", "priority": 100,
       "isDefault": true, "enabled": true, "features": ["timeout"] }
@@ -122,6 +164,11 @@ Obok `plugins`, `describe` zwraca `interfaces: [InterfaceDescriptor]` (filtrowan
 API listuje tylko available (ale pokazuje **wyłączonych** z `enabled:false`, żeby dało się je
 włączyć). Każdy wpis pluginu w `plugins` ma też `providesInterfaces` / `definesInterfaces` (id-ki do
 cross-referencji).
+
+Filtrowanie działa tak samo jak w sekcji `plugins`: metody `super` znikają bez `withSuper:true`,
+a treść eksperymentalna bez dostępu (token lub ustawienie) albo bez `withExperimental:true`.
+Eksperymentalny kontrakt bez dostępu nie pojawia się wcale. Eksperymentalny provider jest ukryty
+przed wywołującym, który nie może go użyć — bo routing i tak by go pominął.
 
 ## Konfiguracja kolejności / enable (API)
 

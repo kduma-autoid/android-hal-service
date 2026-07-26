@@ -86,6 +86,8 @@ function breakableName(name: string): string {
     <div class="card-header">
       <h3 class="iface-name">{{ iface.interfaceId }}</h3>
       <span class="badge badge-version">v{{ iface.version }}</span>
+      <span v-if="iface.experimental && iface.experimentalActive" class="badge badge-experimental-active">experimental (enabled)</span>
+      <span v-else-if="iface.experimental" class="badge badge-experimental">experimental</span>
       <span v-for="f in iface.features" :key="f.key" class="badge badge-feature" :title="f.description">
         {{ f.key }}
       </span>
@@ -126,6 +128,8 @@ function breakableName(name: string): string {
           </label>
           <span v-if="p.isDefault" class="badge badge-default">default</span>
           <span v-if="!p.enabled" class="badge badge-disabled">disabled</span>
+          <span v-if="p.experimental && p.experimentalActive" class="badge badge-experimental-active">experimental (enabled)</span>
+          <span v-else-if="p.experimental" class="badge badge-experimental">experimental</span>
           <span class="badge badge-source">{{ p.source }}</span>
           <span v-for="f in p.features" :key="f" class="badge badge-feature">{{ f }}</span>
         </li>
@@ -237,6 +241,8 @@ function breakableName(name: string): string {
 .badge-default { background: #dbeafe; color: #1e40af; }
 .badge-disabled { background: #fee2e2; color: #991b1b; }
 .badge-source { background: #f3f4f6; color: #555; }
+.badge-experimental { background: #fef3c7; color: #92400e; }
+.badge-experimental-active { background: #d1fae5; color: #065f46; }
 .section { margin-top: 12px; }
 .section h4 {
   margin: 0 0 8px;

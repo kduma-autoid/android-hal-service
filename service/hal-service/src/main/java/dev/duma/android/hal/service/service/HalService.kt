@@ -200,6 +200,9 @@ class HalService : Service() {
         val broadcastConfig = BroadcastConfig(applicationContext)
         val interfacePreferenceConfig = InterfacePreferenceConfig(applicationContext)
         pluginRegistry.interfacePreferenceConfig = interfacePreferenceConfig
+        // The registry consults this when resolving interface providers: an experimental provider is
+        // excluded until the user enables it (or the caller holds experimental access).
+        pluginRegistry.experimentalConfig = experimentalConfig
         val serverConfig = ServerConfig(applicationContext)
 
         // Production binds localhost on the fixed port. Development builds default to the same

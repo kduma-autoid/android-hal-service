@@ -38,6 +38,10 @@ export interface InterfaceProvider {
   isDefault: boolean;
   /** False when the user has disabled this provider for the interface (still listed, not routable). */
   enabled: boolean;
+  /** The provider plugin is experimental; only listed at all when it is visible to this caller. */
+  experimental?: boolean;
+  /** True when the experimental provider is actually usable — user-enabled, or granted by the token. */
+  experimentalActive?: boolean;
   features: string[];
 }
 
@@ -45,6 +49,10 @@ export interface InterfaceDescriptor {
   kind: 'interface';
   interfaceId: string;
   version: number;
+  /** The whole interface is experimental — every method and event of it requires experimental access. */
+  experimental?: boolean;
+  /** True when that experimental access is actually held (token) or granted (user setting). */
+  experimentalActive?: boolean;
   features: InterfaceFeature[];
   methods: MethodDescriptor[];
   events: EventDescriptor[];

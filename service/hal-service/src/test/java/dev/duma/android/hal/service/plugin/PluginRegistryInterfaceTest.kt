@@ -59,12 +59,14 @@ class PluginRegistryInterfaceTest {
         override val pluginId: String,
         private val binding: InterfaceBinding,
         override val version: Int = 1,
-        private val body: String
+        private val body: String,
+        private val experimental: Boolean = false
     ) : HalPlugin {
         override fun isSupported() = true
         override fun getCapabilities(): List<String> = listOf(pluginId)
         override fun getDescriptor() = PluginDescriptor(
             pluginId = pluginId, name = pluginId, version = version,
+            experimental = experimental,
             capabilities = getCapabilities(), groups = emptyList(),
             interfaces = listOf(binding)
         )
@@ -244,5 +246,64 @@ class PluginRegistryInterfaceTest {
         val result = registry.executeInterface("barcodeScanner", null, "barcodeScanner.trigger", "{}")
         assertTrue(result is CommandResult.Success)
         assertEquals("sunmi.scanner.inner", (result as CommandResult.Success).provider)
+    }
+
+    // --- Experimental providers -------------------------------------------------------------
+    // An experimental provider is excluded from the interface until the user enables it in settings
+    // or the caller holds experimental access. `experimentalConfig` is left null here, so the only
+    // way in is the caller flag.
+
+    private fun registryWithExperimentalProvider(): PluginRegistry {
+        val registry = PluginRegistry()
+        registry.registerBuiltIn(FakeDefiner(lightContract))
+        registry.registerBuiltIn(
+            FakeProvider("p.stable", InterfaceBinding("light", priority = 10), body = """{"who":"stable"}""")
+        )
+        registry.registerBuiltIn(
+            FakeProvider(
+                "p.exp", InterfaceBinding("light", priority = 100),
+                body = """{"who":"exp"}""", experimental = true
+            )
+        )
+        return registry
+    }
+
+    @Test
+    fun `experimental provider is hidden and never becomes the default`() {
+        val registry = registryWithExperimentalProvider()
+        // Despite the higher priority, the experimental provider is not part of the interface.
+        assertEquals(listOf("p.stable"), registry.getInterfaceProviders("light").map { it.pluginId })
+        assertTrue(registry.getInterfaceProviders("light").first().isDefault)
+    }
+
+    @Test
+    fun `experimental provider appears and wins for a caller holding experimental access`() {
+        val registry = registryWithExperimentalProvider()
+        val providers = registry.getInterfaceProviders("light", callerHasExperimental = true)
+        assertEquals(listOf("p.exp", "p.stable"), providers.map { it.pluginId })
+        assertTrue(providers.first().isDefault)
+        assertTrue(providers.first().experimental)
+    }
+
+    @Test
+    fun `pinning an experimental provider without access is unavailable`() = runTest {
+        val registry = registryWithExperimentalProvider()
+        val denied = registry.executeInterface("light", "p.exp", "light.on", "{}")
+        assertTrue(denied is CommandResult.Failure)
+
+        val allowed = registry.executeInterface(
+            "light", "p.exp", "light.on", "{}", callerHasExperimental = true
+        )
+        assertTrue(allowed is CommandResult.Success)
+    }
+
+    @Test
+    fun `default routing skips the experimental provider without access`() = runTest {
+        val registry = registryWithExperimentalProvider()
+        val stable = registry.executeInterface("light", null, "light.on", "{}")
+        assertEquals("p.stable", (stable as CommandResult.Success).provider)
+
+        val exp = registry.executeInterface("light", null, "light.on", "{}", callerHasExperimental = true)
+        assertEquals("p.exp", (exp as CommandResult.Success).provider)
     }
 }

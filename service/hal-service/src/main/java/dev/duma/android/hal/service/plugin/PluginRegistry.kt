@@ -17,6 +17,7 @@ import dev.duma.android.hal.contract.InterfaceContract
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginDescriptor
 import dev.duma.android.hal.contract.allMethods
+import dev.duma.android.hal.service.config.ExperimentalConfig
 import dev.duma.android.hal.service.config.InterfacePreferenceConfig
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArraySet
@@ -56,7 +57,9 @@ class PluginRegistry {
         val isDefault: Boolean,
         val available: Boolean,
         val supported: Boolean = true,
-        val enabled: Boolean = true
+        val enabled: Boolean = true,
+        /** The provider *plugin* is experimental — gated by settings or the caller's token. */
+        val experimental: Boolean = false
     )
 
     private val plugins = ConcurrentHashMap<String, HalPlugin>()
@@ -75,6 +78,9 @@ class PluginRegistry {
 
     /** User ordering / enable-disable preferences per interface. Null until wired by the service. */
     var interfacePreferenceConfig: InterfacePreferenceConfig? = null
+
+    /** User's experimental opt-ins; consulted when an experimental plugin provides an interface. */
+    var experimentalConfig: ExperimentalConfig? = null
 
     private val pluginInfo = ConcurrentHashMap<String, PluginInfo>()
     private val displacedPlugins = ConcurrentHashMap<String, Pair<HalPlugin, PluginInfo>>()
@@ -310,6 +316,26 @@ class PluginRegistry {
     /** All currently registered interface contracts. */
     fun getRegisteredInterfaces(): List<InterfaceContract> = registeredInterfaces.values.toList()
 
+    /** The plugin that registered [interfaceId] — the settings key gating an experimental interface. */
+    fun definerForInterface(interfaceId: String): String? =
+        interfaceDefinitionsByPlugin.entries.firstOrNull { interfaceId in it.value }?.key
+
+    /** Whether [pluginId]'s own descriptor marks it experimental. */
+    private fun isPluginExperimental(pluginId: String): Boolean {
+        val plugin = plugins[pluginId] ?: return false
+        return try { plugin.getDescriptor().experimental } catch (_: Exception) { false }
+    }
+
+    /**
+     * Whether an experimental provider is usable by this caller: either the user enabled the plugin
+     * in settings, or the caller holds experimental access. A provider failing this gate is not part
+     * of the interface for that caller — not the default, not routable, not listed.
+     */
+    private fun passesExperimentalGate(pluginId: String, callerHasExperimental: Boolean): Boolean =
+        !isPluginExperimental(pluginId) ||
+            callerHasExperimental ||
+            experimentalConfig?.isPluginEnabled(pluginId) == true
+
     /** The registered contract for [interfaceId], or null if no plugin defines it. */
     fun getInterfaceContract(interfaceId: String): InterfaceContract? = registeredInterfaces[interfaceId]
 
@@ -328,14 +354,19 @@ class PluginRegistry {
     /**
      * Providers of [interfaceId], available ones only, preferred first (priority desc, then external
      * over built-in, then version desc). The first is marked [ProviderRef.isDefault].
+     *
+     * Experimental provider plugins are omitted unless the user enabled them in settings or
+     * [callerHasExperimental] is set, so an experimental backend never becomes the silent default.
+     * The default is conservative: callers serving a token pass the caller's access explicitly.
      */
-    fun getInterfaceProviders(interfaceId: String): List<ProviderRef> {
+    fun getInterfaceProviders(interfaceId: String, callerHasExperimental: Boolean = false): List<ProviderRef> {
         val ids = interfaceProviders[interfaceId] ?: return emptyList()
         val config = interfacePreferenceConfig
         val order = config?.getOrder(interfaceId) ?: emptyList()
         val refs = ids.mapNotNull { id ->
             if (!plugins.containsKey(id) || !isAvailable(id)) return@mapNotNull null
             if (config?.isEnabled(interfaceId, id) == false) return@mapNotNull null
+            if (!passesExperimentalGate(id, callerHasExperimental)) return@mapNotNull null
             val binding = interfaceBindings[id]?.firstOrNull { it.interfaceId == interfaceId } ?: return@mapNotNull null
             val plugin = plugins[id] ?: return@mapNotNull null
             ProviderRef(
@@ -345,7 +376,8 @@ class PluginRegistry {
                 priority = binding.priority,
                 features = binding.features,
                 isDefault = false,
-                available = true
+                available = true,
+                experimental = isPluginExperimental(id)
             )
         }.sortedWith(providerComparator(order))
         return refs.mapIndexed { index, ref -> ref.copy(isDefault = index == 0) }
@@ -373,7 +405,8 @@ class PluginRegistry {
                 isDefault = false,
                 available = isAvailable(id),
                 supported = true,
-                enabled = config?.isEnabled(interfaceId, id) != false
+                enabled = config?.isEnabled(interfaceId, id) != false,
+                experimental = isPluginExperimental(id)
             )
         }
         // Unsupported plugins are never indexed — scan their descriptors for a binding.
@@ -393,7 +426,8 @@ class PluginRegistry {
                 isDefault = false,
                 available = false,
                 supported = false,
-                enabled = config?.isEnabled(interfaceId, plugin.pluginId) != false
+                enabled = config?.isEnabled(interfaceId, plugin.pluginId) != false,
+                experimental = try { plugin.getDescriptor().experimental } catch (_: Exception) { false }
             )
         }
         val sorted = result.values.sortedWith(providerComparator(order))
@@ -439,7 +473,8 @@ class PluginRegistry {
         interfaceId: String,
         providerPluginId: String?,
         method: String,
-        params: String
+        params: String,
+        callerHasExperimental: Boolean = false
     ): CommandResult {
         val contract = registeredInterfaces[interfaceId]
             ?: return CommandResult.notFound("Interface not registered: $interfaceId")
@@ -449,13 +484,16 @@ class PluginRegistry {
         val plugin = if (providerPluginId != null) {
             val bound = interfaceBindings[providerPluginId]?.any { it.interfaceId == interfaceId } == true
             val enabled = interfacePreferenceConfig?.isEnabled(interfaceId, providerPluginId) != false
+            // An experimental provider the user has not enabled is not part of the interface, so
+            // naming it explicitly is as unavailable as naming a plugin that never bound to it.
+            val experimentalOk = passesExperimentalGate(providerPluginId, callerHasExperimental)
             val p = plugins[providerPluginId]
-            if (p == null || !isAvailable(providerPluginId) || !bound || !enabled) {
+            if (p == null || !isAvailable(providerPluginId) || !bound || !enabled || !experimentalOk) {
                 return CommandResult.unavailable("Provider '$providerPluginId' does not provide interface '$interfaceId'")
             }
             p
         } else {
-            val defaultId = getInterfaceProviders(interfaceId).firstOrNull()?.pluginId
+            val defaultId = getInterfaceProviders(interfaceId, callerHasExperimental).firstOrNull()?.pluginId
                 ?: return CommandResult.unavailable("No provider available for interface: $interfaceId")
             plugins[defaultId] ?: return CommandResult.unavailable("No provider available for interface: $interfaceId")
         }

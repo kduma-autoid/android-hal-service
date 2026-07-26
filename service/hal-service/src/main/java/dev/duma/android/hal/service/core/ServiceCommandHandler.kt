@@ -139,27 +139,35 @@ class ServiceCommandHandler(
                     }
                 }
 
-                // Experimental method check
+                // Experimental gate. Three independent sources mark a call experimental: the method
+                // itself, the interface that owns it, and — for native methods — the whole plugin.
+                val interfaceId = pluginRegistry.interfaceIdForMethod(baseMethod)
+                val interfaceContract = interfaceId?.let { pluginRegistry.getInterfaceContract(it) }
                 val pluginForMethod = pluginRegistry.findForMethod(baseMethod)
                 val pluginDescriptor = pluginForMethod?.getDescriptor()
-                val isExperimental = methodDescriptor?.experimental == true || pluginDescriptor?.experimental == true
+                val callerHasExperimental = permissions.any { perm ->
+                    perm == "experimental" ||                            // global experimental
+                    perm == "$requiredPermission.experimental" ||        // capability-level
+                    perm == "$method.experimental"                       // method-level, provider-specific
+                }
+                val isExperimental = methodDescriptor?.experimental == true ||
+                    interfaceContract?.experimental == true ||
+                    pluginDescriptor?.experimental == true
                 if (isExperimental) {
-                    val hasExperimentalAccess = permissions.any { perm ->
-                        perm == "experimental" ||                            // global experimental
-                        perm == "$requiredPermission.experimental" ||        // capability-level
-                        perm == "$method.experimental"                       // method-level, provider-specific
-                    }
-                    val isEnabledViaPrefs = pluginDescriptor?.pluginId?.let {
-                        experimentalConfig.isPluginEnabled(it)
-                    } ?: false
-                    if (!hasExperimentalAccess && !isEnabledViaPrefs) {
+                    // The settings opt-in is keyed by plugin: the owning plugin for a native method,
+                    // the *defining* plugin for anything reached through an interface.
+                    val prefsKey = pluginDescriptor?.pluginId
+                        ?: interfaceId?.let { pluginRegistry.definerForInterface(it) }
+                    val isEnabledViaPrefs = prefsKey?.let { experimentalConfig.isPluginEnabled(it) } ?: false
+                    if (!callerHasExperimental && !isEnabledViaPrefs) {
                         return CommandResult.forbidden("Experimental method not enabled: $method")
                     }
                 }
 
-                val interfaceId = pluginRegistry.interfaceIdForMethod(baseMethod)
                 if (interfaceId != null) {
-                    pluginRegistry.executeInterface(interfaceId, provider, baseMethod, params)
+                    // The caller's experimental access travels with the call: an experimental provider
+                    // the user has not enabled is excluded from resolution rather than gated here.
+                    pluginRegistry.executeInterface(interfaceId, provider, baseMethod, params, callerHasExperimental)
                 } else if (provider != null) {
                     // Native methods are owned by exactly one plugin, so pinning a provider is
                     // meaningless there — reject it instead of silently ignoring the selector.
@@ -384,15 +392,37 @@ class ServiceCommandHandler(
             }
             putJsonArray("interfaces") {
                 pluginRegistry.getRegisteredInterfaces().forEach { contract ->
-                    val methods = if ("*" in permissions) contract.methods
+                    // Experimental access for this interface: the caller's token, or the user having
+                    // enabled the plugin that *defines* it. `withExperimental` reveals it in the
+                    // listing regardless, mirroring how the plugins section above behaves.
+                    val definer = pluginRegistry.definerForInterface(contract.interfaceId)
+                    val expViaToken = permissions.any { perm ->
+                        perm == "experimental" ||
+                        contract.methods.any { m -> perm == "${m.requiredPermission}.experimental" }
+                    }
+                    val expViaPrefs = definer?.let { experimentalConfig.isPluginEnabled(it) } ?: false
+                    val expUsable = expViaToken || expViaPrefs
+                    val expVisible = withExperimental || expUsable
+                    if (contract.experimental && !expVisible) return@forEach
+
+                    var methods = if ("*" in permissions) contract.methods
                         else contract.methods.filter { m -> permissions.any { m.requiredPermission.startsWith(it) } }
-                    val events = if ("*" in permissions) contract.events
+                    var events = if ("*" in permissions) contract.events
                         else contract.events.filter { e -> permissions.any { e.requiredPermission.startsWith(it) } }
+                    if (!withSuper) methods = methods.filterNot { it.superRequired }
+                    if (!expVisible) {
+                        methods = methods.filterNot { it.experimental }
+                        events = events.filterNot { it.experimental }
+                    }
                     if (methods.isEmpty() && events.isEmpty()) return@forEach
                     add(buildJsonObject {
                         put("kind", "interface")
                         put("interfaceId", contract.interfaceId)
                         put("version", contract.version)
+                        if (contract.experimental) {
+                            put("experimental", true)
+                            put("experimentalActive", expUsable)
+                        }
                         putJsonArray("features") {
                             contract.features.forEach { f ->
                                 add(buildJsonObject {
@@ -408,6 +438,11 @@ class ServiceCommandHandler(
                                     put("name", m.name)
                                     put("description", m.description)
                                     put("requiredPermission", m.requiredPermission)
+                                    if (m.superRequired) put("superRequired", true)
+                                    if (m.experimental) {
+                                        put("experimental", true)
+                                        put("experimentalActive", expUsable)
+                                    }
                                     put("exampleParameters", m.exampleParameters)
                                     put("exampleOutput", m.exampleOutput)
                                 })
@@ -419,6 +454,10 @@ class ServiceCommandHandler(
                                     put("name", e.name)
                                     put("description", e.description)
                                     put("requiredPermission", e.requiredPermission)
+                                    if (e.experimental) {
+                                        put("experimental", true)
+                                        put("experimentalActive", expUsable)
+                                    }
                                     put("exampleEvent", e.exampleEvent)
                                 })
                             }
@@ -427,8 +466,14 @@ class ServiceCommandHandler(
                             // API lists loaded (supported + dynamically-available) providers, INCLUDING
                             // user-disabled ones (with an `enabled` flag) so a client can re-enable them.
                             // Only unavailable/unsupported implementors are hidden from the API.
+                            // An experimental provider is hidden too until it is usable, because it is
+                            // not part of the interface for this caller — routing skips it as well.
                             pluginRegistry.getAllInterfaceImplementors(contract.interfaceId)
                                 .filter { it.available && it.supported }
+                                .filter { p ->
+                                    !p.experimental || withExperimental || expViaToken ||
+                                        experimentalConfig.isPluginEnabled(p.pluginId)
+                                }
                                 .forEach { p ->
                                     add(buildJsonObject {
                                         put("pluginId", p.pluginId)
@@ -436,6 +481,11 @@ class ServiceCommandHandler(
                                         put("priority", p.priority)
                                         put("isDefault", p.isDefault)
                                         put("enabled", p.enabled)
+                                        if (p.experimental) {
+                                            put("experimental", true)
+                                            put("experimentalActive",
+                                                expViaToken || experimentalConfig.isPluginEnabled(p.pluginId))
+                                        }
                                         putJsonArray("features") { p.features.forEach { add(JsonPrimitive(it)) } }
                                     })
                                 }
