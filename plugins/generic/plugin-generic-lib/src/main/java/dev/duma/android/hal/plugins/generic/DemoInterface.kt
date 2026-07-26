@@ -52,21 +52,21 @@ class DemoInterface : HalPlugin {
                     "Echo text back. Each provider transforms it differently (Alpha uppercases, Beta reverses).",
                     PERMISSION,
                     exampleParameters = """{"text":"Hello"}""",
-                    exampleOutput = """{"result":"HELLO","provider":"demo.alpha"}"""
+                    exampleOutput = """{"result":"HELLO"}"""
                 ),
                 MethodDescriptor(
                     "demo.ping",
-                    "Ping the active provider; returns which provider answered.",
+                    "Ping the active provider. The handler is reported in the response header, not the body.",
                     PERMISSION,
                     exampleParameters = "{}",
-                    exampleOutput = """{"pong":true,"provider":"demo.alpha"}"""
+                    exampleOutput = """{"pong":true}"""
                 ),
                 MethodDescriptor(
                     "demo.emit",
                     "Ask the provider to emit a demo.notice event (to test event subscriptions).",
                     PERMISSION,
                     exampleParameters = """{"message":"ping"}""",
-                    exampleOutput = """{"emitted":true,"provider":"demo.alpha"}"""
+                    exampleOutput = """{"emitted":true}"""
                 )
             ),
             events = listOf(

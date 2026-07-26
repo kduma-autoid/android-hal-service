@@ -54,15 +54,14 @@ abstract class BaseDemoPlugin(
         } catch (_: Exception) {
             JSONObject()
         }
+        // The handling provider is reported in the response header (CommandResult.provider), so the
+        // response bodies below don't repeat it.
         return when (method.substringAfterLast('.')) {
             "echo" -> CommandResult.Success(
-                JSONObject()
-                    .put("result", transform(json.optString("text", "")))
-                    .put("provider", id)
-                    .toString()
+                JSONObject().put("result", transform(json.optString("text", ""))).toString()
             )
             "ping" -> CommandResult.Success(
-                JSONObject().put("pong", true).put("provider", id).toString()
+                JSONObject().put("pong", true).toString()
             )
             "emit" -> {
                 // The emitting provider is carried in the event header (source), not in the body.
@@ -73,7 +72,7 @@ abstract class BaseDemoPlugin(
                         .toString()
                 )
                 CommandResult.Success(
-                    JSONObject().put("emitted", true).put("provider", id).toString()
+                    JSONObject().put("emitted", true).toString()
                 )
             }
             else -> CommandResult.unsupportedMethod(method)

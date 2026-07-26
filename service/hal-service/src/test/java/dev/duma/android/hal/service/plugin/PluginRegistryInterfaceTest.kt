@@ -88,6 +88,8 @@ class PluginRegistryInterfaceTest {
         val result = registry.executeInterface("light", null, "light.on", "{}")
         assertTrue(result is CommandResult.Success)
         assertEquals("""{"who":"high"}""", (result as CommandResult.Success).body)
+        // The resolved handler is reported in the response header.
+        assertEquals("p.high", result.provider)
     }
 
     @Test
@@ -95,6 +97,7 @@ class PluginRegistryInterfaceTest {
         val registry = registryWithProviders()
         val result = registry.executeInterface("light", "p.low", "light.on", "{}")
         assertEquals("""{"who":"low"}""", (result as CommandResult.Success).body)
+        assertEquals("p.low", result.provider)
     }
 
     @Test
