@@ -33,6 +33,8 @@ Wykonanie komendy (wymaga tokenu).
 
 **Result extras:**
 - `result` (String) — JSON response
+- `provider` (String, opcjonalny) — dla metod interfejsu: `pluginId` handlera, który obsłużył
+  wywołanie (w osobnym extra, nie w ciele `result`). Patrz [`interfaces.md`](interfaces.md).
 
 **Result codes:**
 - RESULT_OK — sukces

@@ -39,6 +39,7 @@ fun pushEvent(eventName: String, jsonData: String) {
     val intent = Intent("dev.duma.hal.event.$eventName")
         .putExtra("event", eventName)
         .putExtra("data", jsonData)
+        .putExtra("source", sourcePluginId)   // nadawca eventu w nagłówku (extra), nie w `data`
     context.sendBroadcast(intent)
 }
 ```
@@ -64,6 +65,7 @@ class ScanReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val eventName = intent.getStringExtra("event")
         val data = intent.getStringExtra("data")
+        val source = intent.getStringExtra("source")   // pluginId nadawcy
     }
 }
 ```

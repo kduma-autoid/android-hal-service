@@ -14,7 +14,9 @@ import org.json.JSONObject
 internal class RgbLedHandler(private val api: TMSApi) {
 
     suspend fun handle(method: String, params: String): CommandResult {
-        val op = method.removePrefix("sunmi.tms.led.")
+        // Operation is the last dotted segment, so both the native "sunmi.tms.led.*" methods and the
+        // unified "light.*" interface methods resolve to the same handler branch.
+        val op = method.substringAfterLast('.')
         val json = if (params.isBlank() || params == "{}") JSONObject() else JSONObject(params)
         return when (op) {
             "on" -> {

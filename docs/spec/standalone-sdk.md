@@ -69,7 +69,7 @@ scanner.execute("sunmi.scanner.trigger", "{}")
 ### Ograniczenia trybu standalone
 
 - Brak inter-plugin communication (execute() rzuca UnsupportedOperationException)
-- Brak generic pluginów (wymagają PluginContext z pełnym PluginRegistry)
+- Brak warstwy interfejsów (routing `executeInterface` wymaga pełnego PluginRegistry)
 - Brak autoryzacji — aplikacja ma bezpośredni dostęp
 - Brak wildcard matching w onEvent (uproszczona implementacja)
 - Jedno urządzenie / jeden vendor na raz

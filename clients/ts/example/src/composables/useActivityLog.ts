@@ -1,5 +1,7 @@
 import { ref } from 'vue';
 import type { HalClient } from '@kduma-autoid/hal-client';
+import type { EventMeta } from '@kduma-autoid/hal-client-common';
+import { PROVIDER_SELECTOR } from '@kduma-autoid/hal-client-common';
 
 export type LogEntryType = 'method' | 'event';
 
@@ -13,6 +15,16 @@ export interface ActivityLogEntry {
   error?: string;
   duration?: number;
   data?: unknown;
+  /** Provider pluginId: the handler for a method call, or the emitter (source) of an event. */
+  provider?: string;
+}
+
+/** Splits the `@providerId` selector off a method name, so the log lists the bare method and shows
+ * the pinned provider as the handler header instead. */
+function splitProviderSelector(method: string): { name: string; pinned?: string } {
+  const at = method.indexOf(PROVIDER_SELECTOR);
+  if (at < 0) return { name: method };
+  return { name: method.substring(0, at), pinned: method.substring(at + 1) || undefined };
 }
 
 const MAX_ENTRIES = 100;
@@ -34,29 +46,36 @@ function clearLogs() {
 function startLogging(client: HalClient) {
   stopLogging();
 
-  // Monkey-patch execute
+  // Monkey-patch execute — observe the handling provider via the onMeta callback, and keep the
+  // `@providerId` selector out of the displayed method name (it becomes the handler header).
   const originalExecute = client.execute.bind(client);
   client.execute = async <T = unknown>(method: string, params?: unknown): Promise<T> => {
     const start = Date.now();
+    const { name, pinned } = splitProviderSelector(method);
+    let handler: string | undefined;
     try {
-      const result = await originalExecute<T>(method, params);
+      const result = await originalExecute<T>(method, params, {
+        onMeta: (meta) => { handler = meta.provider; },
+      });
       addLog({
         type: 'method',
         timestamp: start,
-        name: method,
+        name,
         params,
         result,
         duration: Date.now() - start,
+        provider: handler ?? pinned,
       });
       return result;
     } catch (e) {
       addLog({
         type: 'method',
         timestamp: start,
-        name: method,
+        name,
         params,
         error: e instanceof Error ? e.message : String(e),
         duration: Date.now() - start,
+        provider: pinned,
       });
       throw e;
     }
@@ -64,12 +83,13 @@ function startLogging(client: HalClient) {
 
   // Subscribe to all events via IEventSubscriber (auto subscribe/unsubscribe)
   let offEvents: (() => Promise<void>) | null = null;
-  client.on('*', (eventName: string, data: unknown) => {
+  client.on('*', (eventName: string, data: unknown, meta?: EventMeta) => {
     addLog({
       type: 'event',
       timestamp: Date.now(),
       name: eventName,
       data,
+      provider: meta?.source,
     });
   }).then(off => {
     offEvents = off;

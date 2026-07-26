@@ -24,7 +24,7 @@ Status usługi. Wymaga tokenu.
     "uptime": 3600,
     "plugins": {
       "sunmi.printer": {"version":1,"capabilities":["sunmi.printer"],"type":"built_in","connected":true},
-      "scanner": {"version":1,"capabilities":["scanner"],"type":"built_in","connected":true}
+      "sunmi.scanner.inner": {"version":1,"capabilities":["sunmi.scanner.inner"],"type":"built_in","connected":true}
     },
     "transports": {
       "aidl": {"running":true,"toggleable":false},
@@ -59,15 +59,17 @@ Wymaga tokenu. Klient widzi tylko metody/eventy do których ma uprawnienia.
         "events": []
       },
       {
-        "pluginId": "scanner",
+        "pluginId": "sunmi.scanner.inner",
         "version": 1,
-        "capabilities": ["scanner"],
+        "capabilities": ["sunmi.scanner.inner"],
+        "providesInterfaces": ["barcodeScanner"],
         "methods": [
-          {"name":"scanner.trigger","description":"Trigger scan","permission":"scanner"},
-          {"name":"scanner.stop","description":"Stop scanning","permission":"scanner"}
+          {"name":"sunmi.scanner.inner.trigger","description":"Trigger scan","permission":"sunmi.scanner.inner"},
+          {"name":"sunmi.scanner.inner.stop","description":"Stop scanning","permission":"sunmi.scanner.inner"}
         ],
         "events": [
-          {"name":"scanner.barcode","description":"Barcode scanned","permission":"scanner"}
+          {"name":"sunmi.scanner.inner.barcode","description":"Barcode scanned","permission":"sunmi.scanner.inner"},
+          {"name":"barcodeScanner.onScan","description":"Unified barcode scanner event","permission":"barcodeScanner"}
         ]
       }
     ]
@@ -75,6 +77,27 @@ Wymaga tokenu. Klient widzi tylko metody/eventy do których ma uprawnienia.
 ```
 
 HTTP: `GET /api/describe` (z Bearer)
+
+Obok `plugins`, `system.describe` zwraca `interfaces: [...]` (warstwa interfejsów — m.in. `printer`,
+`barcodeScanner`, `light`) oraz — dla każdego pluginu — `providesInterfaces` / `definesInterfaces`. Skaner
+`sunmi.scanner.inner` udostępnia interfejs `barcodeScanner` (metoda `barcodeScanner.trigger`, event `barcodeScanner.onScan`),
+a `sunmi.printerx.printer` — interfejs `printer`. Szczegóły: [`interfaces.md`](interfaces.md).
+
+## system.interface.setOrder / system.interface.setEnabled
+
+Konfiguracja kolejności i włączenia providerów interfejsu (persystowane; wymaga tokenu). Zmiana
+emituje event `system.interfaces.changed`.
+
+```
+→ execute("system.interface.setOrder",
+          "{\"interfaceId\":\"light\",\"order\":[\"sunmi.statuslight\",\"sunmi.tms.led\"]}")
+→ execute("system.interface.setEnabled",
+          "{\"interfaceId\":\"light\",\"pluginId\":\"sunmi.tms.led\",\"enabled\":false}")
+```
+
+Kolejność steruje też domyślnym providerem (pierwszy dostępny+włączony). Wybór providera w pojedynczym
+wywołaniu: sufiks `metoda@providerId`. Handler zwracany jest w nagłówku odpowiedzi (`provider`).
+Pełny opis: [`interfaces.md`](interfaces.md).
 
 ## Filtrowanie per uprawnienia
 

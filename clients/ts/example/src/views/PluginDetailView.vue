@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import type { PluginDescriptor } from '@kduma-autoid/hal-client-common';
+import type { PluginDescriptor, InterfaceDescriptor, EventMeta } from '@kduma-autoid/hal-client-common';
 import { allEvents } from '@kduma-autoid/hal-client-common';
 import { useHalClient } from '../composables/useHalClient';
 import { useToast } from '../composables/useToast';
@@ -12,12 +12,14 @@ const { client, isConnected } = useHalClient();
 const toast = useToast();
 
 const plugin = ref<PluginDescriptor | null>(null);
+const interfaces = ref<InterfaceDescriptor[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
 
 interface ReceivedEvent {
   timestamp: number;
   data: unknown;
+  source?: string;
 }
 
 const receivedEvents = reactive<Record<string, ReceivedEvent[]>>({});
@@ -41,24 +43,28 @@ async function subscribeToEvents() {
 
   if (!client.value || !plugin.value) return;
 
-  const events = allEvents(plugin.value);
+  // Native events plus the events of any interface this plugin provides.
+  const eventNames = new Set<string>(allEvents(plugin.value).map((e) => e.name));
+  for (const id of plugin.value.providesInterfaces ?? []) {
+    interfaces.value.find((i) => i.interfaceId === id)?.events.forEach((e) => eventNames.add(e.name));
+  }
+
   const promises: Promise<void>[] = [];
-
-  for (const event of events) {
-    if (!receivedEvents[event.name]) {
-      receivedEvents[event.name] = [];
-    }
-
+  for (const name of eventNames) {
+    if (!receivedEvents[name]) receivedEvents[name] = [];
     promises.push(
-      client.value.on(event.name, (_name: string, data: unknown) => {
-        if (isUnmounted) return;
-        receivedEvents[event.name].push({ timestamp: Date.now(), data });
-        toast.info(`Event: ${event.name}`);
-      }).then(off => {
-        unsubscribers.push(off);
-      }).catch(() => {
-        // event transport may not be available (HTTP mode)
-      })
+      client.value
+        .on(name, (_n: string, data: unknown, meta?: EventMeta) => {
+          if (isUnmounted) return;
+          receivedEvents[name].push({ timestamp: Date.now(), data, source: meta?.source });
+          toast.info(`Event: ${name}`);
+        })
+        .then((off) => {
+          unsubscribers.push(off);
+        })
+        .catch(() => {
+          // event transport may not be available (HTTP mode)
+        }),
     );
   }
 
@@ -86,6 +92,7 @@ async function fetchPlugin() {
     const found = result.plugins.find(p => p.pluginId === pluginId.value);
     if (found) {
       plugin.value = found;
+      interfaces.value = result.interfaces ?? [];
       await subscribeToEvents();
     } else {
       error.value = `Plugin not found: ${pluginId.value}`;
@@ -137,7 +144,7 @@ watch(pluginId, () => {
 
       <div v-if="loading && !plugin" class="loading">Loading plugin details...</div>
 
-      <PluginCard v-if="plugin" :plugin="plugin" :received-events="receivedEvents" />
+      <PluginCard v-if="plugin" :plugin="plugin" :interfaces="interfaces" :received-events="receivedEvents" />
     </template>
   </div>
 </template>

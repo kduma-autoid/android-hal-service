@@ -55,10 +55,13 @@ object WsProtocol {
         }
     }
 
-    fun serializeResponse(id: String, result: String): String {
+    fun serializeResponse(id: String, result: String, provider: String? = null): String {
         return buildJsonObject {
             put("id", id)
             put("type", "response")
+            // Provider that handled the call (interface methods), in the frame header — sibling of
+            // `result`, not inside it. Absent for native/system methods.
+            provider?.let { put("provider", it) }
             put("result", json.parseToJsonElement(result))
         }.toString()
     }
@@ -74,16 +77,18 @@ object WsProtocol {
         }.toString()
     }
 
-    fun serializeEvent(eventName: String, jsonData: String): String {
+    fun serializeEvent(eventName: String, jsonData: String, source: String): String {
         return buildJsonObject {
             put("type", "event")
             put("event", eventName)
+            // Emitting plugin id, exposed in the frame header (sibling of `data`, not inside it).
+            put("source", source)
             put("data", json.parseToJsonElement(jsonData))
         }.toString()
     }
 
-    fun matchesAnySubscription(subscriptions: Set<String>, eventName: String): Boolean {
-        return subscriptions.any { EventBus.matchesPattern(it, eventName) }
+    fun matchesAnySubscription(subscriptions: Set<String>, eventName: String, source: String): Boolean {
+        return subscriptions.any { EventBus.matchesSubscription(it, eventName, source) }
     }
 
     data class SubscriptionValidation(
@@ -100,10 +105,13 @@ object WsProtocol {
         val denied = mutableListOf<String>()
 
         for (event in events) {
-            val eventCapability = if (event.endsWith(".*")) {
-                event.dropLast(2)
+            // Permission is derived from the event-name half; the optional `@source` filter doesn't
+            // widen access.
+            val name = event.substringBefore('@')
+            val eventCapability = if (name.endsWith(".*")) {
+                name.dropLast(2)
             } else {
-                event.substringBeforeLast(".")
+                name.substringBeforeLast(".")
             }
             if (permissions.any { eventCapability.startsWith(it) }) {
                 allowed.add(event)

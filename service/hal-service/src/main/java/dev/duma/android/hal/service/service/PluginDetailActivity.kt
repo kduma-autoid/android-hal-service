@@ -259,6 +259,59 @@ class PluginDetailActivity : AppCompatActivity() {
             }
         }
 
+        // Interfaces — descriptor-only parity with the web plugin detail page. Provided interfaces
+        // (bindings) pull their method/event surface from the registered contract; defined interfaces
+        // carry the contract inline. Execution + reorder/enable live in the dedicated Interfaces tab.
+        val providedBindings = desc.interfaces
+        val definedContracts = desc.definesInterfaces
+        if (providedBindings.isNotEmpty() || definedContracts.isNotEmpty()) {
+            layout.addView(sectionHeader("Interfaces"))
+        }
+
+        for (binding in providedBindings) {
+            val contract = pluginReg.getInterfaceContract(binding.interfaceId)
+            layout.addView(interfaceHeader(binding.interfaceId, "provided", contract?.version))
+            if (binding.features.isNotEmpty()) {
+                layout.addView(infoRow("Advertised features", binding.features.joinToString(", ")))
+            }
+            if (contract == null) {
+                layout.addView(emptyText("Interface not registered"))
+                continue
+            }
+            if (contract.methods.isEmpty() && contract.events.isEmpty()) {
+                layout.addView(emptyText("No methods or events"))
+            }
+            for (method in contract.methods) {
+                val gatingFeature = contract.features.firstOrNull { method.name in it.methods }?.key
+                val supported = gatingFeature == null || gatingFeature in binding.features
+                // Skip methods this provider doesn't support — the full contract (incl. optional
+                // methods) is still visible on the interface's own page and on the definer.
+                if (!supported) continue
+                layout.addView(buildMethodBlock(method, isExperimental = false))
+            }
+            for (event in contract.events) {
+                layout.addView(buildEventBlock(event))
+            }
+        }
+
+        for (contract in definedContracts) {
+            layout.addView(interfaceHeader(contract.interfaceId, "defined", contract.version))
+            if (contract.features.isNotEmpty()) {
+                layout.addView(infoRow("Features", contract.features.joinToString(", ") { it.key }))
+            }
+            if (contract.methods.isEmpty() && contract.events.isEmpty()) {
+                layout.addView(emptyText("No methods or events"))
+            }
+            for (method in contract.methods) {
+                val gatingFeature = contract.features.firstOrNull { method.name in it.methods }?.key
+                // On the definer there is no single provider: list every method, annotating optional (gated) ones.
+                layout.addView(buildInterfaceMethodBlock(method, gatingFeature))
+            }
+            for (event in contract.events) {
+                layout.addView(buildEventBlock(event))
+            }
+        }
+
         setContentWithToolbar(toolbar, ScrollView(this).apply { addView(layout) })
     }
 
@@ -358,6 +411,34 @@ class PluginDetailActivity : AppCompatActivity() {
                 addView(codeBlock("Example", example))
             }
         }
+    }
+
+    private fun interfaceHeader(interfaceId: String, mode: String, version: Int?): TextView = TextView(this).apply {
+        text = "⬡ $interfaceId  ($mode${if (version != null) " · v$version" else ""})"
+        textSize = 15f
+        setTypeface(null, Typeface.BOLD)
+        setPadding(0, 20, 0, 4)
+        setTextColor(Color.parseColor("#5B21B6"))
+    }
+
+    /** An interface method block annotated with its gating feature — used on the definer view, which
+     * lists every method (including optional/gated ones). */
+    private fun buildInterfaceMethodBlock(
+        method: dev.duma.android.hal.contract.MethodDescriptor,
+        gatingFeature: String?
+    ): LinearLayout {
+        val block = buildMethodBlock(method, isExperimental = false)
+        if (gatingFeature != null) {
+            block.addView(TextView(this).apply {
+                text = "needs feature: $gatingFeature"
+                textSize = 11f
+                setTypeface(null, Typeface.BOLD)
+                setTextColor(Color.parseColor("#065F46"))
+                setBackgroundColor(Color.parseColor("#ECFDF5"))
+                setPadding(12, 4, 12, 4)
+            })
+        }
+        return block
     }
 
     private fun sectionHeader(title: String): TextView = TextView(this).apply {

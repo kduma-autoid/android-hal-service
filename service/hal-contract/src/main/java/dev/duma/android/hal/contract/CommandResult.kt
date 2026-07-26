@@ -4,10 +4,16 @@ import android.os.Parcel
 import android.os.Parcelable
 
 sealed class CommandResult : Parcelable {
-    data class Success(val body: String? = null) : CommandResult() {
+    /**
+     * @property provider For interface-method calls, the plugin id of the provider that actually
+     *   handled the call (the resolved default, or the one pinned via `method@providerId`).
+     *   Delivered in the response header, not merged into [body]. Null for native/system methods.
+     */
+    data class Success(val body: String? = null, val provider: String? = null) : CommandResult() {
         override fun writeToParcel(parcel: Parcel, flags: Int) {
             parcel.writeInt(0) // type tag
             parcel.writeString(body)
+            parcel.writeString(provider)
         }
 
         override fun describeContents(): Int = 0
@@ -43,7 +49,7 @@ sealed class CommandResult : Parcelable {
         val CREATOR: Parcelable.Creator<CommandResult> = object : Parcelable.Creator<CommandResult> {
             override fun createFromParcel(parcel: Parcel): CommandResult {
                 return when (parcel.readInt()) {
-                    0 -> Success(parcel.readString())
+                    0 -> Success(parcel.readString(), parcel.readString())
                     1 -> {
                         val code = parcel.readString() ?: ""
                         val message = parcel.readString() ?: ""

@@ -117,10 +117,14 @@ class HttpTransport : CommandTransport {
 
     private suspend fun respondWithResult(call: ApplicationCall, result: CommandResult) {
         when (result) {
-            is CommandResult.Success -> call.respondText(
-                result.body ?: "{}",
-                ContentType.Application.Json
-            )
+            is CommandResult.Success -> {
+                // Handling provider (interface methods) goes in a response header, not the body.
+                result.provider?.let { call.response.headers.append("X-Hal-Provider", it) }
+                call.respondText(
+                    result.body ?: "{}",
+                    ContentType.Application.Json
+                )
+            }
             is CommandResult.Failure -> call.respondText(
                 """{"error":"${result.code}","message":"${result.message}"}""",
                 ContentType.Application.Json,

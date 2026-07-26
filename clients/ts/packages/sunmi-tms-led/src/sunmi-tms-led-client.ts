@@ -1,6 +1,5 @@
 import type {
   IHalClient,
-  ILight,
   LightCapabilities,
   LightColor,
   LightOptions,
@@ -12,13 +11,16 @@ export const PLUGIN_ID = 'sunmi.tms.led';
  * Client for the CPad built-in RGB LED indicator (Sunmi TMS `sunmi.tms.led`).
  * Available on CPad running Android 14 with the Sunmi Customer API service.
  *
- * Implements the unified {@link ILight} surface. Supports the `timeoutMs` option
- * (native auto-release); does not support `multiFlash`.
+ * Plugin-specific: calls `sunmi.tms.led.*` directly and deliberately does NOT implement the
+ * unified light surface — for backend-transparent light control use `SunmiLightClient`
+ * (`@kduma-autoid/hal-client-plugin-sunmi-light-facade`), which routes `light.*` through the
+ * registered `light` interface and resolves a provider. Supports the `timeoutMs` option (native
+ * auto-release); has no `multiFlash` at all — the CPad LED cannot cycle through colors.
  *
  * Availability (whether the CPad actually has an RGB LED) is reflected by whether the
  * `sunmi.tms.led` capability is advertised in `system.status`, not by a client call.
  */
-export class SunmiTmsLedClient implements ILight {
+export class SunmiTmsLedClient {
   readonly capabilities: LightCapabilities = { multiFlash: false, timeout: true };
 
   private readonly client: IHalClient;

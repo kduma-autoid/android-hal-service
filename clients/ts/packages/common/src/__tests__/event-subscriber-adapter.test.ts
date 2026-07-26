@@ -10,6 +10,7 @@ function createMockTransport(): IEventTransport {
     off: vi.fn(),
     dispose: vi.fn(),
     setToken: vi.fn(),
+    getToken: vi.fn().mockReturnValue(null),
   };
 }
 

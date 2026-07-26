@@ -123,7 +123,7 @@ class AidlTransport : CommandTransport, EventTransport {
         handler = null
     }
 
-    override fun pushEvent(eventName: String, jsonData: String) {
+    override fun pushEvent(eventName: String, jsonData: String, source: String) {
         val count = callbackList.beginBroadcast()
         try {
             for (i in 0 until count) {
@@ -131,8 +131,8 @@ class AidlTransport : CommandTransport, EventTransport {
                     val callback = callbackList.getBroadcastItem(i)
                     val uid = callbackUids[callback.asBinder()] ?: continue
                     val subs = sessionSubscriptions[uid] ?: continue
-                    if (subs.any { EventBus.matchesPattern(it, eventName) }) {
-                        callback.onEvent(eventName, jsonData)
+                    if (subs.any { EventBus.matchesSubscription(it, eventName, source) }) {
+                        callback.onEvent(eventName, jsonData, source)
                     }
                 } catch (_: Exception) { }
             }

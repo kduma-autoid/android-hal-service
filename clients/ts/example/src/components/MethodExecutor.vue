@@ -1,9 +1,14 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import type { MethodDescriptor } from '@kduma-autoid/hal-client-common';
+import { methodForProvider } from '@kduma-autoid/hal-client-common';
 import { useHalClient } from '../composables/useHalClient';
 
-const props = defineProps<{ method: MethodDescriptor }>();
+const props = defineProps<{
+  method: MethodDescriptor;
+  /** Interface provider to pin for this call, appended to the method name as `method@providerId`. */
+  providerId?: string;
+}>();
 const { client } = useHalClient();
 
 function prettyJson(raw: string): string {
@@ -28,7 +33,10 @@ async function execute() {
   responseError.value = false;
   try {
     const parsed = params.value.trim() ? JSON.parse(params.value) : undefined;
-    const result = await client.value.execute(props.method.name, parsed);
+    const result = await client.value.execute(
+      methodForProvider(props.method.name, props.providerId),
+      parsed,
+    );
     response.value = JSON.stringify(result, null, 2);
     responseError.value = false;
   } catch (e) {

@@ -23,7 +23,7 @@ interface EventTransport {
     val isRunning: Boolean
     val isToggleable: Boolean      // true dla broadcast, intent
     var isEnabled: Boolean         // Runtime toggle w Dashboard
-    fun pushEvent(eventName: String, jsonData: String)
+    fun pushEvent(eventName: String, jsonData: String, source: String)  // source = pluginId nadawcy (nagłówek)
 }
 ```
 
@@ -73,8 +73,8 @@ class TransportRegistry {
     fun stopAll()
     fun getCommandTransports(): List<CommandTransport>
     fun getEventTransports(): List<EventTransport>
-    fun pushEvent(eventName: String, jsonData: String)
-    // → iteruje enabled EventTransports, wywołuje pushEvent na każdym
+    fun pushEvent(eventName: String, jsonData: String, source: String)
+    // → iteruje enabled EventTransports, wywołuje pushEvent na każdym (source = pluginId nadawcy)
 }
 ```
 

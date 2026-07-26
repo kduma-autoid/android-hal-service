@@ -4,6 +4,7 @@ import type {
   ILogger,
   TokenRequest,
   TokenResult,
+  ExecuteOptions,
 } from '@kduma-autoid/hal-client-common';
 import {
   HalError,
@@ -82,7 +83,7 @@ export class HttpCommandTransport implements ICommandTransport, IAuthTransport {
     return tokenResult;
   }
 
-  async execute<T = unknown>(method: string, params?: unknown): Promise<T> {
+  async execute<T = unknown>(method: string, params?: unknown, options?: ExecuteOptions): Promise<T> {
     if (this.token === null) {
       throw new HalError('unauthorized', 'No token set. Call requestToken() or setToken() first.');
     }
@@ -103,6 +104,10 @@ export class HttpCommandTransport implements ICommandTransport, IAuthTransport {
     }
 
     this.logger?.debug('Method executed successfully', { method });
+
+    // Handling provider (interface methods) arrives in the X-Hal-Provider response header.
+    const provider = response.headers['x-hal-provider'];
+    options?.onMeta?.(provider ? { provider } : {});
 
     return result as T;
   }

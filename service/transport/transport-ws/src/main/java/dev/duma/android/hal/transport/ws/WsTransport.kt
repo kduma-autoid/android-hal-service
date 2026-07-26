@@ -72,11 +72,11 @@ class WsTransport : CommandTransport, EventTransport {
         running = false
     }
 
-    override fun pushEvent(eventName: String, jsonData: String) {
-        val eventJson = WsProtocol.serializeEvent(eventName, jsonData)
+    override fun pushEvent(eventName: String, jsonData: String, source: String) {
+        val eventJson = WsProtocol.serializeEvent(eventName, jsonData, source)
         for ((_, session) in sessions) {
             if (session.token != null &&
-                WsProtocol.matchesAnySubscription(session.subscribedEvents, eventName)
+                WsProtocol.matchesAnySubscription(session.subscribedEvents, eventName, source)
             ) {
                 try {
                     session.wsSession.outgoing.trySend(Frame.Text(eventJson))
@@ -169,7 +169,7 @@ class WsTransport : CommandTransport, EventTransport {
     }
 
     private fun serializeCommandResult(id: String, result: CommandResult): String = when (result) {
-        is CommandResult.Success -> WsProtocol.serializeResponse(id, result.body ?: "{}")
+        is CommandResult.Success -> WsProtocol.serializeResponse(id, result.body ?: "{}", result.provider)
         is CommandResult.Failure -> WsProtocol.serializeError(id, result.code, result.message)
     }
 }

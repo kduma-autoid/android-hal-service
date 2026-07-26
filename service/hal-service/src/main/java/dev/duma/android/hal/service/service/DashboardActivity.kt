@@ -71,7 +71,7 @@ class DashboardActivity : AppCompatActivity() {
     private lateinit var contentFrame: FrameLayout
     private var currentSection = 0
 
-    private val sectionTitles = arrayOf("Dashboard", "Transports", "Broadcasts", "Plugins", "Tokens", "Security")
+    private val sectionTitles = arrayOf("Dashboard", "Transports", "Broadcasts", "Plugins", "Interfaces", "Tokens", "Security")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -211,8 +211,9 @@ class DashboardActivity : AppCompatActivity() {
             1 -> contentFrame.addView(buildTransportsTab())
             2 -> contentFrame.addView(buildBroadcastsTab())
             3 -> contentFrame.addView(buildPluginsTab())
-            4 -> contentFrame.addView(buildTokensTab())
-            5 -> contentFrame.addView(buildSecurityTab())
+            4 -> contentFrame.addView(buildInterfacesTab())
+            5 -> contentFrame.addView(buildTokensTab())
+            6 -> contentFrame.addView(buildSecurityTab())
         }
     }
 
@@ -656,6 +657,78 @@ class DashboardActivity : AppCompatActivity() {
                         }
                         else -> setTextColor(Color.DKGRAY)
                     }
+                })
+            }
+        }
+    }
+
+    // ==================== Tab 5: Interfaces ====================
+
+    private fun buildInterfacesTab(): View {
+        val layout = tabContent()
+
+        val pluginReg = HalService.pluginRegistry
+        if (pluginReg == null) {
+            layout.addView(notRunningText())
+            return wrapInScrollView(layout)
+        }
+
+        val interfaces = pluginReg.getRegisteredInterfaces().sortedBy { it.interfaceId }
+        if (interfaces.isEmpty()) {
+            layout.addView(TextView(this).apply {
+                text = "No interfaces registered"
+                textSize = 13f
+                setTextColor(Color.GRAY)
+            })
+        } else {
+            for (contract in interfaces) {
+                layout.addView(buildInterfaceBlock(contract, pluginReg))
+                layout.addView(divider())
+            }
+        }
+
+        return wrapInScrollView(layout)
+    }
+
+    private fun buildInterfaceBlock(contract: dev.duma.android.hal.contract.InterfaceContract, pluginReg: PluginRegistry): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, 8, 0, 8)
+            isClickable = true
+            isFocusable = true
+            setBackgroundResource(android.R.attr.selectableItemBackground.let { attr ->
+                val ta = obtainStyledAttributes(intArrayOf(attr))
+                val resId = ta.getResourceId(0, 0)
+                ta.recycle()
+                resId
+            })
+            setOnClickListener {
+                startActivity(Intent(this@DashboardActivity, InterfaceDetailActivity::class.java).apply {
+                    putExtra(InterfaceDetailActivity.EXTRA_INTERFACE_ID, contract.interfaceId)
+                })
+            }
+
+            addView(TextView(this@DashboardActivity).apply {
+                text = contract.interfaceId
+                textSize = 15f
+                setTypeface(null, Typeface.BOLD)
+            })
+            addView(TextView(this@DashboardActivity).apply {
+                text = "Version: ${contract.version}"
+                textSize = 13f
+            })
+            val available = pluginReg.getInterfaceProviders(contract.interfaceId).size
+            val total = pluginReg.getAllInterfaceImplementors(contract.interfaceId).size
+            addView(TextView(this@DashboardActivity).apply {
+                text = "${contract.methods.size} methods · $available/$total providers available"
+                textSize = 13f
+                setTextColor(Color.DKGRAY)
+            })
+            if (contract.features.isNotEmpty()) {
+                addView(TextView(this@DashboardActivity).apply {
+                    text = "Features: ${contract.features.joinToString(", ") { it.key }}"
+                    textSize = 13f
+                    setTextColor(Color.GRAY)
                 })
             }
         }

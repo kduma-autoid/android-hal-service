@@ -12,10 +12,16 @@ import dev.duma.android.hal.contract.EventBus
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.IHardwarePlugin
+import dev.duma.android.hal.contract.InterfaceBinding
+import dev.duma.android.hal.contract.InterfaceContract
+import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginDescriptor
 import dev.duma.android.hal.contract.allEvents
 import dev.duma.android.hal.contract.allMethods
+import dev.duma.android.hal.service.config.ExperimentalConfig
+import dev.duma.android.hal.service.config.InterfacePreferenceConfig
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArraySet
 
 /**
  * Registry of all hardware plugins (built-in and external). Manages plugin lifecycle:
@@ -32,6 +38,7 @@ class PluginRegistry {
         private const val TAG = "PluginRegistry"
         private const val ACTION_HARDWARE_PLUGIN = "dev.duma.android.hal.HARDWARE_PLUGIN"
         const val EVENT_PLUGINS_CHANGED = "system.plugins.changed"
+        const val EVENT_INTERFACES_CHANGED = "system.interfaces.changed"
     }
 
     enum class PluginSource { BUILT_IN, EXTERNAL }
@@ -39,6 +46,21 @@ class PluginRegistry {
     data class PluginInfo(
         val source: PluginSource,
         val packageName: String? = null
+    )
+
+    /** A provider of an interface, as surfaced to callers/clients (see [getInterfaceProviders]). */
+    data class ProviderRef(
+        val pluginId: String,
+        val source: PluginSource?,
+        val version: Int,
+        val priority: Int,
+        val features: List<String>,
+        val isDefault: Boolean,
+        val available: Boolean,
+        val supported: Boolean = true,
+        val enabled: Boolean = true,
+        /** The provider *plugin* is experimental — gated by settings or the caller's token. */
+        val experimental: Boolean = false
     )
 
     private val plugins = ConcurrentHashMap<String, HalPlugin>()
@@ -49,6 +71,18 @@ class PluginRegistry {
     // capabilities are not routable/advertised (e.g. hardware currently absent).
     private val available = ConcurrentHashMap<String, Boolean>()
 
+    // Interface layer (see InterfaceContract / InterfaceBinding). All keyed by interfaceId / pluginId.
+    private val registeredInterfaces = ConcurrentHashMap<String, InterfaceContract>()
+    private val interfaceProviders = ConcurrentHashMap<String, CopyOnWriteArraySet<String>>()
+    private val interfaceBindings = ConcurrentHashMap<String, List<InterfaceBinding>>()
+    private val interfaceDefinitionsByPlugin = ConcurrentHashMap<String, List<String>>()
+
+    /** User ordering / enable-disable preferences per interface. Null until wired by the service. */
+    var interfacePreferenceConfig: InterfacePreferenceConfig? = null
+
+    /** User's experimental opt-ins; consulted when an experimental plugin provides an interface. */
+    var experimentalConfig: ExperimentalConfig? = null
+
     private val pluginInfo = ConcurrentHashMap<String, PluginInfo>()
     private val displacedPlugins = ConcurrentHashMap<String, Pair<HalPlugin, PluginInfo>>()
     private var pendingInit: Pair<Context, EventBus>? = null
@@ -56,11 +90,18 @@ class PluginRegistry {
     fun getPluginInfo(pluginId: String): PluginInfo? = pluginInfo[pluginId]
 
     /**
-     * A plugin that declares no methods and no events has nothing to offer. That is what a `stable`
+     * A plugin that offers nothing at all has no reason to be registered. That is what a `stable`
      * build leaves behind for a plugin which is experimental as a whole: `stripExperimental()` empties
      * its descriptor, but the class itself is still on the classpath and still registers. Listing it
      * shows a plugin with an empty API in the Dashboard and in describe, so treat it as absent from
      * this build instead.
+     *
+     * Interface work does not go through `groups`, so it must be checked separately: a definer's
+     * entire contribution is [PluginDescriptor.definesInterfaces], and a provider implements the
+     * contract's methods without redeclaring their descriptors, leaving only
+     * [PluginDescriptor.interfaces]. Both legitimately have empty groups — judging them by
+     * methods/events alone would unregister every definer and every pure provider, which silently
+     * takes the whole interface layer down.
      */
     private fun hasEmptyApi(plugin: HalPlugin): Boolean {
         val descriptor = try {
@@ -69,6 +110,7 @@ class PluginRegistry {
             Log.w(TAG, "getDescriptor() failed for ${plugin.pluginId}: ${e.message}")
             return false
         }
+        if (descriptor.definesInterfaces.isNotEmpty() || descriptor.interfaces.isNotEmpty()) return false
         return descriptor.allMethods.isEmpty() && descriptor.allEvents.isEmpty()
     }
 
@@ -113,6 +155,7 @@ class PluginRegistry {
                 safeDispose(existing)
             }
             existing.getCapabilities().forEach { capabilityToPlugin.remove(it, existing) }
+            unindexInterfaces(existing.pluginId)
             Log.i(TAG, "Plugin $id: replacing v${existing.version} (${existingInfo.source}) with v${plugin.version} (${info.source})")
         }
 
@@ -120,7 +163,31 @@ class PluginRegistry {
         pluginInfo[id] = info
         available[id] = true
         plugin.getCapabilities().forEach { capabilityToPlugin[it] = plugin }
+        indexInterfaces(plugin)
         return true
+    }
+
+    /** Indexes a plugin's defined interfaces (definer) and provided interfaces (bindings). */
+    private fun indexInterfaces(plugin: HalPlugin) {
+        val descriptor = plugin.getDescriptor()
+        if (descriptor.definesInterfaces.isNotEmpty()) {
+            descriptor.definesInterfaces.forEach { registeredInterfaces[it.interfaceId] = it }
+            interfaceDefinitionsByPlugin[plugin.pluginId] = descriptor.definesInterfaces.map { it.interfaceId }
+        }
+        if (descriptor.interfaces.isNotEmpty()) {
+            interfaceBindings[plugin.pluginId] = descriptor.interfaces
+            descriptor.interfaces.forEach { binding ->
+                interfaceProviders.getOrPut(binding.interfaceId) { CopyOnWriteArraySet() }.add(plugin.pluginId)
+            }
+        }
+    }
+
+    /** Removes a plugin's interface registrations/bindings. Uses stored state (no getDescriptor call). */
+    private fun unindexInterfaces(pluginId: String) {
+        interfaceDefinitionsByPlugin.remove(pluginId)?.forEach { registeredInterfaces.remove(it) }
+        interfaceBindings.remove(pluginId)?.forEach { binding ->
+            interfaceProviders[binding.interfaceId]?.remove(pluginId)
+        }
     }
 
     /**
@@ -190,6 +257,7 @@ class PluginRegistry {
                     available.remove(pluginId)
                     if (removed != null) {
                         removed.getCapabilities().forEach { capabilityToPlugin.remove(it, removed) }
+                        unindexInterfaces(pluginId)
                         safeDispose(removed)
                     }
 
@@ -200,6 +268,7 @@ class PluginRegistry {
                         pluginInfo[pluginId] = builtInInfo
                         available[pluginId] = true
                         builtInPlugin.getCapabilities().forEach { capabilityToPlugin[it] = builtInPlugin }
+                        indexInterfaces(builtInPlugin)
                         // Re-initialize so the restored built-in re-acquires resources released on displacement.
                         pendingInit?.let { (appContext, eventBus) ->
                             initializePlugin(builtInPlugin, eventBus, appContext)
@@ -268,9 +337,219 @@ class PluginRegistry {
         return plugin.execute(method, params)
     }
 
-    fun getMethodDescriptor(method: String): dev.duma.android.hal.contract.MethodDescriptor? {
+    fun getMethodDescriptor(method: String): MethodDescriptor? {
+        // Interface methods are owned by the registered contract, not by any provider descriptor.
+        for (contract in registeredInterfaces.values) {
+            contract.methods.find { it.name == method }?.let { return it }
+        }
         val plugin = findForMethod(method) ?: return null
         return plugin.getDescriptor().allMethods.find { it.name == method }
+    }
+
+    // ---- Interface layer ---------------------------------------------------------------------
+
+    /** All currently registered interface contracts. */
+    fun getRegisteredInterfaces(): List<InterfaceContract> = registeredInterfaces.values.toList()
+
+    /** The plugin that registered [interfaceId] — the settings key gating an experimental interface. */
+    fun definerForInterface(interfaceId: String): String? =
+        interfaceDefinitionsByPlugin.entries.firstOrNull { interfaceId in it.value }?.key
+
+    /** Whether [pluginId]'s own descriptor marks it experimental. */
+    private fun isPluginExperimental(pluginId: String): Boolean {
+        val plugin = plugins[pluginId] ?: return false
+        return try { plugin.getDescriptor().experimental } catch (_: Exception) { false }
+    }
+
+    /**
+     * Whether an experimental provider is usable by this caller: either the user enabled the plugin
+     * in settings, or the caller holds experimental access. A provider failing this gate is not part
+     * of the interface for that caller — not the default, not routable, not listed.
+     */
+    private fun passesExperimentalGate(pluginId: String, callerHasExperimental: Boolean): Boolean =
+        !isPluginExperimental(pluginId) ||
+            callerHasExperimental ||
+            experimentalConfig?.isPluginEnabled(pluginId) == true
+
+    /** The registered contract for [interfaceId], or null if no plugin defines it. */
+    fun getInterfaceContract(interfaceId: String): InterfaceContract? = registeredInterfaces[interfaceId]
+
+    /**
+     * The registered interface a method belongs to, or null. A method is an interface method only
+     * when its interface is registered — so an unregistered interface's methods are never routed
+     * here even if a provider is present.
+     */
+    fun interfaceIdForMethod(method: String): String? {
+        for ((id, contract) in registeredInterfaces) {
+            if (contract.methods.any { it.name == method }) return id
+        }
+        return null
+    }
+
+    /**
+     * Providers of [interfaceId], available ones only, preferred first (priority desc, then external
+     * over built-in, then version desc). The first is marked [ProviderRef.isDefault].
+     *
+     * Experimental provider plugins are omitted unless the user enabled them in settings or
+     * [callerHasExperimental] is set, so an experimental backend never becomes the silent default.
+     * The default is conservative: callers serving a token pass the caller's access explicitly.
+     */
+    fun getInterfaceProviders(interfaceId: String, callerHasExperimental: Boolean = false): List<ProviderRef> {
+        val ids = interfaceProviders[interfaceId] ?: return emptyList()
+        val config = interfacePreferenceConfig
+        val order = config?.getOrder(interfaceId) ?: emptyList()
+        val refs = ids.mapNotNull { id ->
+            if (!plugins.containsKey(id) || !isAvailable(id)) return@mapNotNull null
+            if (config?.isEnabled(interfaceId, id) == false) return@mapNotNull null
+            if (!passesExperimentalGate(id, callerHasExperimental)) return@mapNotNull null
+            val binding = interfaceBindings[id]?.firstOrNull { it.interfaceId == interfaceId } ?: return@mapNotNull null
+            val plugin = plugins[id] ?: return@mapNotNull null
+            ProviderRef(
+                pluginId = id,
+                source = pluginInfo[id]?.source,
+                version = plugin.version,
+                priority = binding.priority,
+                features = binding.features,
+                isDefault = false,
+                available = true,
+                experimental = isPluginExperimental(id)
+            )
+        }.sortedWith(providerComparator(order))
+        return refs.mapIndexed { index, ref -> ref.copy(isDefault = index == 0) }
+    }
+
+    /**
+     * ALL implementors of [interfaceId] for the Dashboard — including dynamically unavailable ones
+     * and unsupported ones (which are not in the interface index, so they are scanned from
+     * [unsupportedPlugins] descriptors). Sorted in effective order; [ProviderRef.isDefault] marks the
+     * one routing would pick (first available + enabled). Carries `available`/`supported`/`enabled` flags.
+     */
+    fun getAllInterfaceImplementors(interfaceId: String): List<ProviderRef> {
+        val config = interfacePreferenceConfig
+        val order = config?.getOrder(interfaceId) ?: emptyList()
+        val result = LinkedHashMap<String, ProviderRef>()
+        interfaceProviders[interfaceId]?.forEach { id ->
+            val plugin = plugins[id] ?: return@forEach
+            val binding = interfaceBindings[id]?.firstOrNull { it.interfaceId == interfaceId } ?: return@forEach
+            result[id] = ProviderRef(
+                pluginId = id,
+                source = pluginInfo[id]?.source,
+                version = plugin.version,
+                priority = binding.priority,
+                features = binding.features,
+                isDefault = false,
+                available = isAvailable(id),
+                supported = true,
+                enabled = config?.isEnabled(interfaceId, id) != false,
+                experimental = isPluginExperimental(id)
+            )
+        }
+        // Unsupported plugins are never indexed — scan their descriptors for a binding.
+        unsupportedPlugins.values.forEach { plugin ->
+            if (result.containsKey(plugin.pluginId)) return@forEach
+            val binding = try {
+                plugin.getDescriptor().interfaces.firstOrNull { it.interfaceId == interfaceId }
+            } catch (_: Exception) {
+                null
+            } ?: return@forEach
+            result[plugin.pluginId] = ProviderRef(
+                pluginId = plugin.pluginId,
+                source = pluginInfo[plugin.pluginId]?.source,
+                version = plugin.version,
+                priority = binding.priority,
+                features = binding.features,
+                isDefault = false,
+                available = false,
+                supported = false,
+                enabled = config?.isEnabled(interfaceId, plugin.pluginId) != false,
+                experimental = try { plugin.getDescriptor().experimental } catch (_: Exception) { false }
+            )
+        }
+        val sorted = result.values.sortedWith(providerComparator(order))
+        val defaultId = sorted.firstOrNull { it.available && it.enabled }?.pluginId
+        return sorted.map { it.copy(isDefault = it.pluginId == defaultId) }
+    }
+
+    /** User order first (by index), then priority desc, external over built-in, version desc. */
+    private fun providerComparator(order: List<String>): Comparator<ProviderRef> {
+        fun rank(id: String): Int = order.indexOf(id).let { if (it >= 0) it else Int.MAX_VALUE }
+        return compareBy<ProviderRef> { rank(it.pluginId) }
+            .thenByDescending { it.priority }
+            .thenByDescending { it.source == PluginSource.EXTERNAL }
+            .thenByDescending { it.version }
+    }
+
+    /** Sets the user provider order for an interface and notifies clients. */
+    fun setInterfaceOrder(interfaceId: String, order: List<String>) {
+        interfacePreferenceConfig?.setOrder(interfaceId, order)
+        emitInterfacesChanged(interfaceId)
+    }
+
+    /** Enables/disables a provider for an interface and notifies clients. */
+    fun setInterfaceEnabled(interfaceId: String, pluginId: String, enabled: Boolean) {
+        interfacePreferenceConfig?.setEnabled(interfaceId, pluginId, enabled)
+        emitInterfacesChanged(interfaceId)
+    }
+
+    private fun emitInterfacesChanged(interfaceId: String) {
+        pendingInit?.second?.emit(
+            EVENT_INTERFACES_CHANGED,
+            """{"interfaceId":"$interfaceId"}""",
+            sourcePluginId = "system"
+        )
+    }
+
+    /**
+     * Executes an interface method. When [providerPluginId] is null the default provider is used.
+     * Fails if the interface is not registered, the method is not part of the contract, or no
+     * (matching, available) provider exists.
+     */
+    suspend fun executeInterface(
+        interfaceId: String,
+        providerPluginId: String?,
+        method: String,
+        params: String,
+        callerHasExperimental: Boolean = false
+    ): CommandResult {
+        val contract = registeredInterfaces[interfaceId]
+            ?: return CommandResult.notFound("Interface not registered: $interfaceId")
+        if (contract.methods.none { it.name == method }) {
+            return CommandResult.unsupportedMethod(method)
+        }
+        val plugin = if (providerPluginId != null) {
+            val bound = interfaceBindings[providerPluginId]?.any { it.interfaceId == interfaceId } == true
+            val enabled = interfacePreferenceConfig?.isEnabled(interfaceId, providerPluginId) != false
+            // An experimental provider the user has not enabled is not part of the interface, so
+            // naming it explicitly is as unavailable as naming a plugin that never bound to it.
+            val experimentalOk = passesExperimentalGate(providerPluginId, callerHasExperimental)
+            val p = plugins[providerPluginId]
+            if (p == null || !isAvailable(providerPluginId) || !bound || !enabled || !experimentalOk) {
+                return CommandResult.unavailable("Provider '$providerPluginId' does not provide interface '$interfaceId'")
+            }
+            p
+        } else {
+            val defaultId = getInterfaceProviders(interfaceId, callerHasExperimental).firstOrNull()?.pluginId
+                ?: return CommandResult.unavailable("No provider available for interface: $interfaceId")
+            plugins[defaultId] ?: return CommandResult.unavailable("No provider available for interface: $interfaceId")
+        }
+        // Method-level feature gate: if the method is gated by an interface feature (feature.methods),
+        // the resolved provider must advertise it. Parameter-level features (features with no `methods`,
+        // e.g. a "timeout" option) are NOT enforced here — the core forwards params opaquely, so the
+        // provider validates its own parameters.
+        val requiredFeature = contract.features.firstOrNull { method in it.methods }?.key
+        if (requiredFeature != null) {
+            val providerFeatures = interfaceBindings[plugin.pluginId]
+                ?.firstOrNull { it.interfaceId == interfaceId }?.features ?: emptyList()
+            if (requiredFeature !in providerFeatures) {
+                return CommandResult.unavailable(
+                    "Provider '${plugin.pluginId}' does not support feature '$requiredFeature' required by '$method'"
+                )
+            }
+        }
+        // Report which provider actually handled the call (resolved default, or the pinned one),
+        // exposed in the response header so clients don't have to rely on the plugin echoing it.
+        val result = plugin.execute(method, params)
+        return if (result is CommandResult.Success) result.copy(provider = plugin.pluginId) else result
     }
 
     fun allCapabilities(): List<String> {
@@ -316,6 +595,10 @@ class PluginRegistry {
         displacedPlugins.clear()
         capabilityToPlugin.clear()
         available.clear()
+        registeredInterfaces.clear()
+        interfaceProviders.clear()
+        interfaceBindings.clear()
+        interfaceDefinitionsByPlugin.clear()
         pendingInit = null
     }
 
