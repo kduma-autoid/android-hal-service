@@ -146,6 +146,8 @@ szyny.
 
 ## Klient (TS)
 
+Surowo, przez `client.execute` / `client.on`:
+
 ```ts
 // domyślny provider:
 await client.execute('light.on', { color: 'green' });
@@ -156,6 +158,26 @@ await client.execute('light.on', { color: 'green', __provider: 'sunmi.statusligh
 const { interfaces } = await client.getDescribe();
 // event tylko od jednego providera:
 await client.on('demo.notice@demo.beta', (name, data, meta) => { /* meta.source */ });
+```
+
+Albo przez typowane fasady (`I<Interfejs>` + `Sunmi<Interfejs>Client`), które same wykrywają
+providerów przez `system.describe`, wstrzykują `__provider` dla nie-domyślnego backendu i wystawiają
+cechy jako flagi/opcjonalne metody:
+
+```ts
+// printer — metody bramkowane cechą są obecne tylko gdy backend je wspiera:
+const printer = await SunmiPrinterClient.create(client);   // domyślny provider `printer`
+if (printer.printEscPos) await printer.printEscPos(escposBase64);
+if (printer.cut) await printer.cut();
+printer.printZpl;   // undefined na sunmi.printerx.printer (brak cechy `zpl`)
+
+// scanner — onScan filtruje po źródle (tylko ten backend):
+const scanner = await SunmiScannerClient.create(client);   // domyślny provider `scanner`
+const off = await scanner.onScan(({ data, format }) => console.log(data, format));
+await scanner.trigger();
+
+// pinowanie konkretnego backendu:
+const cam = await SunmiScannerClient.forBackend(client, 'sunmi.scanner.camera');
 ```
 
 ## Kluczowe pliki
@@ -169,5 +191,6 @@ await client.on('demo.notice@demo.beta', (name, data, meta) => { /* meta.source 
   `DemoInterface`, `DemoProviders`), `SunmiTmsLedPlugin`, `SunmiStatusLightPlugin`,
   `SunmiPrinterXPrinterPlugin` (interfejs `printer`), `SunmiInnerScannerPlugin`/
   `SunmiExternalScannerPlugin`/`SunmiCameraScannerPlugin` (interfejs `scanner`).
-- Klient: `common` (`InterfaceDescriptor`, `PROVIDER_PARAM_KEY`, `matchSubscription`),
-  `sunmi-light-facade` (`ILight` na interfejsie `light`).
+- Klient: `common` (`InterfaceDescriptor`, `PROVIDER_PARAM_KEY`, `matchSubscription`, interfejsy
+  `ILight`/`IPrinter`/`IScanner`), fasady `sunmi-light-facade` (`ILight` na `light`),
+  `sunmi-printer-facade` (`IPrinter` na `printer`), `sunmi-scanner-facade` (`IScanner` na `scanner`).

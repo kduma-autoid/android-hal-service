@@ -15,3 +15,5 @@ export type { IHalClient } from './hal-client.js';
 export type { ITokenStore } from './token-store.js';
 export type { ILogger } from './logger.js';
 export type { ILight, MultiFlash } from './light.js';
+export type { IPrinter } from './printer.js';
+export type { IScanner } from './scanner.js';

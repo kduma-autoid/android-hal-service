@@ -106,6 +106,18 @@ importers:
         specifier: workspace:*
         version: link:../common
 
+  packages/sunmi-printer-facade:
+    dependencies:
+      '@kduma-autoid/hal-client-common':
+        specifier: workspace:*
+        version: link:../common
+
+  packages/sunmi-scanner-facade:
+    dependencies:
+      '@kduma-autoid/hal-client-common':
+        specifier: workspace:*
+        version: link:../common
+
   packages/sunmi-screen:
     dependencies:
       '@kduma-autoid/hal-client-common':

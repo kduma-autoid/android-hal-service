@@ -29,6 +29,10 @@ export type {
   FlashStep,
   LightOptions,
   LightCapabilities,
+  PrinterFeature,
+  PrinterImageStyle,
+  PrinterCapabilities,
+  ScanResult,
 } from './types/index.js';
 
 export {
@@ -44,6 +48,7 @@ export {
 } from './types/index.js';
 
 export { LIGHT_COLORS } from './types/index.js';
+export { PRINTER_FEATURES } from './types/index.js';
 
 // Interfaces
 export type {
@@ -63,6 +68,8 @@ export type {
   ILogger,
   ILight,
   MultiFlash,
+  IPrinter,
+  IScanner,
 } from './interfaces/index.js';
 
 // Implementations

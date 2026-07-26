@@ -26,3 +26,6 @@ export type { StatusResponse, PluginStatus, TransportStatus } from './status.js'
 export type { HealthResponse } from './health.js';
 export type { LightColor, FlashStep, LightOptions, LightCapabilities } from './light.js';
 export { LIGHT_COLORS } from './light.js';
+export type { PrinterFeature, PrinterImageStyle, PrinterCapabilities } from './printer.js';
+export { PRINTER_FEATURES } from './printer.js';
+export type { ScanResult } from './scanner.js';
