@@ -21,6 +21,9 @@ export const PLUGIN_ID = 'sunmi.tms.led';
 export class SunmiTmsLedClient implements ILight {
   readonly capabilities: LightCapabilities = { multiFlash: false, timeout: true };
 
+  /** Not supported by this backend — the CPad LED cannot cycle through colors. */
+  readonly multiFlash: undefined;
+
   private readonly client: IHalClient;
 
   constructor(client: IHalClient) {

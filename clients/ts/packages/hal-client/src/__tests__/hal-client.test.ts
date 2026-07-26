@@ -6,6 +6,7 @@ import type {
   IEventTransport,
   ConnectionState,
   ConnectionStateHandler,
+  EventHandler,
   TokenRequest,
   TokenResult,
 } from '@kduma-autoid/hal-client-common';
