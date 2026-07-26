@@ -114,23 +114,23 @@ definesInterfaces = [InterfaceContract("printer", …)]
 (SDK go nie wspiera), więc `printer.printZpl` → `unavailable`. `printer.cut` mapuje na sprzętowe
 `autoOut` (feed+cut). Flavor `generic` nie ma providera → `printer.*` = `unavailable`.
 
-## plugin-generic-lib: ScannerInterface (definer interfejsu `scanner`)
+## plugin-generic-lib: BarcodeScannerInterface (definer interfejsu `barcodeScanner`)
 
-Abstrakcja skanera jako **interfejs**. `ScannerInterface` (pluginId `interface.scanner`) rejestruje
-kontrakt `scanner`; providerzy podpinają się przez `InterfaceBinding("scanner", …)`, obsługują
-`scanner.trigger/stop` i emitują znormalizowany event `scanner.onScan` **obok** swojego natywnego
+Abstrakcja skanera jako **interfejs**. `BarcodeScannerInterface` (pluginId `interface.barcodeScanner`) rejestruje
+kontrakt `barcodeScanner`; providerzy podpinają się przez `InterfaceBinding("barcodeScanner", …)`, obsługują
+`barcodeScanner.trigger/stop` i emitują znormalizowany event `barcodeScanner.onScan` **obok** swojego natywnego
 eventu. Zastępuje dawny `GenericScannerPlugin` (transformację eventów z zaszytej listy vendorów).
 
 ```kotlin
-pluginId = "interface.scanner"      // definer
+pluginId = "interface.barcodeScanner"      // definer
 version = 1
 capabilities = []
-definesInterfaces = [InterfaceContract("scanner", …)]
+definesInterfaces = [InterfaceContract("barcodeScanner", …)]
 ```
 
-**Metody:** `scanner.trigger {}` → `{"status":"scanning"}`, `scanner.stop {}`.
-**Event:** `scanner.onScan {data, format, rawData?}` — `source` = `pluginId` skanera-nadawcy, więc
-subskrypcja `scanner.onScan@sunmi.scanner.inner` filtruje konkretny skaner.
+**Metody:** `barcodeScanner.trigger {}` → `{"status":"scanning"}`, `barcodeScanner.stop {}`.
+**Event:** `barcodeScanner.onScan {data, format, rawData?}` — `source` = `pluginId` skanera-nadawcy, więc
+subskrypcja `barcodeScanner.onScan@sunmi.scanner.inner` filtruje konkretny skaner.
 
 **Providerzy** (bez features):
 

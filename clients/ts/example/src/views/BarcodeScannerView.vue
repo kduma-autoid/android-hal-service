@@ -2,7 +2,7 @@
 import { ref, shallowRef, computed, watch, onUnmounted } from 'vue';
 import { useHalClient } from '../composables/useHalClient';
 import { useToast } from '../composables/useToast';
-import { SunmiScannerClient } from '@kduma-autoid/hal-client-plugin-sunmi-scanner-facade';
+import { SunmiBarcodeScannerClient } from '@kduma-autoid/hal-client-plugin-sunmi-barcode-scanner-facade';
 import type { InterfaceProvider, ScanResult } from '@kduma-autoid/hal-client-common';
 
 const { client, isConnected } = useHalClient();
@@ -14,10 +14,11 @@ interface LoggedScan extends ScanResult {
   at: Date;
 }
 
-// The facade resolves the `scanner` interface and subscribes to `scanner.onScan@<backend>` — the
+// The facade resolves the `barcodeScanner` interface and subscribes to
+// `barcodeScanner.onScan@<backend>` — the
 // event source filter — so this view only ever shows barcodes from the bound scanner, even when
 // several scanners (built-in / camera / external) are providing the interface at once.
-const scanner = shallowRef<SunmiScannerClient | null>(null);
+const scanner = shallowRef<SunmiBarcodeScannerClient | null>(null);
 const backends = ref<InterfaceProvider[]>([]);
 const selectedBackend = ref<string>('');
 const detecting = ref(false);
@@ -56,10 +57,10 @@ async function bind(pluginId?: string) {
   }
   detecting.value = true;
   try {
-    backends.value = await SunmiScannerClient.listBackends(client.value);
+    backends.value = await SunmiBarcodeScannerClient.listBackends(client.value);
     scanner.value = pluginId
-      ? await SunmiScannerClient.forBackend(client.value, pluginId)
-      : await SunmiScannerClient.create(client.value);
+      ? await SunmiBarcodeScannerClient.forBackend(client.value, pluginId)
+      : await SunmiBarcodeScannerClient.create(client.value);
     selectedBackend.value = scanner.value.backend;
     await subscribeScans();
   } catch {
@@ -94,7 +95,7 @@ watch(
       await bind();
       if (client.value && !unsubscribeChanges) {
         // Hot-plug / interface reorder: re-resolve, keeping the user's pinned backend if it survives.
-        unsubscribeChanges = await SunmiScannerClient.onChanged(client.value, () => {
+        unsubscribeChanges = await SunmiBarcodeScannerClient.onChanged(client.value, () => {
           bind(selectedBackend.value || undefined);
         });
       }
@@ -114,7 +115,7 @@ function onBackendChange(e: Event) {
 
 const isReady = computed(() => isConnected.value && scanner.value !== null);
 const subscription = computed(() =>
-  selectedBackend.value ? `scanner.onScan@${selectedBackend.value}` : 'scanner.onScan',
+  selectedBackend.value ? `barcodeScanner.onScan@${selectedBackend.value}` : 'barcodeScanner.onScan',
 );
 
 async function trigger() {
@@ -145,7 +146,7 @@ function time(d: Date): string {
 </script>
 
 <template>
-  <h2>Scanner</h2>
+  <h2>Barcode Scanner</h2>
 
   <div v-if="!isConnected" class="banner banner-info">
     Not connected.
@@ -154,7 +155,8 @@ function time(d: Date): string {
   </div>
   <div v-else-if="detecting && !scanner" class="banner banner-info">Resolving scanner backend...</div>
   <div v-else-if="!scanner" class="banner banner-warning">
-    No scanner backend is available — the <code>scanner</code> interface has no provider on this
+    No barcode scanner backend is available — the <code>barcodeScanner</code> interface has no
+    provider on this
     service. <router-link to="/interfaces">Go to Interfaces</router-link> to inspect the registry.
   </div>
   <div v-else class="banner banner-info backend-bar">
@@ -179,7 +181,7 @@ function time(d: Date): string {
         <span class="pulse" /> scanning…
       </span>
       <span class="hint">
-        Results arrive asynchronously as <code>scanner.onScan</code> events, filtered to this backend.
+        Results arrive asynchronously as <code>barcodeScanner.onScan</code> events, filtered to this backend.
       </span>
     </div>
   </div>

@@ -183,7 +183,7 @@ class HalService : Service() {
         // `printer`/`scanner` replace the former GenericPrinterPlugin/GenericScannerPlugin wrappers.
         tryRegisterPlugin("dev.duma.android.hal.plugins.generic.LightInterface")
         tryRegisterPlugin("dev.duma.android.hal.plugins.generic.PrinterInterface")
-        tryRegisterPlugin("dev.duma.android.hal.plugins.generic.ScannerInterface")
+        tryRegisterPlugin("dev.duma.android.hal.plugins.generic.BarcodeScannerInterface")
         // Hardware-free demo interface + two providers (always available, for testing the interface layer).
         tryRegisterPlugin("dev.duma.android.hal.plugins.generic.DemoInterface")
         tryRegisterPlugin("dev.duma.android.hal.plugins.generic.DemoAlphaPlugin")

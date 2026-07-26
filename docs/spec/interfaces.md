@@ -136,10 +136,10 @@ szyny.
   każda metoda bramkowana cechą (`escpos`/`tspl`/`zpl`/`image`/`cut`). Provider `sunmi.printerx.printer`
   ogłasza `escpos, tspl, image, cut` (SDK nie ma ZPL — `printer.printZpl` → `unavailable`); `printer.cut`
   mapuje na sprzętowe `autoOut` (feed+cut). Zastępuje dawny `GenericPrinterPlugin`.
-- **`scanner`** (definer `ScannerInterface`): `scanner.trigger/stop`, event `scanner.onScan
+- **`barcodeScanner`** (definer `BarcodeScannerInterface`): `barcodeScanner.trigger/stop`, event `barcodeScanner.onScan
   {data, format, rawData?}`. Providerzy `sunmi.scanner.inner` (wbudowany, `priority` najwyższy, default),
-  `sunmi.scanner.external` i `sunmi.scanner.camera` (dev-only). Każdy emituje `scanner.onScan` obok
-  swojego natywnego eventu — `source` = `pluginId`, więc `scanner.onScan@sunmi.scanner.inner` filtruje
+  `sunmi.scanner.external` i `sunmi.scanner.camera` (dev-only). Każdy emituje `barcodeScanner.onScan` obok
+  swojego natywnego eventu — `source` = `pluginId`, więc `barcodeScanner.onScan@sunmi.scanner.inner` filtruje
   konkretny skaner. Zastępuje dawny `GenericScannerPlugin`.
 - **`demo`** (definer `DemoInterface`): bezsprzętowy interfejs testowy — providerzy `demo.alpha`
   (uppercase, default) i `demo.beta` (reverse), metody `demo.echo/ping/emit` i event `demo.notice`.
@@ -172,18 +172,18 @@ if (printer.cut) await printer.cut();
 printer.printZpl;   // undefined na sunmi.printerx.printer (brak cechy `zpl`)
 
 // scanner — onScan filtruje po źródle (tylko ten backend):
-const scanner = await SunmiScannerClient.create(client);   // domyślny provider `scanner`
-const off = await scanner.onScan(({ data, format }) => console.log(data, format));
-await scanner.trigger();
+const scanner = await SunmiBarcodeScannerClient.create(client);   // domyślny provider `barcodeScanner`
+const off = await barcodeScanner.onScan(({ data, format }) => console.log(data, format));
+await barcodeScanner.trigger();
 
 // lista backendów (do pickera) + pinowanie konkretnego:
-const backends = await SunmiScannerClient.listBackends(client);   // InterfaceProvider[]
-const cam = await SunmiScannerClient.forBackend(client, 'sunmi.scanner.camera');
+const backends = await SunmiBarcodeScannerClient.listBackends(client);   // InterfaceProvider[]
+const cam = await SunmiBarcodeScannerClient.forBackend(client, 'sunmi.scanner.camera');
 ```
 
 Demo (`clients/ts/example`) ma widoki oparte o te fasady: **Printer** (karta per wspierany format —
 nieobsługiwane są wypisane jako brakujące, bo interfejs po prostu nie ma tych metod) i **Scanner**
-(trigger/stop + żywa lista skanów z widocznym filtrem `scanner.onScan@<backend>`); oba z pickerem
+(trigger/stop + żywa lista skanów z widocznym filtrem `barcodeScanner.onScan@<backend>`); oba z pickerem
 providera. Generyczny `InterfacesView` dalej pokazuje surowo każdy zarejestrowany interfejs.
 
 ## Kluczowe pliki
@@ -193,10 +193,10 @@ providera. Generyczny `InterfacesView` dalej pokazuje surowo każdy zarejestrowa
   `getAllInterfaceImplementors`, `setInterfaceOrder`/`setInterfaceEnabled`),
   `core/ServiceCommandHandler.kt` (`__provider`, `system.interface.*`, sekcja `interfaces` w describe),
   `config/InterfacePreferenceConfig.kt`.
-- Definery/providerzy: `plugin-generic-lib` (`LightInterface`, `PrinterInterface`, `ScannerInterface`,
+- Definery/providerzy: `plugin-generic-lib` (`LightInterface`, `PrinterInterface`, `BarcodeScannerInterface`,
   `DemoInterface`, `DemoProviders`), `SunmiTmsLedPlugin`, `SunmiStatusLightPlugin`,
   `SunmiPrinterXPrinterPlugin` (interfejs `printer`), `SunmiInnerScannerPlugin`/
-  `SunmiExternalScannerPlugin`/`SunmiCameraScannerPlugin` (interfejs `scanner`).
+  `SunmiExternalScannerPlugin`/`SunmiCameraScannerPlugin` (interfejs `barcodeScanner`).
 - Klient: `common` (`InterfaceDescriptor`, `PROVIDER_PARAM_KEY`, `matchSubscription`, interfejsy
-  `ILight`/`IPrinter`/`IScanner`), fasady `sunmi-light-facade` (`ILight` na `light`),
-  `sunmi-printer-facade` (`IPrinter` na `printer`), `sunmi-scanner-facade` (`IScanner` na `scanner`).
+  `ILight`/`IPrinter`/`IBarcodeScanner`), fasady `sunmi-light-facade` (`ILight` na `light`),
+  `sunmi-printer-facade` (`IPrinter` na `printer`), `sunmi-barcode-scanner-facade` (`IBarcodeScanner` na `barcodeScanner`).

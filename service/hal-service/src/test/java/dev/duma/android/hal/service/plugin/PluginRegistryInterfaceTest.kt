@@ -11,7 +11,7 @@ import androidx.test.core.app.ApplicationProvider
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
 import dev.duma.android.hal.plugins.generic.PrinterInterface
-import dev.duma.android.hal.plugins.generic.ScannerInterface
+import dev.duma.android.hal.plugins.generic.BarcodeScannerInterface
 import dev.duma.android.hal.service.config.InterfacePreferenceConfig
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -184,7 +184,7 @@ class PluginRegistryInterfaceTest {
     fun `printer and scanner definers register real contracts`() = runTest {
         val registry = PluginRegistry()
         registry.registerBuiltIn(PrinterInterface())
-        registry.registerBuiltIn(ScannerInterface())
+        registry.registerBuiltIn(BarcodeScannerInterface())
 
         val printer = registry.getInterfaceContract("printer")
         assertNotNull(printer)
@@ -198,10 +198,10 @@ class PluginRegistryInterfaceTest {
             printer.features.map { it.key }.toSet()
         )
 
-        val scanner = registry.getInterfaceContract("scanner")
+        val scanner = registry.getInterfaceContract("barcodeScanner")
         assertNotNull(scanner)
-        assertEquals(listOf("scanner.trigger", "scanner.stop"), scanner!!.methods.map { it.name })
-        assertEquals(listOf("scanner.onScan"), scanner.events.map { it.name })
+        assertEquals(listOf("barcodeScanner.trigger", "barcodeScanner.stop"), scanner!!.methods.map { it.name })
+        assertEquals(listOf("barcodeScanner.onScan"), scanner.events.map { it.name })
     }
 
     @Test
@@ -233,15 +233,15 @@ class PluginRegistryInterfaceTest {
     @Test
     fun `scanner resolves to inner scanner by priority`() = runTest {
         val registry = PluginRegistry()
-        registry.registerBuiltIn(ScannerInterface())
-        registry.registerBuiltIn(FakeProvider("sunmi.scanner.inner", InterfaceBinding("scanner", priority = 100), body = """{"status":"scanning"}"""))
-        registry.registerBuiltIn(FakeProvider("sunmi.scanner.camera", InterfaceBinding("scanner", priority = 40), body = """{"status":"scanning"}"""))
+        registry.registerBuiltIn(BarcodeScannerInterface())
+        registry.registerBuiltIn(FakeProvider("sunmi.scanner.inner", InterfaceBinding("barcodeScanner", priority = 100), body = """{"status":"scanning"}"""))
+        registry.registerBuiltIn(FakeProvider("sunmi.scanner.camera", InterfaceBinding("barcodeScanner", priority = 40), body = """{"status":"scanning"}"""))
 
-        val providers = registry.getInterfaceProviders("scanner")
+        val providers = registry.getInterfaceProviders("barcodeScanner")
         assertEquals(listOf("sunmi.scanner.inner", "sunmi.scanner.camera"), providers.map { it.pluginId })
         assertTrue(providers.first().isDefault)
 
-        val result = registry.executeInterface("scanner", null, "scanner.trigger", "{}")
+        val result = registry.executeInterface("barcodeScanner", null, "barcodeScanner.trigger", "{}")
         assertTrue(result is CommandResult.Success)
         assertEquals("sunmi.scanner.inner", (result as CommandResult.Success).provider)
     }

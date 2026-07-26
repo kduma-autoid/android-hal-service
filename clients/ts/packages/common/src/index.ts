@@ -69,7 +69,7 @@ export type {
   ILight,
   MultiFlash,
   IPrinter,
-  IScanner,
+  IBarcodeScanner,
 } from './interfaces/index.js';
 
 // Implementations

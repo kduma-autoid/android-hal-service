@@ -93,27 +93,27 @@ PluginContextImpl ma ownerPluginId — EventBus filtruje.
 
 ## Eventy interfejsu — flow
 
-Interfejs (`scanner`, `light`, …) nie transformuje eventów przez pośrednika. Provider emituje event
+Interfejs (`barcodeScanner`, `light`, …) nie transformuje eventów przez pośrednika. Provider emituje event
 interfejsu **bezpośrednio, obok** swojego natywnego, a rdzeń oznacza go `source` = `pluginId` nadawcy.
 Zastępuje to dawną transformację `{vendor}.* → {device}.*` w generyku.
 
 ```
 1. Sunmi plugin:   emitEvent("sunmi.scanner.inner.barcode", {"data":"590...","rawData":"..."})
-                   emitEvent("scanner.onScan", {"data":"590...","format":"EAN13"})   // event interfejsu
+                   emitEvent("barcodeScanner.onScan", {"data":"590...","format":"EAN13"})   // event interfejsu
 2. EventBus:       → oba do klientów WS/AIDL; source = "sunmi.scanner.inner" (ustawiany automatycznie)
-3. Klient:         subscribe("scanner.onScan")                    → zunifikowany event z każdego skanera
-                   subscribe("scanner.onScan@sunmi.scanner.inner") → tylko z wbudowanego skanera
+3. Klient:         subscribe("barcodeScanner.onScan")                    → zunifikowany event z każdego skanera
+                   subscribe("barcodeScanner.onScan@sunmi.scanner.inner") → tylko z wbudowanego skanera
 ```
 
-Klient może subskrybować zarówno `scanner.onScan` (interfejs), jak i `sunmi.scanner.inner.barcode` (natywny).
+Klient może subskrybować zarówno `barcodeScanner.onScan` (interfejs), jak i `sunmi.scanner.inner.barcode` (natywny).
 Szczegóły: [`interfaces.md`](interfaces.md).
 
 ## Naming conventions
 
 - Vendor-specific capabilities: prefixowane vendorem — `sunmi.printer`, `sunmi.scanner.inner`
-- Interfejs: `interfaceId` bez prefixu — `printer`, `scanner`, `light`; definer ma `pluginId` `interface.{id}`
+- Interfejs: `interfaceId` bez prefixu — `printer`, `barcodeScanner`, `light`; definer ma `pluginId` `interface.{id}`
 - Metody: `{capability}.{operation}` — `sunmi.printer.print`; metody interfejsu `{interfaceId}.{operation}` — `printer.printEscPos`
-- Eventy: `{capability}.{event}` — `sunmi.scanner.inner.barcode`; event interfejsu `scanner.onScan` (z `source`)
+- Eventy: `{capability}.{event}` — `sunmi.scanner.inner.barcode`; event interfejsu `barcodeScanner.onScan` (z `source`)
 
 ## AIDL pluginów (out-of-process)
 

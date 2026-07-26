@@ -28,4 +28,4 @@ export type { LightColor, FlashStep, LightOptions, LightCapabilities } from './l
 export { LIGHT_COLORS } from './light.js';
 export type { PrinterFeature, PrinterImageStyle, PrinterCapabilities } from './printer.js';
 export { PRINTER_FEATURES } from './printer.js';
-export type { ScanResult } from './scanner.js';
+export type { ScanResult } from './barcode-scanner.js';

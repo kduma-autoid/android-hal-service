@@ -62,7 +62,7 @@ class SunmiCameraScannerPlugin(
         private const val EVENT_BARCODE = "sunmi.scanner.camera.barcode"
         private const val EVENT_CANCELLED = "sunmi.scanner.camera.cancelled"
         // Unified `scanner` interface event (emitted alongside the native barcode event).
-        private const val EVENT_ON_SCAN = "scanner.onScan"
+        private const val EVENT_ON_SCAN = "barcodeScanner.onScan"
     }
 
     // --- Lifecycle ---
@@ -90,7 +90,7 @@ class SunmiCameraScannerPlugin(
         experimental = true,
         capabilities = getCapabilities(),
         // Provides the unified `scanner` interface (lowest priority — needs the camera UI).
-        interfaces = listOf(InterfaceBinding(interfaceId = "scanner", priority = 40)),
+        interfaces = listOf(InterfaceBinding(interfaceId = "barcodeScanner", priority = 40)),
         methods = listOf(
             MethodDescriptor(
                 "sunmi.scanner.camera.trigger",
@@ -144,7 +144,7 @@ class SunmiCameraScannerPlugin(
 
         return try {
             when (method) {
-                "sunmi.scanner.camera.trigger", "scanner.trigger" -> {
+                "sunmi.scanner.camera.trigger", "barcodeScanner.trigger" -> {
                     val ctx = appContext ?: return CommandResult.internalError("Application context not available")
                     if (scanning) return CommandResult.Failure("already_scanning", "Camera scanner is already active")
 
@@ -181,7 +181,7 @@ class SunmiCameraScannerPlugin(
                     CommandResult.Success("""{"status":"scanning"}""")
                 }
 
-                "sunmi.scanner.camera.stop", "scanner.stop" -> {
+                "sunmi.scanner.camera.stop", "barcodeScanner.stop" -> {
                     CameraScannerProxyActivity.activeInstance?.finish()
                     scanning = false
                     CommandResult.Success()

@@ -29,6 +29,9 @@ importers:
       '@kduma-autoid/hal-client-common':
         specifier: workspace:*
         version: link:../packages/common
+      '@kduma-autoid/hal-client-plugin-sunmi-barcode-scanner-facade':
+        specifier: workspace:*
+        version: link:../packages/sunmi-barcode-scanner-facade
       '@kduma-autoid/hal-client-plugin-sunmi-light-facade':
         specifier: workspace:*
         version: link:../packages/sunmi-light-facade
@@ -38,9 +41,6 @@ importers:
       '@kduma-autoid/hal-client-plugin-sunmi-printer-facade':
         specifier: workspace:*
         version: link:../packages/sunmi-printer-facade
-      '@kduma-autoid/hal-client-plugin-sunmi-scanner-facade':
-        specifier: workspace:*
-        version: link:../packages/sunmi-scanner-facade
       '@kduma-autoid/hal-client-plugin-sunmi-screen':
         specifier: workspace:*
         version: link:../packages/sunmi-screen
@@ -94,6 +94,12 @@ importers:
         specifier: workspace:*
         version: link:../transport-ws
 
+  packages/sunmi-barcode-scanner-facade:
+    dependencies:
+      '@kduma-autoid/hal-client-common':
+        specifier: workspace:*
+        version: link:../common
+
   packages/sunmi-light-facade:
     dependencies:
       '@kduma-autoid/hal-client-common':
@@ -113,12 +119,6 @@ importers:
         version: link:../common
 
   packages/sunmi-printer-facade:
-    dependencies:
-      '@kduma-autoid/hal-client-common':
-        specifier: workspace:*
-        version: link:../common
-
-  packages/sunmi-scanner-facade:
     dependencies:
       '@kduma-autoid/hal-client-common':
         specifier: workspace:*

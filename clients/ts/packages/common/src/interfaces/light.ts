@@ -15,17 +15,22 @@ export interface MultiFlash {
 }
 
 /**
- * Unified control surface for a Sunmi light/LED backend.
+ * Unified control surface for a light/LED backend.
  *
- * Implemented by both `SunmiTmsLedClient` (CPad) and `SunmiStatusLightClient` (FLEX),
- * so callers can program against a single type and switch backends transparently.
- * Feature differences are advertised via {@link LightCapabilities} rather than by
- * diverging method sets:
+ * Implemented by `SunmiLightClient`, which routes `light.*` through the server-side `light`
+ * interface and resolves a provider (CPad LED, FLEX status light, …), so callers program against
+ * a single type and the backend is transparent. The plugin-specific clients
+ * (`SunmiTmsLedClient`, `SunmiStatusLightClient`) deliberately do NOT implement this type — they
+ * call their own `sunmi.*` methods directly and bypass interface routing.
+ *
+ * Feature differences are advertised via {@link LightCapabilities} rather than by diverging
+ * method sets; the flags are derived from the resolved provider's advertised interface features:
  *  - `timeoutMs` is honoured only when `capabilities.timeout` is true (else throws).
  *  - `multiFlash()` is present only when `capabilities.multiFlash` is true.
  *
  * Availability of a backend (whether the hardware is present) is not queried here — it is
- * reflected by whether the plugin's capability is advertised in `system.status`.
+ * reflected by whether the plugin is advertised as an available provider of the `light`
+ * interface in `system.describe`.
  */
 export interface ILight {
   /** Static description of what this backend supports. */

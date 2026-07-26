@@ -57,7 +57,7 @@ class SunmiInnerScannerPlugin(
 
         private const val EVENT_BARCODE = "sunmi.scanner.inner.barcode"
         // Unified `scanner` interface event (emitted alongside the native barcode event).
-        private const val EVENT_ON_SCAN = "scanner.onScan"
+        private const val EVENT_ON_SCAN = "barcodeScanner.onScan"
         private const val EVENT_SCAN_START = "sunmi.scanner.inner.scanStart"
         private const val EVENT_SCAN_STOP = "sunmi.scanner.inner.scanStop"
         private const val EVENT_SERVICE_CONNECTED = "sunmi.scanner.inner.serviceConnected"
@@ -124,7 +124,7 @@ class SunmiInnerScannerPlugin(
         methods = buildMethodList(),
         events = buildEventList(),
         // Provides the unified `scanner` interface (built-in scanner → highest priority default).
-        interfaces = listOf(InterfaceBinding(interfaceId = "scanner", priority = 100))
+        interfaces = listOf(InterfaceBinding(interfaceId = "barcodeScanner", priority = 100))
     )
 
     // --- Execute ---
@@ -136,8 +136,8 @@ class SunmiInnerScannerPlugin(
         return@withLock try {
             when (method) {
                 // --- Core scan control (native + unified `scanner` interface aliases) ---
-                "sunmi.scanner.inner.trigger", "scanner.trigger" -> { scanner.scan(); CommandResult.Success("""{"status":"scanning"}""") }
-                "sunmi.scanner.inner.stop", "scanner.stop" -> { scanner.stop(); CommandResult.Success() }
+                "sunmi.scanner.inner.trigger", "barcodeScanner.trigger" -> { scanner.scan(); CommandResult.Success("""{"status":"scanning"}""") }
+                "sunmi.scanner.inner.stop", "barcodeScanner.stop" -> { scanner.stop(); CommandResult.Success() }
                 "sunmi.scanner.inner.sendCommand" -> { scanner.sendCommand(json.getString("command")); CommandResult.Success() }
                 "sunmi.scanner.inner.sendQuery" -> querySetting(scanner, json.getString("query"))
                 "sunmi.scanner.inner.sendKeyEvent" -> {

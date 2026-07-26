@@ -3,32 +3,32 @@ import type {
   IHalClient,
   InterfaceDescriptor,
   InterfaceProvider,
-  IScanner,
+  IBarcodeScanner,
   ScanResult,
 } from '@kduma-autoid/hal-client-common';
 import { PROVIDER_PARAM_KEY } from '@kduma-autoid/hal-client-common';
 
-const SCANNER_INTERFACE = 'scanner';
-const ON_SCAN_EVENT = 'scanner.onScan';
+const BARCODE_SCANNER_INTERFACE = 'barcodeScanner';
+const ON_SCAN_EVENT = 'barcodeScanner.onScan';
 
 /** System event emitted when a plugin's dynamic availability changes. */
 export const PLUGINS_CHANGED_EVENT = 'system.plugins.changed';
 /** System event emitted when interface provider order/enable changes. */
 export const INTERFACES_CHANGED_EVENT = 'system.interfaces.changed';
 
-/** A scanner provider's pluginId (backend), e.g. "sunmi.scanner.inner". */
-export type ScannerBackend = string;
+/** A barcode-scanner provider's pluginId (backend), e.g. "sunmi.scanner.inner". */
+export type BarcodeScannerBackend = string;
 
 /**
- * Unified {@link IScanner} client backed by the server-side `scanner` interface. Calls
- * `scanner.trigger/stop`, targeting the interface's default provider — or a specific one pinned via
- * {@link SunmiScannerClient.forBackend}, injected through the reserved `__provider` param.
+ * Unified {@link IBarcodeScanner} client backed by the server-side `barcodeScanner` interface.
+ * Calls `barcodeScanner.trigger/stop`, targeting the interface's default provider — or a specific one pinned via
+ * {@link SunmiBarcodeScannerClient.forBackend}, injected through the reserved `__provider` param.
  *
- * {@link SunmiScannerClient.onScan} subscribes to `scanner.onScan` filtered to THIS backend by
- * event source (`scanner.onScan@<backend>`), so a client bound to the built-in scanner never sees
- * an external scanner's barcodes.
+ * {@link SunmiBarcodeScannerClient.onScan} subscribes to `barcodeScanner.onScan` filtered to THIS
+ * backend by event source (`barcodeScanner.onScan@<backend>`), so a client bound to the built-in
+ * scanner never sees an external scanner's barcodes.
  */
-export class SunmiScannerClient implements IScanner {
+export class SunmiBarcodeScannerClient implements IBarcodeScanner {
   /** The active provider's pluginId (e.g. "sunmi.scanner.inner"). */
   readonly backend: string;
 
@@ -41,38 +41,38 @@ export class SunmiScannerClient implements IScanner {
     this.isDefaultProvider = isDefaultProvider;
   }
 
-  /** Binds to the interface's default provider; throws if `scanner` has no available provider. */
-  static async create(client: IHalClient): Promise<SunmiScannerClient> {
-    const provider = await SunmiScannerClient.detect(client);
+  /** Binds to the interface's default provider; throws if `barcodeScanner` has no provider. */
+  static async create(client: IHalClient): Promise<SunmiBarcodeScannerClient> {
+    const provider = await SunmiBarcodeScannerClient.detect(client);
     if (!provider) {
-      throw new Error('No scanner backend available (interface "scanner" has no provider)');
+      throw new Error('No barcode scanner backend available (interface "barcodeScanner" has no provider)');
     }
-    return SunmiScannerClient.fromProvider(client, provider);
+    return SunmiBarcodeScannerClient.fromProvider(client, provider);
   }
 
   /** Binds to a specific provider by pluginId (e.g. to override the default). */
-  static async forBackend(client: IHalClient, pluginId: string): Promise<SunmiScannerClient> {
-    const iface = await SunmiScannerClient.describeScanner(client);
+  static async forBackend(client: IHalClient, pluginId: string): Promise<SunmiBarcodeScannerClient> {
+    const iface = await SunmiBarcodeScannerClient.describeBarcodeScanner(client);
     const provider = iface?.providers.find((p) => p.pluginId === pluginId);
     if (!provider) {
-      throw new Error(`Scanner provider not available: ${pluginId}`);
+      throw new Error(`Barcode scanner provider not available: ${pluginId}`);
     }
-    return SunmiScannerClient.fromProvider(client, provider);
+    return SunmiBarcodeScannerClient.fromProvider(client, provider);
   }
 
   /**
-   * All providers of the `scanner` interface, in the service's effective order (the first enabled
+   * All providers of the `barcodeScanner` interface, in the service's effective order (the first enabled
    * one is the default). Useful for offering a backend picker; bind one with
-   * {@link SunmiScannerClient.forBackend}.
+   * {@link SunmiBarcodeScannerClient.forBackend}.
    */
   static async listBackends(client: IHalClient): Promise<InterfaceProvider[]> {
-    const iface = await SunmiScannerClient.describeScanner(client);
+    const iface = await SunmiBarcodeScannerClient.describeBarcodeScanner(client);
     return iface?.providers ?? [];
   }
 
-  /** The default provider of the `scanner` interface, or null if none is available. */
+  /** The default provider of the `barcodeScanner` interface, or null if none is available. */
   static async detect(client: IHalClient): Promise<InterfaceProvider | null> {
-    const iface = await SunmiScannerClient.describeScanner(client);
+    const iface = await SunmiBarcodeScannerClient.describeBarcodeScanner(client);
     if (!iface || iface.providers.length === 0) return null;
     // Prefer the interface default; otherwise the first enabled provider (disabled ones are listed
     // by the API but are not routable).
@@ -94,13 +94,13 @@ export class SunmiScannerClient implements IScanner {
     };
   }
 
-  private static async describeScanner(client: IHalClient): Promise<InterfaceDescriptor | undefined> {
+  private static async describeBarcodeScanner(client: IHalClient): Promise<InterfaceDescriptor | undefined> {
     const res = await client.execute<DescribeResponse>('system.describe', {});
-    return res.interfaces?.find((i) => i.interfaceId === SCANNER_INTERFACE);
+    return res.interfaces?.find((i) => i.interfaceId === BARCODE_SCANNER_INTERFACE);
   }
 
-  private static fromProvider(client: IHalClient, provider: InterfaceProvider): SunmiScannerClient {
-    return new SunmiScannerClient(client, provider.pluginId, provider.isDefault);
+  private static fromProvider(client: IHalClient, provider: InterfaceProvider): SunmiBarcodeScannerClient {
+    return new SunmiBarcodeScannerClient(client, provider.pluginId, provider.isDefault);
   }
 
   /** Adds the `__provider` selector unless this client is bound to the interface's default provider. */
@@ -109,11 +109,11 @@ export class SunmiScannerClient implements IScanner {
   }
 
   async trigger(): Promise<void> {
-    await this.client.execute('scanner.trigger', this.params({}));
+    await this.client.execute('barcodeScanner.trigger', this.params({}));
   }
 
   async stop(): Promise<void> {
-    await this.client.execute('scanner.stop', this.params({}));
+    await this.client.execute('barcodeScanner.stop', this.params({}));
   }
 
   async onScan(handler: (scan: ScanResult) => void): Promise<() => Promise<void>> {

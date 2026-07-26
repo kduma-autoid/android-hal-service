@@ -69,6 +69,16 @@ export class SunmiLightClient implements ILight {
     return SunmiLightClient.fromProvider(client, provider);
   }
 
+  /**
+   * All providers of the `light` interface, in the service's effective order (the first enabled
+   * one is the default). Useful for offering a backend picker; bind one with
+   * {@link SunmiLightClient.forBackend}.
+   */
+  static async listBackends(client: IHalClient): Promise<InterfaceProvider[]> {
+    const iface = await SunmiLightClient.describeLight(client);
+    return iface?.providers ?? [];
+  }
+
   /** The default provider of the `light` interface, or null if none is available. */
   static async detect(client: IHalClient): Promise<InterfaceProvider | null> {
     const iface = await SunmiLightClient.describeLight(client);

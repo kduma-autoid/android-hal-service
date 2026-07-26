@@ -42,7 +42,7 @@ class SunmiExternalScannerPlugin(
     companion object {
         private const val EVENT_BARCODE = "sunmi.scanner.external.barcode"
         // Unified `scanner` interface event (emitted alongside the native barcode event).
-        private const val EVENT_ON_SCAN = "scanner.onScan"
+        private const val EVENT_ON_SCAN = "barcodeScanner.onScan"
         private const val EVENT_INITIALIZED = "sunmi.scanner.external.initialized"
         private const val EVENT_INIT_FAILED = "sunmi.scanner.external.initFailed"
         private const val EVENT_SERVICE_CONNECTED = "sunmi.scanner.external.serviceConnected"
@@ -131,7 +131,7 @@ class SunmiExternalScannerPlugin(
         experimental = true,
         capabilities = getCapabilities(),
         // Provides the unified `scanner` interface (lower priority than the built-in scanner).
-        interfaces = listOf(InterfaceBinding(interfaceId = "scanner", priority = 50)),
+        interfaces = listOf(InterfaceBinding(interfaceId = "barcodeScanner", priority = 50)),
         methods = listOf(
             MethodDescriptor(
                 "sunmi.scanner.external.trigger",
@@ -232,13 +232,13 @@ class SunmiExternalScannerPlugin(
 
         return@withLock try {
             when (method) {
-                "sunmi.scanner.external.trigger", "scanner.trigger" -> {
+                "sunmi.scanner.external.trigger", "barcodeScanner.trigger" -> {
                     if (!initialized) return@withLock CommandResult.Failure("not_initialized", "Scanner not initialized yet")
                     scanner.start()
                     CommandResult.Success("""{"status":"scanning"}""")
                 }
 
-                "sunmi.scanner.external.stop", "scanner.stop" -> {
+                "sunmi.scanner.external.stop", "barcodeScanner.stop" -> {
                     if (!initialized) return@withLock CommandResult.Failure("not_initialized", "Scanner not initialized yet")
                     scanner.stop()
                     CommandResult.Success()

@@ -418,7 +418,7 @@ class SubscriptionFilterTest {
 
 ## Etap 5: interfejsy (rejestr)
 
-Interfejsy (`printer`, `scanner`, `light`, …) testuje sie na poziomie `PluginRegistry` -- rejestracja
+Interfejsy (`printer`, `barcodeScanner`, `light`, …) testuje sie na poziomie `PluginRegistry` -- rejestracja
 kontraktu, rozwiazanie providera (domyslny vs `__provider`), bramkowanie cech method-level, filtr
 dostepnosci. Pelny zestaw: `service/hal-service/.../plugin/PluginRegistryInterfaceTest.kt`.
 
@@ -450,13 +450,13 @@ dostepnosci. Pelny zestaw: `service/hal-service/.../plugin/PluginRegistryInterfa
     val registry = PluginRegistry()
     // Provider obecny, ale zaden definer nie zarejestrowal kontraktu.
     registry.registerBuiltIn(FakeProvider("sunmi.scanner.inner", InterfaceBinding("scanner", priority = 100)))
-    assertNull(registry.interfaceIdForMethod("scanner.trigger"))
-    assertTrue(registry.executeInterface("scanner", null, "scanner.trigger", "{}") is CommandResult.Failure)
+    assertNull(registry.interfaceIdForMethod("barcodeScanner.trigger"))
+    assertTrue(registry.executeInterface("barcodeScanner", null, "barcodeScanner.trigger", "{}") is CommandResult.Failure)
 }
 ```
 
 Providerzy sprzetowi (Sunmi) sa weryfikowani przez CI (oba flavory); test rejestru z `FakeProvider`
-o tym samym `pluginId` sprawdza binding i routing bez realnego SDK. Eventy interfejsu (`scanner.onScan`
+o tym samym `pluginId` sprawdza binding i routing bez realnego SDK. Eventy interfejsu (`barcodeScanner.onScan`
 z `source`) i subskrypcje `@source` -- patrz sekcja transportow/EventBus.
 
 ## Co NIE testować
