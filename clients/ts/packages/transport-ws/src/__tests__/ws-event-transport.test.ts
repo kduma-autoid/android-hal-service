@@ -59,6 +59,17 @@ describe('WsEventTransport', () => {
       expect(handler).toHaveBeenCalledWith('demo.notice', { message: 'ping' }, { source: 'demo.beta' });
     });
 
+    it('should filter by source when the pattern has an @source', () => {
+      const handler = vi.fn();
+      transport.on('demo.notice@demo.beta', handler);
+
+      mockConnection.simulateEvent('demo.notice', { n: 1 }, 'demo.alpha'); // wrong source → ignored
+      mockConnection.simulateEvent('demo.notice', { n: 2 }, 'demo.beta'); // right source → delivered
+
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(handler).toHaveBeenCalledWith('demo.notice', { n: 2 }, { source: 'demo.beta' });
+    });
+
     it('should support wildcard patterns', () => {
       const handler = vi.fn();
       transport.on('scanner.*', handler);

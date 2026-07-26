@@ -131,7 +131,7 @@ class AidlTransport : CommandTransport, EventTransport {
                     val callback = callbackList.getBroadcastItem(i)
                     val uid = callbackUids[callback.asBinder()] ?: continue
                     val subs = sessionSubscriptions[uid] ?: continue
-                    if (subs.any { EventBus.matchesPattern(it, eventName) }) {
+                    if (subs.any { EventBus.matchesSubscription(it, eventName, source) }) {
                         callback.onEvent(eventName, jsonData, source)
                     }
                 } catch (_: Exception) { }

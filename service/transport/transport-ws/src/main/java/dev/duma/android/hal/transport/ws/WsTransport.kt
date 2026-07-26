@@ -76,7 +76,7 @@ class WsTransport : CommandTransport, EventTransport {
         val eventJson = WsProtocol.serializeEvent(eventName, jsonData, source)
         for ((_, session) in sessions) {
             if (session.token != null &&
-                WsProtocol.matchesAnySubscription(session.subscribedEvents, eventName)
+                WsProtocol.matchesAnySubscription(session.subscribedEvents, eventName, source)
             ) {
                 try {
                     session.wsSession.outgoing.trySend(Frame.Text(eventJson))

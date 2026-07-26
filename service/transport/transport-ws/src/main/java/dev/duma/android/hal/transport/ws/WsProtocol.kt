@@ -87,8 +87,8 @@ object WsProtocol {
         }.toString()
     }
 
-    fun matchesAnySubscription(subscriptions: Set<String>, eventName: String): Boolean {
-        return subscriptions.any { EventBus.matchesPattern(it, eventName) }
+    fun matchesAnySubscription(subscriptions: Set<String>, eventName: String, source: String): Boolean {
+        return subscriptions.any { EventBus.matchesSubscription(it, eventName, source) }
     }
 
     data class SubscriptionValidation(
@@ -105,10 +105,13 @@ object WsProtocol {
         val denied = mutableListOf<String>()
 
         for (event in events) {
-            val eventCapability = if (event.endsWith(".*")) {
-                event.dropLast(2)
+            // Permission is derived from the event-name half; the optional `@source` filter doesn't
+            // widen access.
+            val name = event.substringBefore('@')
+            val eventCapability = if (name.endsWith(".*")) {
+                name.dropLast(2)
             } else {
-                event.substringBeforeLast(".")
+                name.substringBeforeLast(".")
             }
             if (permissions.any { eventCapability.startsWith(it) }) {
                 allowed.add(event)

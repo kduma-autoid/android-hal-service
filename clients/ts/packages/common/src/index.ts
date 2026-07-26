@@ -70,4 +70,4 @@ export { InMemoryTokenStore } from './in-memory-token-store.js';
 export { EventSubscriberAdapter } from './event-subscriber-adapter.js';
 
 // Utils
-export { matchPattern, Deferred } from './utils/index.js';
+export { matchPattern, matchSubscription, Deferred } from './utils/index.js';

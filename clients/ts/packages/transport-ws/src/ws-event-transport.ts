@@ -3,7 +3,7 @@ import type {
   EventHandler,
   ILogger,
 } from '@kduma-autoid/hal-client-common';
-import { HalError, matchPattern } from '@kduma-autoid/hal-client-common';
+import { HalError, matchSubscription } from '@kduma-autoid/hal-client-common';
 import type { WsConnection } from './ws-connection.js';
 import type { WsServerMessage } from './types/message.js';
 
@@ -97,7 +97,7 @@ export class WsEventTransport implements IEventTransport {
     this.logger?.debug('Dispatching event', { event: eventName, source });
 
     for (const entry of this.handlers) {
-      if (matchPattern(entry.pattern, eventName)) {
+      if (matchSubscription(entry.pattern, eventName, source)) {
         try {
           entry.handler(eventName, data, { source });
         } catch (e) {
