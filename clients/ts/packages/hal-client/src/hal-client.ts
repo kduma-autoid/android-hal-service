@@ -13,7 +13,7 @@ import type {
   DescribeOptions,
   DescribeResponse,
   EventMeta,
-  CommandResultWithMeta,
+  ExecuteOptions,
 } from '@kduma-autoid/hal-client-common';
 import { InMemoryTokenStore, EventSubscriberAdapter } from '@kduma-autoid/hal-client-common';
 import type { HalClientOptions } from './hal-client-options.js';
@@ -91,29 +91,15 @@ export class HalClient implements IHalClient {
 
   // --- Commands ---
 
-  async execute<T = unknown>(method: string, params?: unknown): Promise<T> {
+  async execute<T = unknown>(method: string, params?: unknown, options?: ExecuteOptions): Promise<T> {
     if (this.commandTransport === null) {
       throw new Error('No command transport configured. Call useCommandTransport() first.');
     }
 
     await this.tokenManager.ensureValidToken();
-    return this.commandTransport.execute<T>(method, params);
-  }
-
-  async executeWithMeta<T = unknown>(
-    method: string,
-    params?: unknown,
-  ): Promise<CommandResultWithMeta<T>> {
-    if (this.commandTransport === null) {
-      throw new Error('No command transport configured. Call useCommandTransport() first.');
-    }
-
-    await this.tokenManager.ensureValidToken();
-    if (this.commandTransport.executeWithMeta) {
-      return this.commandTransport.executeWithMeta<T>(method, params);
-    }
-    // Transport can't surface response metadata (e.g. HTTP) — fall back to a bare result.
-    return { result: await this.commandTransport.execute<T>(method, params), meta: {} };
+    return options
+      ? this.commandTransport.execute<T>(method, params, options)
+      : this.commandTransport.execute<T>(method, params);
   }
 
   // --- System convenience ---

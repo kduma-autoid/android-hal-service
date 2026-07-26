@@ -55,15 +55,17 @@ function clearLogs() {
 function startLogging(client: HalClient) {
   stopLogging();
 
-  // Monkey-patch execute — route through executeWithMeta so we can record the handling provider,
-  // and keep `__provider` out of the displayed params (it becomes the handler header instead).
+  // Monkey-patch execute — observe the handling provider via the onMeta callback, and keep
+  // `__provider` out of the displayed params (it becomes the handler header instead).
   const originalExecute = client.execute.bind(client);
-  const executeWithMeta = client.executeWithMeta.bind(client);
   client.execute = async <T = unknown>(method: string, params?: unknown): Promise<T> => {
     const start = Date.now();
     const { display, sent } = stripProvider(params);
+    let handler: string | undefined;
     try {
-      const { result, meta } = await executeWithMeta<T>(method, params);
+      const result = await originalExecute<T>(method, params, {
+        onMeta: (meta) => { handler = meta.provider; },
+      });
       addLog({
         type: 'method',
         timestamp: start,
@@ -71,7 +73,7 @@ function startLogging(client: HalClient) {
         params: display,
         result,
         duration: Date.now() - start,
-        provider: meta.provider ?? sent,
+        provider: handler ?? sent,
       });
       return result;
     } catch (e) {

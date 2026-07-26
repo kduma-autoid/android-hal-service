@@ -19,8 +19,11 @@ export interface CommandMeta {
   provider?: string;
 }
 
-/** A command result paired with its transport-level metadata (see {@link CommandMeta}). */
-export interface CommandResultWithMeta<T = unknown> {
-  result: T;
-  meta: CommandMeta;
+/** Options for a command execution. */
+export interface ExecuteOptions {
+  /**
+   * Invoked with response metadata (e.g. the handling provider) when the response arrives, so a
+   * caller can observe it without changing what `execute` returns (still just the result body).
+   */
+  onMeta?: (meta: CommandMeta) => void;
 }

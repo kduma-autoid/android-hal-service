@@ -112,33 +112,42 @@ describe('HalClient', () => {
     });
   });
 
-  describe('executeWithMeta', () => {
-    it('delegates to the transport when it supports executeWithMeta', async () => {
-      commandTransport.executeWithMeta = vi
-        .fn()
-        .mockResolvedValue({ result: { ok: true }, meta: { provider: 'demo.beta' } });
+  describe('execute onMeta option', () => {
+    it('forwards the onMeta option to the transport and surfaces provider meta', async () => {
+      (commandTransport.execute as ReturnType<typeof vi.fn>).mockImplementation(
+        (_method: string, _params: unknown, options?: { onMeta?: (m: unknown) => void }) => {
+          options?.onMeta?.({ provider: 'demo.beta' });
+          return Promise.resolve({ ok: true });
+        },
+      );
       const client = new HalClient({ clientId: 'test' })
         .useAuthTransport(authTransport)
         .useCommandTransport(commandTransport);
 
       await client.requestToken();
-      const out = await client.executeWithMeta('demo.emit', { message: 'hi' });
+      let seen: unknown;
+      const result = await client.execute('demo.emit', { message: 'hi' }, {
+        onMeta: (m) => { seen = m; },
+      });
 
-      expect(commandTransport.executeWithMeta).toHaveBeenCalledWith('demo.emit', { message: 'hi' });
-      expect(out).toEqual({ result: { ok: true }, meta: { provider: 'demo.beta' } });
+      expect(result).toEqual({ ok: true });
+      expect(seen).toEqual({ provider: 'demo.beta' });
+      expect(commandTransport.execute).toHaveBeenCalledWith(
+        'demo.emit',
+        { message: 'hi' },
+        expect.objectContaining({ onMeta: expect.any(Function) }),
+      );
     });
 
-    it('falls back to execute with empty meta when the transport lacks executeWithMeta', async () => {
-      // commandTransport mock has no executeWithMeta.
+    it('calls the transport without an options arg when none is given', async () => {
       const client = new HalClient({ clientId: 'test' })
         .useAuthTransport(authTransport)
         .useCommandTransport(commandTransport);
 
       await client.requestToken();
-      const out = await client.executeWithMeta('test.method', { foo: 'bar' });
+      await client.execute('test.method', { foo: 'bar' });
 
       expect(commandTransport.execute).toHaveBeenCalledWith('test.method', { foo: 'bar' });
-      expect(out).toEqual({ result: { result: 'ok' }, meta: {} });
     });
   });
 

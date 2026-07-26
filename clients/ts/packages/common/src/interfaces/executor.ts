@@ -1,10 +1,9 @@
-import type { CommandResultWithMeta } from '../types/command.js';
+import type { ExecuteOptions } from '../types/command.js';
 
 export interface IExecutor {
-  execute<T = unknown>(method: string, params?: unknown): Promise<T>;
   /**
-   * Like {@link execute}, but also returns response metadata such as the handling provider.
-   * Optional so lightweight client mocks need not implement it; the concrete HalClient always does.
+   * Executes a command and returns the result body. Pass {@link ExecuteOptions.onMeta} to also
+   * observe response metadata such as the handling provider.
    */
-  executeWithMeta?<T = unknown>(method: string, params?: unknown): Promise<CommandResultWithMeta<T>>;
+  execute<T = unknown>(method: string, params?: unknown, options?: ExecuteOptions): Promise<T>;
 }

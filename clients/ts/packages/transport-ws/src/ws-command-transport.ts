@@ -4,7 +4,7 @@ import type {
   TokenRequest,
   TokenResult,
   ILogger,
-  CommandResultWithMeta,
+  ExecuteOptions,
 } from '@kduma-autoid/hal-client-common';
 import { HalError, isHalErrorResponse } from '@kduma-autoid/hal-client-common';
 import type { WsConnection } from './ws-connection.js';
@@ -80,14 +80,7 @@ export class WsCommandTransport implements ICommandTransport, IAuthTransport {
     return tokenResult;
   }
 
-  async execute<T = unknown>(method: string, params?: unknown): Promise<T> {
-    return (await this.executeWithMeta<T>(method, params)).result;
-  }
-
-  async executeWithMeta<T = unknown>(
-    method: string,
-    params?: unknown,
-  ): Promise<CommandResultWithMeta<T>> {
+  async execute<T = unknown>(method: string, params?: unknown, options?: ExecuteOptions): Promise<T> {
     if (this.token === null) {
       throw new HalError('unauthorized', 'No token set. Call requestToken() or setToken() first.');
     }
@@ -114,10 +107,10 @@ export class WsCommandTransport implements ICommandTransport, IAuthTransport {
 
     this.logger?.debug('Method executed successfully', { method });
 
-    return {
-      result: response.result as T,
-      meta: response.provider !== undefined ? { provider: response.provider } : {},
-    };
+    // Surface the handling provider (frame header) without changing the return value.
+    options?.onMeta?.(response.provider !== undefined ? { provider: response.provider } : {});
+
+    return response.result as T;
   }
 
   dispose(): void {

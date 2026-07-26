@@ -9,7 +9,7 @@ export {
   createHalError,
 } from './error.js';
 export type { HalEvent, EventMeta, EventHandler, EventSubscription } from './event.js';
-export type { ExecuteRequest, ExecuteResponse, CommandMeta, CommandResultWithMeta } from './command.js';
+export type { ExecuteRequest, ExecuteResponse, CommandMeta, ExecuteOptions } from './command.js';
 export type {
   DescribeOptions,
   DescribeResponse,

@@ -11,7 +11,7 @@ export type {
   ExecuteRequest,
   ExecuteResponse,
   CommandMeta,
-  CommandResultWithMeta,
+  ExecuteOptions,
   DescribeOptions,
   DescribeResponse,
   PluginDescriptor,

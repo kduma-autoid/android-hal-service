@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { WsCommandTransport } from '../ws-command-transport.js';
 import type { WsConnection } from '../ws-connection.js';
 import type { WsServerMessage } from '../types/message.js';
+import type { CommandMeta } from '@kduma-autoid/hal-client-common';
 
 function mockConnection(response: WsServerMessage) {
   return {
@@ -10,8 +11,8 @@ function mockConnection(response: WsServerMessage) {
   } as unknown as WsConnection;
 }
 
-describe('WsCommandTransport.executeWithMeta', () => {
-  it('surfaces the response provider header as meta.provider', async () => {
+describe('WsCommandTransport.execute', () => {
+  it('reports the response provider header via onMeta', async () => {
     const conn = mockConnection({
       id: '1',
       type: 'response',
@@ -21,24 +22,26 @@ describe('WsCommandTransport.executeWithMeta', () => {
     const t = new WsCommandTransport(conn);
     t.setToken('tok');
 
-    const out = await t.executeWithMeta('demo.emit', { message: 'hi' });
+    let meta: CommandMeta | undefined;
+    const result = await t.execute('demo.emit', { message: 'hi' }, { onMeta: (m) => { meta = m; } });
 
-    expect(out.result).toEqual({ emitted: true });
-    expect(out.meta.provider).toBe('demo.beta');
+    expect(result).toEqual({ emitted: true });
+    expect(meta).toEqual({ provider: 'demo.beta' });
   });
 
-  it('returns empty meta when the response carries no provider', async () => {
+  it('calls onMeta with empty meta when the response carries no provider', async () => {
     const conn = mockConnection({ id: '1', type: 'response', result: { ok: true } });
     const t = new WsCommandTransport(conn);
     t.setToken('tok');
 
-    const out = await t.executeWithMeta('system.ping', {});
+    let meta: CommandMeta | undefined;
+    const result = await t.execute('system.ping', {}, { onMeta: (m) => { meta = m; } });
 
-    expect(out.result).toEqual({ ok: true });
-    expect(out.meta.provider).toBeUndefined();
+    expect(result).toEqual({ ok: true });
+    expect(meta).toEqual({});
   });
 
-  it('execute() returns just the result body', async () => {
+  it('returns the result body when no options are passed', async () => {
     const conn = mockConnection({
       id: '1',
       type: 'response',
