@@ -203,14 +203,6 @@ class PluginRegistry {
     }
 
     /**
-     * A contract carries the interface's method signatures and their `requiredPermission`, so a later
-     * definer replacing one silently re-specifies the API — and an external plugin's descriptor
-     * arrives over binder, from any app holding the HARDWARE_PLUGIN action. Only a built-in may take
-     * over from an external definer; otherwise the first definer keeps the interface. This is
-     * deliberately the opposite of [tryRegister]'s rule for plugins, where external wins: there a
-     * replacement swaps an implementation, here it would swap the contract everyone is held to.
-     */
-    /**
      * The contract of a built-in definer that an external plugin has just displaced by taking its
      * pluginId. The built-in is dormant in [displacedPlugins], not gone — it comes back when the
      * external one disconnects — so its interface must stay registered. Without this the displaced
@@ -229,6 +221,14 @@ class PluginRegistry {
             }
             .firstOrNull()
 
+    /**
+     * A contract carries the interface's method signatures and their `requiredPermission`, so a later
+     * definer replacing one silently re-specifies the API — and an external plugin's descriptor
+     * arrives over binder, from any app holding the HARDWARE_PLUGIN action. Only a built-in may take
+     * over from an external definer; otherwise the first definer keeps the interface. This is
+     * deliberately the opposite of [tryRegister]'s rule for plugins, where external wins: there a
+     * replacement swaps an implementation, here it would swap the contract everyone is held to.
+     */
     private fun mayDefineContract(candidateId: String, interfaceId: String, owner: String?): Boolean {
         val candidateSource = pluginInfo[candidateId]?.source
         // An interface a built-in defines is never redefined from outside — not even by a plugin that
@@ -310,53 +310,11 @@ class PluginRegistry {
 
             val connection = object : ServiceConnection {
                 override fun onServiceConnected(name: ComponentName, service: IBinder) {
-                    val binder = IHardwarePlugin.Stub.asInterface(service)
-                    val adapter = AidlPluginAdapter(binder)
-                    if (hasEmptyApi(adapter)) {
-                        // Same as a built-in: the other app's `stable` build emptied this plugin out.
-                        Log.i(TAG, "External plugin has no methods or events, skipping: $pluginId from ${name.packageName}")
-                        return
-                    }
-                    if (adapter.isSupported()) {
-                        val extInfo = PluginInfo(PluginSource.EXTERNAL, name.packageName)
-                        if (tryRegister(adapter, extInfo)) {
-                            Log.i(TAG, "Connected external plugin: $pluginId v${adapter.version} from ${name.packageName}")
-                            pendingInit?.let { (appContext, eventBus) ->
-                                initializePlugin(adapter, eventBus, appContext)
-                            }
-                        }
-                    } else {
-                        unsupportedPlugins[pluginId] = adapter
-                        pluginInfo[pluginId] = PluginInfo(PluginSource.EXTERNAL, name.packageName)
-                        Log.i(TAG, "External plugin not supported on this device: $pluginId from ${name.packageName}")
-                    }
+                    registerExternal(AidlPluginAdapter(IHardwarePlugin.Stub.asInterface(service)), name.packageName)
                 }
 
                 override fun onServiceDisconnected(name: ComponentName) {
-                    Log.w(TAG, "Disconnected external plugin: $pluginId")
-                    val removed = plugins.remove(pluginId)
-                    pluginInfo.remove(pluginId)
-                    available.remove(pluginId)
-                    if (removed != null) {
-                        removed.getCapabilities().forEach { capabilityToPlugin.remove(it, removed) }
-                        unindexInterfaces(pluginId)
-                        safeDispose(removed)
-                    }
-
-                    val fallback = displacedPlugins.remove(pluginId)
-                    if (fallback != null) {
-                        val (builtInPlugin, builtInInfo) = fallback
-                        plugins[pluginId] = builtInPlugin
-                        pluginInfo[pluginId] = builtInInfo
-                        available[pluginId] = true
-                        builtInPlugin.getCapabilities().forEach { capabilityToPlugin[it] = builtInPlugin }
-                        indexInterfaces(builtInPlugin)
-                        // Re-initialize so the restored built-in re-acquires resources released on displacement.
-                        pendingInit?.let { (appContext, eventBus) ->
-                            initializePlugin(builtInPlugin, eventBus, appContext)
-                        }
-                        Log.i(TAG, "Restored built-in plugin: $pluginId v${builtInPlugin.version}")
-                    }
+                    unregisterExternal(pluginId)
                 }
             }
 
@@ -367,6 +325,60 @@ class PluginRegistry {
                 Context.BIND_AUTO_CREATE
             )
         }
+    }
+
+    /**
+     * Registers a plugin served by another app — the whole of [discoverExternal]'s
+     * `onServiceConnected`, kept out of the anonymous connection so the displacement and
+     * contract-ownership rules can be exercised without binding a real service.
+     *
+     * @return true when the plugin was registered.
+     */
+    internal fun registerExternal(plugin: HalPlugin, packageName: String): Boolean {
+        val pluginId = plugin.pluginId
+        if (hasEmptyApi(plugin)) {
+            // Same as a built-in: the other app's `stable` build emptied this plugin out.
+            Log.i(TAG, "External plugin has no methods or events, skipping: $pluginId from $packageName")
+            return false
+        }
+        val extInfo = PluginInfo(PluginSource.EXTERNAL, packageName)
+        if (!plugin.isSupported()) {
+            unsupportedPlugins[pluginId] = plugin
+            pluginInfo[pluginId] = extInfo
+            Log.i(TAG, "External plugin not supported on this device: $pluginId from $packageName")
+            return false
+        }
+        if (!tryRegister(plugin, extInfo)) return false
+        Log.i(TAG, "Connected external plugin: $pluginId v${plugin.version} from $packageName")
+        pendingInit?.let { (appContext, eventBus) ->
+            initializePlugin(plugin, eventBus, appContext)
+        }
+        return true
+    }
+
+    /**
+     * Drops an external plugin that went away — [discoverExternal]'s `onServiceDisconnected` — and
+     * restores the built-in it displaced, if any.
+     */
+    internal fun unregisterExternal(pluginId: String) {
+        Log.w(TAG, "Disconnected external plugin: $pluginId")
+        val removed = plugins.remove(pluginId)
+        pluginInfo.remove(pluginId)
+        available.remove(pluginId)
+        if (removed != null) {
+            removed.getCapabilities().forEach { capabilityToPlugin.remove(it, removed) }
+            unindexInterfaces(pluginId)
+            safeDispose(removed)
+        }
+
+        val (builtInPlugin, builtInInfo) = displacedPlugins.remove(pluginId) ?: return
+        // The slot is empty now, so this is a plain registration, not a replacement.
+        tryRegister(builtInPlugin, builtInInfo)
+        // Re-initialize so the restored built-in re-acquires resources released on displacement.
+        pendingInit?.let { (appContext, eventBus) ->
+            initializePlugin(builtInPlugin, eventBus, appContext)
+        }
+        Log.i(TAG, "Restored built-in plugin: $pluginId v${builtInPlugin.version}")
     }
 
     fun initializeAll(appContext: Context, eventBus: EventBus) {

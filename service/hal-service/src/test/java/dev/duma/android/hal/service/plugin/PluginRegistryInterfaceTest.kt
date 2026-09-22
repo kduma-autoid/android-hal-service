@@ -386,25 +386,103 @@ class PluginRegistryInterfaceTest {
         assertTrue(stable.interfaces.isEmpty())
     }
 
-    @Test
-    fun `a second definer does not replace an already registered contract`() {
-        // The contract carries the interface's method signatures and their requiredPermission, so a
-        // later definer replacing one silently re-specifies the API for everybody. First definer wins.
-        val registry = PluginRegistry()
-        registry.registerBuiltIn(FakeDefiner(lightContract))
-        val rival = InterfaceContract(
-            interfaceId = "light",
-            version = 99,
-            methods = listOf(
-                MethodDescriptor("light.on", "on", "rival.permission", exampleParameters = "{}", exampleOutput = "{}")
-            )
-        )
-        registry.registerBuiltIn(FakeDefiner(rival, idOverride = "interface.light.rival"))
+    // --- Contract ownership ------------------------------------------------------------------
+    // The contract carries the interface's method signatures and their requiredPermission, so a
+    // definer replacing one silently re-specifies the API for everybody.
 
+    /** Same interface as [lightContract], re-specified: another version and another permission. */
+    private val rivalLightContract = InterfaceContract(
+        interfaceId = "light",
+        version = 99,
+        methods = listOf(
+            MethodDescriptor("light.on", "on", "rival.permission", exampleParameters = "{}", exampleOutput = "{}")
+        )
+    )
+
+    /** The built-in [lightContract] is the registered one, held by its own definer. */
+    private fun assertBuiltInLightContract(registry: PluginRegistry) {
         val registered = registry.getInterfaceContract("light")
         assertNotNull(registered)
         assertEquals(1, registered!!.version)
         assertEquals("light", registered.methods.single().requiredPermission)
         assertEquals("interface.light", registry.definerForInterface("light"))
+    }
+
+    @Test
+    fun `a second definer does not replace an already registered contract`() {
+        // First definer wins.
+        val registry = PluginRegistry()
+        registry.registerBuiltIn(FakeDefiner(lightContract))
+        registry.registerBuiltIn(FakeDefiner(rivalLightContract, idOverride = "interface.light.rival"))
+
+        assertBuiltInLightContract(registry)
+    }
+
+    @Test
+    fun `an external plugin displacing a built-in definer does not take the interface down`() = runTest {
+        val registry = registryWithProviders()
+
+        // Same pluginId as the built-in definer: the external plugin wins the slot, as plugins do...
+        assertTrue(registry.registerExternal(FakeDefiner(rivalLightContract, idOverride = "interface.light"), "com.evil"))
+        assertEquals(PluginRegistry.PluginSource.EXTERNAL, registry.getPluginInfo("interface.light")?.source)
+        // ...but neither replaces the contract nor unregisters it. Before the displaced built-in's
+        // contract was kept, the interface vanished here and every call was not_found.
+        assertBuiltInLightContract(registry)
+        val during = registry.executeInterface("light", null, "light.on", "{}")
+        assertEquals("p.high", (during as CommandResult.Success).provider)
+
+        // Disconnecting restores the built-in, which picks its own contract back up.
+        registry.unregisterExternal("interface.light")
+        assertEquals(PluginRegistry.PluginSource.BUILT_IN, registry.getPluginInfo("interface.light")?.source)
+        assertBuiltInLightContract(registry)
+        val after = registry.executeInterface("light", null, "light.on", "{}")
+        assertEquals("p.high", (after as CommandResult.Success).provider)
+    }
+
+    @Test
+    fun `an external definer under another pluginId cannot redefine a built-in interface`() {
+        val registry = registryWithProviders()
+
+        // The plugin itself registers; only its contract is refused.
+        assertTrue(registry.registerExternal(FakeDefiner(rivalLightContract, idOverride = "com.evil.light"), "com.evil"))
+        assertBuiltInLightContract(registry)
+
+        // It never owned the interface, so its departure changes nothing.
+        registry.unregisterExternal("com.evil.light")
+        assertBuiltInLightContract(registry)
+    }
+
+    private val fanContract = InterfaceContract(
+        interfaceId = "fan",
+        methods = listOf(MethodDescriptor("fan.spin", "spin", "fan", exampleParameters = "{}", exampleOutput = "{}"))
+    )
+
+    @Test
+    fun `an external definer registers an interface no built-in defines`() {
+        val registry = PluginRegistry()
+
+        assertTrue(registry.registerExternal(FakeDefiner(fanContract, idOverride = "com.vendor.fan"), "com.vendor"))
+        assertEquals("com.vendor.fan", registry.definerForInterface("fan"))
+        assertEquals("fan", registry.interfaceIdForMethod("fan.spin"))
+
+        // No other definer to hand it to, so the interface goes with its only definer.
+        registry.unregisterExternal("com.vendor.fan")
+        assertNull(registry.getInterfaceContract("fan"))
+        assertNull(registry.definerForInterface("fan"))
+    }
+
+    @Test
+    fun `a built-in definer takes an interface over from an external one`() {
+        val registry = PluginRegistry()
+        registry.registerExternal(FakeDefiner(fanContract, idOverride = "com.vendor.fan"), "com.vendor")
+
+        registry.registerBuiltIn(FakeDefiner(fanContract.copy(version = 2), idOverride = "builtin.fan"))
+        assertEquals("builtin.fan", registry.definerForInterface("fan"))
+        assertEquals(2, registry.getInterfaceContract("fan")!!.version)
+
+        // The external definer no longer owns it, so disconnecting leaves the built-in's contract.
+        registry.unregisterExternal("com.vendor.fan")
+        assertEquals("builtin.fan", registry.definerForInterface("fan"))
+        assertEquals(2, registry.getInterfaceContract("fan")!!.version)
     }
 }

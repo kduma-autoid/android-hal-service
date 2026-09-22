@@ -420,7 +420,10 @@ class SubscriptionFilterTest {
 
 Interfejsy (`printer`, `barcodeScanner`, `light`, …) testuje sie na poziomie `PluginRegistry` -- rejestracja
 kontraktu, rozwiazanie providera (domyslny vs sufiks `@provider`), bramkowanie cech method-level
-(razem z fallbackiem na providera z cecha dla wywolania bez sufiksu), filtr dostepnosci. Pelny zestaw: `service/hal-service/.../plugin/PluginRegistryInterfaceTest.kt`.
+(razem z fallbackiem na providera z cecha dla wywolania bez sufiksu), filtr dostepnosci, wlasnosc kontraktu
+(built-in vs external, wyparcie i przywrocenie definera). Pluginy zewnetrzne wchodza przez `internal`
+`registerExternal` / `unregisterExternal` -- to samo, co robi `ServiceConnection` z `discoverExternal`, bez
+bindowania prawdziwego serwisu. Pelny zestaw: `service/hal-service/.../plugin/PluginRegistryInterfaceTest.kt`.
 
 ### Rozwiazanie providera + bramkowanie cechy
 
