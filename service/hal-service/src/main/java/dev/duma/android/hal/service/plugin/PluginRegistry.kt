@@ -218,9 +218,11 @@ class PluginRegistry {
         }
         contracts.forEach { contract ->
             val interfaceId = contract.interfaceId
-            builtInDefinedInterfaces.add(interfaceId)
             val owner = interfaceDefinerOwner[interfaceId]
-            if (owner == null || pluginInfo[owner]?.source == PluginSource.EXTERNAL) {
+            // pluginInfo[id] belongs to the external plugin holding the slot, so name the source.
+            val takesOver = mayDefineContract(id, interfaceId, owner, PluginSource.BUILT_IN)
+            builtInDefinedInterfaces.add(interfaceId)
+            if (takesOver) {
                 registeredInterfaces[interfaceId] = contract
                 interfaceDefinerOwner[interfaceId] = id
             }
@@ -234,11 +236,15 @@ class PluginRegistry {
         if (descriptor.definesInterfaces.isNotEmpty()) {
             descriptor.definesInterfaces.forEach { contract ->
                 val id = contract.interfaceId
+                val owner = interfaceDefinerOwner[id]
+                // Decided before this plugin marks the interface as built-in-defined: the mark closes
+                // it to everyone but its holder, and would otherwise shut out a built-in taking it
+                // over from an external definer — the one takeover the rules allow.
+                val mayDefine = mayDefineContract(plugin.pluginId, id, owner)
                 if (pluginInfo[plugin.pluginId]?.source == PluginSource.BUILT_IN) {
                     builtInDefinedInterfaces.add(id)
                 }
-                val owner = interfaceDefinerOwner[id]
-                if (mayDefineContract(plugin.pluginId, id, owner)) {
+                if (mayDefine) {
                     registeredInterfaces[id] = contract
                     interfaceDefinerOwner[id] = plugin.pluginId
                 } else {
@@ -257,24 +263,39 @@ class PluginRegistry {
         }
     }
 
+    /** [interfaceId]'s contract as [plugin] (registered as [pluginId]) defines it, or null — also when its descriptor cannot be read. */
+    private fun definedContract(pluginId: String, plugin: HalPlugin?, interfaceId: String): InterfaceContract? = try {
+        plugin?.getDescriptor()?.definesInterfaces?.firstOrNull { it.interfaceId == interfaceId }
+    } catch (e: Exception) {
+        Log.w(TAG, "getDescriptor() failed for definer $pluginId: ${e.message}")
+        null
+    }
+
     /**
-     * The contract of a built-in definer that an external plugin has just displaced by taking its
-     * pluginId. The built-in is dormant in [displacedPlugins], not gone — it comes back when the
-     * external one disconnects — so its interface must stay registered. Without this the displaced
-     * definer took the contract down with it and the replacement was then refused by
-     * [mayDefineContract], leaving the interface unregistered and every call `not_found`.
+     * Who holds [interfaceId]'s contract once [leavingId] no longer does, and which contract — or null
+     * when nobody defines it any more. In order:
+     *
+     * 1. The built-in waiting in reserve under [leavingId]. The owner map is keyed by pluginId, and an
+     *    external plugin shares that key with the built-in it displaced: when the external one is
+     *    unindexed, the holder is not leaving. The same step keeps the contract when the built-in itself
+     *    is being displaced, since [tryRegister] reserves it first. Without it the displaced definer
+     *    either took the interface down (every call `not_found`) or lost it to a live definer that had
+     *    come second.
+     * 2. Another live definer, built-in first. External ones are out once a built-in defined it.
+     * 3. A built-in waiting under another id.
      */
-    private fun displacedContractFor(interfaceId: String): InterfaceContract? =
-        displacedPlugins.values.asSequence()
-            .filter { (_, info) -> info.source == PluginSource.BUILT_IN }
-            .mapNotNull { (plugin, _) ->
-                try {
-                    plugin.getDescriptor().definesInterfaces.firstOrNull { it.interfaceId == interfaceId }
-                } catch (_: Exception) {
-                    null
-                }
-            }
-            .firstOrNull()
+    private fun contractHolderAfter(leavingId: String, interfaceId: String): Pair<String, InterfaceContract>? {
+        definedContract(leavingId, displacedPlugins[leavingId]?.first, interfaceId)?.let { return leavingId to it }
+        interfaceDefinitionsByPlugin.entries
+            .filter { interfaceId in it.value }
+            .map { it.key }
+            .filter { mayDefineContract(it, interfaceId, null) }
+            .minByOrNull { if (pluginInfo[it]?.source == PluginSource.BUILT_IN) 0 else 1 }
+            ?.let { sid -> definedContract(sid, plugins[sid], interfaceId)?.let { return sid to it } }
+        return displacedPlugins.entries.firstNotNullOfOrNull { (rid, reserved) ->
+            definedContract(rid, reserved.first, interfaceId)?.let { rid to it }
+        }
+    }
 
     /**
      * A contract carries the interface's method signatures and their `requiredPermission`, so a later
@@ -284,13 +305,24 @@ class PluginRegistry {
      * deliberately the opposite of [tryRegister]'s rule for plugins, where external wins: there a
      * replacement swaps an implementation, here it would swap the contract everyone is held to.
      */
-    private fun mayDefineContract(candidateId: String, interfaceId: String, owner: String?): Boolean {
-        val candidateSource = pluginInfo[candidateId]?.source
+    private fun mayDefineContract(
+        candidateId: String,
+        interfaceId: String,
+        owner: String?,
+        candidateSource: PluginSource? = pluginInfo[candidateId]?.source
+    ): Boolean {
+        val builtInDefined = interfaceId in builtInDefinedInterfaces
         // An interface a built-in defines is never redefined from outside — not even by a plugin that
         // took the built-in's own pluginId. `tryRegister` unindexes the displaced definer before
         // indexing the replacement, so at that moment the owner map alone would look free.
-        if (candidateSource == PluginSource.EXTERNAL && interfaceId in builtInDefinedInterfaces) return false
+        if (candidateSource == PluginSource.EXTERNAL && builtInDefined) return false
         if (owner == null || owner == candidateId) return true
+        // Once a built-in defined it, whoever owns it is a built-in: a built-in marking an interface
+        // always takes it from an external owner, and when a built-in owner goes, the contract only
+        // passes to another built-in (external ones are refused above). That owner may be waiting in
+        // reserve under an id an external plugin holds, so pluginInfo[owner] would read EXTERNAL and
+        // the check below would hand the contract to a second built-in. The first one keeps it.
+        if (builtInDefined) return false
         return candidateSource == PluginSource.BUILT_IN && pluginInfo[owner]?.source == PluginSource.EXTERNAL
     }
 
@@ -300,23 +332,12 @@ class PluginRegistry {
             if (interfaceDefinerOwner[id] != pluginId) return@forEach
             // Another plugin may still define this interface — hand the contract over rather than
             // unregistering it, so detaching one definer does not take the interface down with it.
-            val successor = interfaceDefinitionsByPlugin.entries
-                .filter { id in it.value }
-                .map { it.key }
-                .filter { mayDefineContract(it, id, null) }
-                .minByOrNull { if (pluginInfo[it]?.source == PluginSource.BUILT_IN) 0 else 1 }
-            val contract = successor?.let { sid ->
-                try {
-                    plugins[sid]?.getDescriptor()?.definesInterfaces?.firstOrNull { it.interfaceId == id }
-                } catch (e: Exception) {
-                    Log.w(TAG, "getDescriptor() failed for successor definer $sid: ${e.message}")
-                    null
-                }
-            } ?: displacedContractFor(id)
-            if (contract != null) {
+            val handover = contractHolderAfter(pluginId, id)
+            if (handover != null) {
+                val (holder, contract) = handover
                 registeredInterfaces[id] = contract
-                interfaceDefinerOwner[id] = successor ?: pluginId
-                Log.i(TAG, "Interface '$id': contract kept, now held by ${successor ?: pluginId}")
+                interfaceDefinerOwner[id] = holder
+                Log.i(TAG, "Interface '$id': contract kept, now held by $holder")
             } else {
                 registeredInterfaces.remove(id)
                 interfaceDefinerOwner.remove(id)

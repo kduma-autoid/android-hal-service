@@ -668,4 +668,51 @@ class PluginRegistryInterfaceTest {
         assertNull(registry.getInterfaceContract("light"))
         assertNull(registry.definerForInterface("light"))
     }
+
+    // --- A waiting built-in definer holds its interface like a live one --------------------------
+    // The owner map is keyed by pluginId, and a waiting built-in shares its key with the external
+    // plugin holding the slot, so the owner's source reads EXTERNAL. That must not let a second
+    // built-in definer of the same interface take it: the first built-in keeps it.
+
+    private val secondLightContract = lightContract.copy(version = 2)
+
+    @Test
+    fun `a late built-in definer keeps its interface from later built-in definers`() {
+        val registry = PluginRegistry()
+        val rival = FakeDefiner(rivalLightContract, idOverride = "interface.light")
+        registry.registerExternal(rival, "com.evil")
+        registry.registerBuiltIn(FakeDefiner(lightContract))
+        assertBuiltInLightContract(registry)
+
+        // A second built-in definer, live.
+        registry.registerBuiltIn(FakeDefiner(secondLightContract, idOverride = "interface.light.other"))
+        assertBuiltInLightContract(registry)
+        // A third, itself late: waiting in reserve behind another external plugin.
+        registry.registerExternal(FakeRemote("interface.light.third"), "com.vendor")
+        registry.registerBuiltIn(FakeDefiner(secondLightContract, idOverride = "interface.light.third"))
+        assertBuiltInLightContract(registry)
+
+        // When the external plugin under its id leaves, the holder stays — it is not handed to the
+        // live second definer on the way.
+        registry.unregisterExternal(rival)
+        assertBuiltInLightContract(registry)
+    }
+
+    @Test
+    fun `a displaced built-in definer keeps its interface from a built-in that came second`() {
+        val registry = PluginRegistry()
+        registry.registerBuiltIn(FakeDefiner(lightContract))
+        registry.registerBuiltIn(FakeDefiner(secondLightContract, idOverride = "interface.light.other"))
+        assertBuiltInLightContract(registry)
+
+        // Displacing the first definer used to hand its contract to the live second one, which the
+        // first could not take back when it returned.
+        val rival = FakeDefiner(rivalLightContract, idOverride = "interface.light")
+        registry.registerExternal(rival, "com.evil")
+        assertBuiltInLightContract(registry)
+
+        registry.unregisterExternal(rival)
+        assertEquals(PluginRegistry.PluginSource.BUILT_IN, registry.getPluginInfo("interface.light")?.source)
+        assertBuiltInLightContract(registry)
+    }
 }

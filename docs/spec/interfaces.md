@@ -30,7 +30,9 @@ Kontrakt niesie sygnatury metod i ich `requiredPermission`, więc jego podmiana 
 wszystkich. Dlatego własność jest odwrotna niż przy konflikcie `pluginId`, gdzie external wygrywa:
 
 - kontrakt trzyma **pierwszy** definer; kolejny definer tego samego interfejsu go nie podmienia;
-- jedyny wyjątek: definer wbudowany przejmuje interfejs od zewnętrznego;
+- jedyny wyjątek: definer wbudowany przejmuje interfejs od zewnętrznego. Między wbudowanymi zawsze
+  wygrywa pierwszy — także gdy czeka w rezerwie za zewnętrznym pluginem o swoim id; drugi wbudowany
+  nie dostaje kontraktu ani wtedy, ani przy wyparciu pierwszego;
 - interfejsu zdefiniowanego przez plugin wbudowany nie przedefiniuje żaden plugin zewnętrzny —
   także taki, który zajął `pluginId` wbudowanego definera. Kontrakt wypartego definera zostaje, a
   po rozłączeniu zewnętrznego wbudowany wraca z tym samym kontraktem. Kolejność rejestracji nie ma
