@@ -14,6 +14,7 @@ import io.ktor.server.routing.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import dev.duma.android.hal.transport.ktor.core.HAL_PROVIDER_HEADER
 
 /**
  * HTTP REST transport implementing the command channel. Registers routes
@@ -119,7 +120,7 @@ class HttpTransport : CommandTransport {
         when (result) {
             is CommandResult.Success -> {
                 // Handling provider (interface methods) goes in a response header, not the body.
-                result.provider?.let { call.response.headers.append("X-Hal-Provider", it) }
+                result.provider?.let { call.response.headers.append(HAL_PROVIDER_HEADER, it) }
                 call.respondText(
                     result.body ?: "{}",
                     ContentType.Application.Json

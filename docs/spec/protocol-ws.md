@@ -89,7 +89,19 @@ Uprawnienie liczone jest z połowy-nazwy; sufiks `@źródło` nie poszerza dost�
 2. **Permission check** — czy token ma uprawnienie do tego event typu
    (np. rfid.tag wymaga uprawnienia "rfid")
 
-Subskrypcja eventu bez uprawnień → błąd `forbidden` przy subscribe.
+Subskrypcja eventu bez uprawnień → błąd `forbidden` przy subscribe. Kontrola jest **wszystko albo
+nic**: jeśli choć jeden wpis z żądania jest niedozwolony, odrzucane jest całe `subscribe` i żaden
+wpis nie trafia do sesji. Transport dopisuje wzorce dopiero po zgodzie handlera (dotyczy WS i AIDL).
+
+Dwie konsekwencje warte zapamiętania:
+
+- Uprawnienie wyprowadzane jest z **nazwy** eventu, nie z deskryptora — subskrypcja z wildcardem
+  obejmuje eventy, które jeszcze nie istnieją, więc nie ma jednego deskryptora do odczytania.
+  Dlatego `*` jest odrzucane dla tokenu bez uprawnienia `*`, zamiast być przepuszczane i filtrowane
+  przy dostarczaniu.
+- Eventy `system.*` (`system.plugins.changed`, `system.interfaces.changed`) są dostępne dla
+  **każdego ważnego tokenu**, tak jak `system.status` i `system.describe`. Nie niosą danych
+  urządzenia, a każdy klient potrzebuje ich, żeby ponownie rozwiązać swój backend.
 
 ## Sesja WS
 

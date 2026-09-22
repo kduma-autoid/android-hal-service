@@ -210,6 +210,25 @@ class PluginRegistry {
      * deliberately the opposite of [tryRegister]'s rule for plugins, where external wins: there a
      * replacement swaps an implementation, here it would swap the contract everyone is held to.
      */
+    /**
+     * The contract of a built-in definer that an external plugin has just displaced by taking its
+     * pluginId. The built-in is dormant in [displacedPlugins], not gone — it comes back when the
+     * external one disconnects — so its interface must stay registered. Without this the displaced
+     * definer took the contract down with it and the replacement was then refused by
+     * [mayDefineContract], leaving the interface unregistered and every call `not_found`.
+     */
+    private fun displacedContractFor(interfaceId: String): InterfaceContract? =
+        displacedPlugins.values.asSequence()
+            .filter { (_, info) -> info.source == PluginSource.BUILT_IN }
+            .mapNotNull { (plugin, _) ->
+                try {
+                    plugin.getDescriptor().definesInterfaces.firstOrNull { it.interfaceId == interfaceId }
+                } catch (_: Exception) {
+                    null
+                }
+            }
+            .firstOrNull()
+
     private fun mayDefineContract(candidateId: String, interfaceId: String, owner: String?): Boolean {
         val candidateSource = pluginInfo[candidateId]?.source
         // An interface a built-in defines is never redefined from outside — not even by a plugin that
@@ -238,11 +257,11 @@ class PluginRegistry {
                     Log.w(TAG, "getDescriptor() failed for successor definer $sid: ${e.message}")
                     null
                 }
-            }
-            if (contract != null && successor != null) {
+            } ?: displacedContractFor(id)
+            if (contract != null) {
                 registeredInterfaces[id] = contract
-                interfaceDefinerOwner[id] = successor
-                Log.i(TAG, "Interface '$id': contract handed over from $pluginId to $successor")
+                interfaceDefinerOwner[id] = successor ?: pluginId
+                Log.i(TAG, "Interface '$id': contract kept, now held by ${successor ?: pluginId}")
             } else {
                 registeredInterfaces.remove(id)
                 interfaceDefinerOwner.remove(id)

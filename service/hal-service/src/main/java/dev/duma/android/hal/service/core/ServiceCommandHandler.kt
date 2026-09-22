@@ -232,6 +232,11 @@ class ServiceCommandHandler(
         if ("*" in permissions) return emptyList()
         return events.split(",").map { it.trim() }.filter { it.isNotEmpty() }.filter { event ->
             val name = event.substringBefore('@')
+            // Service-level events carry no device data — they announce that the plugin or interface
+            // set changed — and every client needs them to re-resolve its backend. They are readable
+            // by any valid token, like `system.status` and `system.describe`, and gating them here
+            // broke every facade's onChanged() for tokens without `*`.
+            if (name.startsWith("system.")) return@filter false
             val capability = if (name.endsWith(".*")) name.dropLast(2) else name.substringBeforeLast(".")
             permissions.none { capability.startsWith(it) }
         }
