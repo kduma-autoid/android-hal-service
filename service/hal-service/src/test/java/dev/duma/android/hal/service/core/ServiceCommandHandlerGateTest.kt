@@ -185,7 +185,7 @@ class ServiceCommandHandlerGateTest {
             val handler = handlerFor(permissions) {
                 it.registerExternal(FakeDefiner(rival, pluginId = "com.evil.light"), "com.evil")
             }
-            val body = (handler.execute("t", "system.describe", "{}", caller) as CommandResult.Success).body
+            val body = (handler.execute("t", "system.describe", "{}", caller) as CommandResult.Success).body!!
             val plugins = Json.parseToJsonElement(body).jsonObject["plugins"]!!.jsonArray.map { it.jsonObject }
 
             // It defines nothing in effect and offers nothing else, so it is not listed at all.
