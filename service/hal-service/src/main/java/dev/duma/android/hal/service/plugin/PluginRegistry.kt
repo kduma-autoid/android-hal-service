@@ -608,6 +608,8 @@ class PluginRegistry {
         if (contract.methods.none { it.name == method }) {
             return CommandResult.unsupportedMethod(method)
         }
+        // Needed before the provider is chosen, so a feature-gated call can pick one that has it.
+        val gatedFeature = contract.features.firstOrNull { method in it.methods }?.key
         val plugin = if (providerPluginId != null) {
             val bound = interfaceBindings[providerPluginId]?.any { it.interfaceId == interfaceId } == true
             val enabled = interfacePreferenceConfig?.isEnabled(interfaceId, providerPluginId) != false
@@ -620,7 +622,17 @@ class PluginRegistry {
             }
             p
         } else {
-            val defaultId = getInterfaceProviders(interfaceId, callerHasExperimental).firstOrNull()?.pluginId
+            val candidates = getInterfaceProviders(interfaceId, callerHasExperimental)
+            // A feature-gated method resolves to the first provider that actually advertises the
+            // feature, not blindly to the default. Otherwise `light.multiFlash` without a selector
+            // fails on a device whose default is `sunmi.tms.led` (no multiFlash) even though the
+            // enabled `sunmi.statuslight` right behind it supports exactly that.
+            val chosen = if (gatedFeature != null) {
+                candidates.firstOrNull { gatedFeature in it.features } ?: candidates.firstOrNull()
+            } else {
+                candidates.firstOrNull()
+            }
+            val defaultId = chosen?.pluginId
                 ?: return CommandResult.unavailable("No provider available for interface: $interfaceId")
             plugins[defaultId] ?: return CommandResult.unavailable("No provider available for interface: $interfaceId")
         }
@@ -628,7 +640,7 @@ class PluginRegistry {
         // the resolved provider must advertise it. Parameter-level features (features with no `methods`,
         // e.g. a "timeout" option) are NOT enforced here — the core forwards params opaquely, so the
         // provider validates its own parameters.
-        val requiredFeature = contract.features.firstOrNull { method in it.methods }?.key
+        val requiredFeature = gatedFeature
         if (requiredFeature != null) {
             val providerFeatures = interfaceBindings[plugin.pluginId]
                 ?.firstOrNull { it.interfaceId == interfaceId }?.features ?: emptyList()

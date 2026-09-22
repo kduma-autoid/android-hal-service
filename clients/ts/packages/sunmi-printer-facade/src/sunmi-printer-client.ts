@@ -60,6 +60,11 @@ export class SunmiPrinterClient {
     if (!provider) {
       throw new Error(`Printer provider not available: ${pluginId}`);
     }
+    // describe lists user-disabled providers on purpose, so a picker can re-enable them — but
+    // binding to one would produce a client whose every call comes back `unavailable`.
+    if (provider.enabled === false) {
+      throw new Error(`Printer provider is disabled for the printer interface: ${pluginId}`);
+    }
     return SunmiPrinterClient.fromProvider(client, provider);
   }
 

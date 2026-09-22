@@ -118,6 +118,11 @@ dependencies {
 
     // Project modules - plugins
     implementation(project(":plugins:generic:plugin-generic-lib"))
+    // The `demo` interface and its two synthetic providers exist to exercise the interface layer
+    // without hardware, so they belong to the development build only — a stable APK must not
+    // advertise `demo.echo`/`ping`/`emit` in describe or list the interface in the Dashboard. The
+    // real definers stay in plugin-generic-lib, which every build needs.
+    "developmentImplementation"(project(":plugins:generic:plugin-generic-demo-lib"))
     // Sunmi plugins shared by both sunmi builds (production subset). Added to the `sunmi` device
     // flavour, so they land in both sunmiStable and sunmiDevelopment; AGP matches each plugin's
     // `stability` variant to the app's (stable → experimental compiled out, development → kept).

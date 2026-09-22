@@ -717,8 +717,11 @@ class DashboardActivity : AppCompatActivity() {
                 text = "Version: ${contract.version}"
                 textSize = 13f
             })
-            val available = pluginReg.getInterfaceProviders(contract.interfaceId).size
-            val total = pluginReg.getAllInterfaceImplementors(contract.interfaceId).size
+            // "available" is about the hardware being there, not about the user's choice — counting a
+            // provider the user switched off as unavailable made the Dashboard read like a fault.
+            val implementors = pluginReg.getAllInterfaceImplementors(contract.interfaceId)
+            val available = implementors.count { it.available && it.supported }
+            val total = implementors.size
             addView(TextView(this@DashboardActivity).apply {
                 text = "${contract.methods.size} methods · $available/$total providers available"
                 textSize = 13f

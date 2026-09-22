@@ -1,4 +1,4 @@
-package dev.duma.android.hal.plugins.generic
+package dev.duma.android.hal.plugins.generic.demo
 
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor

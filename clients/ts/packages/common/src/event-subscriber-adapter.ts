@@ -13,9 +13,13 @@ export class EventSubscriberAdapter implements IEventSubscriber {
   ): Promise<() => Promise<void>> {
     let set = this.handlers.get(event);
     if (!set) {
+      // Register the pattern only once the transport has accepted it. Recording it first meant a
+      // failed subscribe (a `forbidden` from the permission gate, a timeout) left an empty Set
+      // behind, and the next `on()` for the same pattern skipped subscribe and resolved happily
+      // with nothing subscribed server-side.
+      await this.transport.subscribe([event]);
       set = new Set();
       this.handlers.set(event, set);
-      await this.transport.subscribe([event]);
     }
 
     set.add(handler);

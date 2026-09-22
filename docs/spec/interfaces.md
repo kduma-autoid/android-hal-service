@@ -212,6 +212,9 @@ szyny.
   konkretny skaner. Zastępuje dawny `GenericScannerPlugin`.
 - **`demo`** (definer `DemoInterface`): bezsprzętowy interfejs testowy — providerzy `demo.alpha`
   (uppercase, default) i `demo.beta` (reverse), metody `demo.echo/ping/emit` i event `demo.notice`.
+  Mieszka w osobnym module `plugin-generic-demo-lib`, podpiętym wyłącznie pod flavor
+  `development`, więc **nie wchodzi do buildów `stable`** — produkcyjny APK nie ogłasza go
+  w `system.describe` ani nie pokazuje w Dashboardzie.
 
 ## Klient (TS)
 
@@ -266,7 +269,8 @@ providera. Generyczny `InterfacesView` dalej pokazuje surowo każdy zarejestrowa
   w describe),
   `config/InterfacePreferenceConfig.kt`.
 - Definery/providerzy: `plugin-generic-lib` (`LightInterface`, `PrinterInterface`, `BarcodeScannerInterface`,
-  `DemoInterface`, `DemoProviders`), `SunmiTmsLedPlugin`, `SunmiStatusLightPlugin`,
+  `plugin-generic-demo-lib` dla `DemoInterface`/`DemoProviders`), `SunmiTmsLedPlugin`,
+  `SunmiStatusLightPlugin`,
   `SunmiPrinterXPrinterPlugin` (interfejs `printer`), `SunmiInnerScannerPlugin`/
   `SunmiExternalScannerPlugin`/`SunmiCameraScannerPlugin` (interfejs `barcodeScanner`).
 - Klient: `common` (`InterfaceDescriptor`, `PROVIDER_SELECTOR`/`methodForProvider`,

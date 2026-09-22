@@ -7,7 +7,6 @@ import dev.duma.android.hal.service.auth.TokenManager
 import dev.duma.android.hal.service.auth.TokenRequest
 import dev.duma.android.hal.service.auth.TokenResponse
 import dev.duma.android.hal.service.config.ExperimentalConfig
-import dev.duma.android.hal.service.config.InterfacePreferenceConfig
 import dev.duma.android.hal.service.plugin.PluginRegistry
 import dev.duma.android.hal.transport.core.CallerContext
 import dev.duma.android.hal.transport.core.CommandHandler
@@ -42,7 +41,6 @@ class ServiceCommandHandler(
     private val pluginRegistry: PluginRegistry,
     private val transportRegistry: TransportRegistry,
     private val experimentalConfig: ExperimentalConfig,
-    private val interfacePreferenceConfig: InterfacePreferenceConfig,
     private val startTimeMillis: Long = System.currentTimeMillis(),
     private val versionName: String? = null,
     private val versionCode: Int? = null
@@ -330,7 +328,10 @@ class ServiceCommandHandler(
                     methodPredicate = { m -> permissions.any { m.requiredPermission.startsWith(it) } },
                     eventPredicate = { e -> permissions.any { e.requiredPermission.startsWith(it) } }
                 ))
-            }.filter { it.allMethods.isNotEmpty() || it.allEvents.isNotEmpty() || it.interfaces.isNotEmpty() || it.definesInterfaces.isNotEmpty() }
+            }.filter {
+                it.allMethods.isNotEmpty() || it.allEvents.isNotEmpty() ||
+                    hasVisibleInterface(it, permissions)
+            }
         }
 
         // Step 2: Filter super methods unless withSuper=true
@@ -553,6 +554,23 @@ class ServiceCommandHandler(
 
     private suspend fun requireToken(token: String, callerContext: CallerContext): TokenEntity? {
         return tokenManager.validateToken(token, callerContext)
+    }
+
+    /**
+     * Whether a plugin earns its place in the listing purely through interface work. A provider with
+     * no native methods has nothing else to show, so it must stay visible to a caller who may use the
+     * interface — but keeping every such plugin for everyone listed the device's pluginIds and its
+     * interface wiring to tokens holding no permission for any of it.
+     */
+    private fun hasVisibleInterface(desc: PluginDescriptor, permissions: List<String>): Boolean {
+        val ids = (desc.interfaces.map { it.interfaceId } +
+            desc.definesInterfaces.map { it.interfaceId }).distinct()
+        return ids.any { id ->
+            val contract = pluginRegistry.getInterfaceContract(id) ?: return@any false
+            val required = (contract.methods.map { it.requiredPermission } +
+                contract.events.map { it.requiredPermission }).distinct()
+            required.any { req -> permissions.any { req.startsWith(it) } }
+        }
     }
 
     private fun filterGroups(

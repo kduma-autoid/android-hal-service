@@ -54,6 +54,11 @@ export class SunmiBarcodeScannerClient {
     if (!provider) {
       throw new Error(`Barcode scanner provider not available: ${pluginId}`);
     }
+    // describe lists user-disabled providers on purpose, so a picker can re-enable them — but
+    // binding to one would produce a client whose every call comes back `unavailable`.
+    if (provider.enabled === false) {
+      throw new Error(`Barcode scanner provider is disabled for the barcodeScanner interface: ${pluginId}`);
+    }
     return SunmiBarcodeScannerClient.fromProvider(client, provider);
   }
 

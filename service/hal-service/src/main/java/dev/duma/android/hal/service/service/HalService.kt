@@ -184,10 +184,12 @@ class HalService : Service() {
         tryRegisterPlugin("dev.duma.android.hal.plugins.generic.LightInterface")
         tryRegisterPlugin("dev.duma.android.hal.plugins.generic.PrinterInterface")
         tryRegisterPlugin("dev.duma.android.hal.plugins.generic.BarcodeScannerInterface")
-        // Hardware-free demo interface + two providers (always available, for testing the interface layer).
-        tryRegisterPlugin("dev.duma.android.hal.plugins.generic.DemoInterface")
-        tryRegisterPlugin("dev.duma.android.hal.plugins.generic.DemoAlphaPlugin")
-        tryRegisterPlugin("dev.duma.android.hal.plugins.generic.DemoBetaPlugin")
+        // Hardware-free demo interface + two providers, for exercising the interface layer without
+        // hardware. Development builds only — the module is not on a stable APK's classpath, so these
+        // reflective lookups simply find nothing there.
+        tryRegisterPlugin("dev.duma.android.hal.plugins.generic.demo.DemoInterface")
+        tryRegisterPlugin("dev.duma.android.hal.plugins.generic.demo.DemoAlphaPlugin")
+        tryRegisterPlugin("dev.duma.android.hal.plugins.generic.demo.DemoBetaPlugin")
 
         // 8. Initialize all plugins (PluginContext per plugin)
         pluginRegistry.initializeAll(applicationContext, eventBus)
@@ -232,7 +234,6 @@ class HalService : Service() {
             pluginRegistry = pluginRegistry,
             transportRegistry = transportRegistry,
             experimentalConfig = experimentalConfig,
-            interfacePreferenceConfig = interfacePreferenceConfig,
             versionName = pkgInfo?.versionName,
             versionCode = pkgInfo?.let { PackageInfoCompat.getLongVersionCode(it).toInt() }
         )

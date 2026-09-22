@@ -24,6 +24,9 @@ const selectedBackend = ref<string>('');
 const detecting = ref(false);
 const scanning = ref(false);
 const scans = ref<LoggedScan[]>([]);
+// Subscribing can fail on its own (HTTP has no event channel, and the permission gate can refuse)
+// while the scanner itself resolved fine — kept apart so the view does not claim there is no backend.
+const scanError = ref('');
 
 let unsubscribeScan: (() => Promise<void>) | null = null;
 let unsubscribeChanges: (() => Promise<void>) | null = null;
@@ -48,7 +51,20 @@ async function subscribeScans() {
   });
 }
 
+// Two `system.interfaces.changed` in a row would otherwise run bind() concurrently and leave two
+// onScan subscriptions, one of which nothing ever unsubscribes.
+let binding: Promise<void> | null = null;
+
 async function bind(pluginId?: string) {
+  const previous = binding;
+  binding = (async () => {
+    await previous?.catch(() => {});
+    await bindOnce(pluginId);
+  })();
+  return binding;
+}
+
+async function bindOnce(pluginId?: string) {
   if (!client.value || !isConnected.value) {
     await stopScanSubscription();
     scanner.value = null;
@@ -62,15 +78,26 @@ async function bind(pluginId?: string) {
       ? await SunmiBarcodeScannerClient.forBackend(client.value, pluginId)
       : await SunmiBarcodeScannerClient.create(client.value);
     selectedBackend.value = scanner.value.backend;
-    await subscribeScans();
   } catch {
     // No provider (or the pinned one vanished) — the template shows the "no backend" banner.
     await stopScanSubscription();
     scanner.value = null;
     selectedBackend.value = '';
+    return;
   } finally {
     detecting.value = false;
     scanning.value = false;
+  }
+
+  // Subscribing is a separate failure: on the HTTP transport there is no event channel at all, and
+  // folding that into the catch above cleared a scanner that listBackends had just resolved, so the
+  // view claimed there was no provider while showing a list of them.
+  try {
+    await subscribeScans();
+    scanError.value = '';
+  } catch (e) {
+    await stopScanSubscription();
+    scanError.value = e instanceof Error ? e.message : String(e);
   }
 }
 
@@ -154,6 +181,11 @@ function time(d: Date): string {
     to configure and connect.
   </div>
   <div v-else-if="detecting && !scanner" class="banner banner-info">Resolving scanner backend...</div>
+  <div v-else-if="scanner && scanError" class="banner banner-warning">
+    Bound to <code>{{ selectedBackend }}</code>, but live scans are unavailable: {{ scanError }}
+    Trigger still works; switch to the WebSocket transport in
+    <router-link to="/settings">Settings</router-link> to receive <code>onScan</code>.
+  </div>
   <div v-else-if="!scanner" class="banner banner-warning">
     No barcode scanner backend is available — the <code>barcodeScanner</code> interface has no
     provider on this

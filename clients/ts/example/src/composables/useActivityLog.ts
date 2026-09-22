@@ -1,6 +1,6 @@
 import { ref } from 'vue';
 import type { HalClient } from '@kduma-autoid/hal-client';
-import type { EventMeta } from '@kduma-autoid/hal-client-common';
+import type { EventMeta, ExecuteOptions } from '@kduma-autoid/hal-client-common';
 import { PROVIDER_SELECTOR } from '@kduma-autoid/hal-client-common';
 
 export type LogEntryType = 'method' | 'event';
@@ -49,13 +49,23 @@ function startLogging(client: HalClient) {
   // Monkey-patch execute — observe the handling provider via the onMeta callback, and keep the
   // `@providerId` selector out of the displayed method name (it becomes the handler header).
   const originalExecute = client.execute.bind(client);
-  client.execute = async <T = unknown>(method: string, params?: unknown): Promise<T> => {
+  client.execute = async <T = unknown>(
+    method: string,
+    params?: unknown,
+    options?: ExecuteOptions,
+  ): Promise<T> => {
     const start = Date.now();
     const { name, pinned } = splitProviderSelector(method);
     let handler: string | undefined;
     try {
+      // Keep the caller's options — the patch used to drop them, so any onMeta passed through a
+      // logged client was silently lost once logging was switched on.
       const result = await originalExecute<T>(method, params, {
-        onMeta: (meta) => { handler = meta.provider; },
+        ...options,
+        onMeta: (meta) => {
+          handler = meta.provider;
+          options?.onMeta?.(meta);
+        },
       });
       addLog({
         type: 'method',

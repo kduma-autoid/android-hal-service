@@ -62,6 +62,11 @@ export class SunmiLightClient {
     if (!provider) {
       throw new Error(`Light provider not available: ${pluginId}`);
     }
+    // describe lists user-disabled providers on purpose, so a picker can re-enable them — but
+    // binding to one would produce a client whose every call comes back `unavailable`.
+    if (provider.enabled === false) {
+      throw new Error(`Light provider is disabled for the light interface: ${pluginId}`);
+    }
     return SunmiLightClient.fromProvider(client, provider);
   }
 
