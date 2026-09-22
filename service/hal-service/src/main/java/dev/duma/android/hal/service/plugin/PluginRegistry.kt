@@ -130,9 +130,16 @@ class PluginRegistry {
                 Log.i(TAG, "Registered built-in plugin: ${plugin.pluginId} v${plugin.version}")
             }
         } else {
-            unsupportedPlugins[plugin.pluginId] = plugin
-            pluginInfo[plugin.pluginId] = PluginInfo(PluginSource.BUILT_IN)
-            Log.i(TAG, "Plugin not supported on this device: ${plugin.pluginId}")
+            // Same rule as for an unsupported external plugin: only listed, so it must not relabel a
+            // plugin already known under this id, or leave a second entry for it in the unsupported list.
+            val id = plugin.pluginId
+            if (plugins.containsKey(id) || unsupportedPlugins.containsKey(id)) {
+                Log.i(TAG, "Plugin not supported on this device, id already taken — ignored: $id")
+                return
+            }
+            unsupportedPlugins[id] = plugin
+            pluginInfo[id] = PluginInfo(PluginSource.BUILT_IN)
+            Log.i(TAG, "Plugin not supported on this device: $id")
         }
     }
 
@@ -158,7 +165,7 @@ class PluginRegistry {
             if (existingInfo.source == PluginSource.BUILT_IN) {
                 displacedPlugins[id] = existing to existingInfo
                 // Release the displaced built-in's resources; it is re-initialized if restored.
-                safeDispose(existing)
+                safeDispose(existing, id)
             }
             existing.getCapabilities().forEach { capabilityToPlugin.remove(it, existing) }
             unindexInterfaces(existing.pluginId)
@@ -399,7 +406,7 @@ class PluginRegistry {
         available.remove(pluginId)
         capabilityToPlugin.values.removeAll { it === plugin }
         unindexInterfaces(pluginId)
-        safeDispose(plugin)
+        safeDispose(plugin, pluginId)
         Log.i(TAG, "Removed external plugin: $pluginId")
 
         val (builtInPlugin, builtInInfo) = displacedPlugins.remove(pluginId) ?: return
@@ -735,8 +742,8 @@ class PluginRegistry {
         }
         serviceConnections.clear()
         // Tear down initialized plugins (active + displaced) so they release resources.
-        plugins.values.forEach { safeDispose(it) }
-        displacedPlugins.values.forEach { (plugin, _) -> safeDispose(plugin) }
+        plugins.forEach { (id, plugin) -> safeDispose(plugin, id) }
+        displacedPlugins.forEach { (id, displaced) -> safeDispose(displaced.first, id) }
         plugins.clear()
         pluginInfo.clear()
         displacedPlugins.clear()
@@ -751,11 +758,16 @@ class PluginRegistry {
         pendingInit = null
     }
 
-    private fun safeDispose(plugin: HalPlugin) {
+    /**
+     * [pluginId] comes from the caller rather than from [plugin]: for an [AidlPluginAdapter] every
+     * member is a binder call, and when the remote side is already gone, reading the id for the log
+     * line would throw a second `DeadObjectException` out of the handler.
+     */
+    private fun safeDispose(plugin: HalPlugin, pluginId: String) {
         try {
             plugin.dispose()
         } catch (e: Exception) {
-            Log.w(TAG, "dispose() failed for ${plugin.pluginId}: ${e.message}")
+            Log.w(TAG, "dispose() failed for $pluginId: ${e.message}")
         }
     }
 }

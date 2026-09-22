@@ -201,5 +201,6 @@ onEvent → eventBus.addPluginListener(listenerPluginId = ownerPluginId)
 - Rozłączenie (`onServiceDisconnected`) zdejmuje plugin po **instancji**, nie po `pluginId`: plugin,
   który przegrał konflikt, nie zdejmuje zwycięzcy. Nic przy tym nie woła pluginu — binder już nie
   żyje i każde wywołanie `AidlPluginAdapter` rzuciłoby `DeadObjectException`.
-- Nieobsługiwany external (`isSupported() == false`) jest tylko listowany i nie zajmuje `pluginId`,
-  który już jest znany — nie przemianowuje wbudowanego pluginu na zewnętrzny.
+- Nieobsługiwany plugin (`isSupported() == false`), wbudowany czy zewnętrzny, jest tylko listowany i
+  nie zajmuje `pluginId`, który już jest znany — nie przemianowuje innego pluginu (built-in na
+  external ani odwrotnie) i nie dubluje wpisu na liście nieobsługiwanych.

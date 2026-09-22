@@ -66,9 +66,10 @@ class PluginRegistryInterfaceTest {
         private val binding: InterfaceBinding,
         override val version: Int = 1,
         private val body: String,
-        private val experimental: Boolean = false
+        private val experimental: Boolean = false,
+        private val supported: Boolean = true
     ) : HalPlugin {
-        override fun isSupported() = true
+        override fun isSupported() = supported
         override fun getCapabilities(): List<String> = listOf(pluginId)
         override fun getDescriptor() = PluginDescriptor(
             pluginId = pluginId, name = pluginId, version = version,
@@ -496,7 +497,9 @@ class PluginRegistryInterfaceTest {
     /**
      * An external plugin as the registry sees it through [dev.duma.android.hal.contract.AidlPluginAdapter]:
      * every member is a binder call, so after [die] — the state `onServiceDisconnected` runs in —
-     * each one throws. Provides `light`, so it is not skipped as an empty API.
+     * each one throws. Provides `light`, so it is not skipped as an empty API. Its `dispose()` is a
+     * binder call too (the real adapter's is a no-op today), so a disconnect that disposes it goes
+     * through `safeDispose`'s failure path and must not read the id from the dead plugin there.
      */
     private class FakeRemote(
         private val id: String,
@@ -523,6 +526,7 @@ class PluginRegistryInterfaceTest {
         override suspend fun execute(method: String, params: String): CommandResult =
             call { CommandResult.Success("""{"who":"$tag"}""") }
         override fun setEventCallback(callback: HalPluginEventCallback?) = call {}
+        override fun dispose() = call {}
     }
 
     @Test
@@ -539,7 +543,8 @@ class PluginRegistryInterfaceTest {
         val routed = registry.executeInterface("light", "ext.light", "light.on", "{}")
         assertEquals("""{"who":"winner"}""", (routed as CommandResult.Success).body)
 
-        // The winner's own disconnect does remove it — without a single call into the dead binder.
+        // The winner's own disconnect does remove it — without a single call into the dead binder
+        // escaping (dispose() throws, and safeDispose logs with the id it was handed).
         winner.die()
         registry.unregisterExternal(winner)
         assertNull(registry.getPluginInfo("ext.light"))
@@ -577,5 +582,18 @@ class PluginRegistryInterfaceTest {
         registry.unregisterExternal(unsupported)
         assertFalse("ext.unsupported" in registry.getUnsupportedPluginIds())
         assertNull(registry.getPluginInfo("ext.unsupported"))
+    }
+
+    @Test
+    fun `an unsupported built-in does not relabel an external plugin under the same id`() {
+        // Not reachable with HalService's startup order (every built-in registers synchronously in
+        // onCreate, before any onServiceConnected can run on the main thread), but registerBuiltIn is
+        // public and the rule is the same as for an unsupported external plugin.
+        val registry = PluginRegistry()
+        assertTrue(registry.registerExternal(FakeRemote("x"), "com.vendor"))
+
+        registry.registerBuiltIn(FakeProvider("x", InterfaceBinding("light"), body = "{}", supported = false))
+        assertEquals(PluginRegistry.PluginSource.EXTERNAL, registry.getPluginInfo("x")?.source)
+        assertFalse("x" in registry.getUnsupportedPluginIds())
     }
 }
