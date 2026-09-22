@@ -85,8 +85,11 @@ a `sunmi.printerx.printer` — interfejs `printer`. Szczegóły: [`interfaces.md
 
 ## system.interface.setOrder / system.interface.setEnabled
 
-Konfiguracja kolejności i włączenia providerów interfejsu (persystowane; wymaga tokenu). Zmiana
-emituje event `system.interfaces.changed`.
+Konfiguracja kolejności i włączenia providerów interfejsu (persystowane). Zmiana emituje event
+`system.interfaces.changed`.
+
+Wymaga uprawnień przestawianego interfejsu — każdego, które deklaruje jego kontrakt. Zapis jest
+trwały i obejmuje całe urządzenie, więc token zawężony do jednego interfejsu nie przestawi innego.
 
 ```
 → execute("system.interface.setOrder",

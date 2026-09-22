@@ -84,12 +84,19 @@ class AidlTransport : CommandTransport, EventTransport {
             val token = sessionTokens[uid]
                 ?: return CommandResult.unauthorized()
             val events = jsonEvents.trim('[', ']', '"').split("\",\"").map { it.trim() }
-            sessionSubscriptions.getOrPut(uid) { CopyOnWriteArraySet() }.addAll(events)
             val callerContext = buildCallerContext()
-            return runBlocking {
-                handler?.subscribe(token, jsonEvents, callerContext)
+            // Ask first, record second — `pushEvent` delivers from this set, not from the result, so
+            // recording before the handler answered made a denial change nothing. The handler also
+            // gets the parsed names rather than the raw JSON array: it derives each event's
+            // permission from the name, and a `["…"]` wrapper corrupts that derivation.
+            val result = runBlocking {
+                handler?.subscribe(token, events.joinToString(","), callerContext)
                     ?: CommandResult.unavailable("Service not available")
             }
+            if (result is CommandResult.Success) {
+                sessionSubscriptions.getOrPut(uid) { CopyOnWriteArraySet() }.addAll(events)
+            }
+            return result
         }
 
         override fun unsubscribe(jsonEvents: String): CommandResult {
@@ -100,7 +107,7 @@ class AidlTransport : CommandTransport, EventTransport {
             sessionSubscriptions[uid]?.removeAll(events.toSet())
             val callerContext = buildCallerContext()
             return runBlocking {
-                handler?.unsubscribe(token, jsonEvents, callerContext)
+                handler?.unsubscribe(token, events.joinToString(","), callerContext)
                     ?: CommandResult.unavailable("Service not available")
             }
         }

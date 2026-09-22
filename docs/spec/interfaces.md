@@ -172,7 +172,9 @@ przed wywołującym, który nie może go użyć — bo routing i tak by go pomin
 
 ## Konfiguracja kolejności / enable (API)
 
-Token-gated, jak `system.status`:
+Wymaga **uprawnień interfejsu**, który przestawiasz: wywołujący musi mieć każde uprawnienie
+zadeklarowane przez kontrakt (metody i eventy). To zapis trwały i globalny, więc nie wystarczy sam
+token, jak przy `system.status` — tamte metody tylko czytają:
 
 - `system.interface.setOrder { "interfaceId": "light", "order": ["sunmi.statuslight", "sunmi.tms.led"] }`
 - `system.interface.setEnabled { "interfaceId": "light", "pluginId": "sunmi.tms.led", "enabled": false }`

@@ -80,6 +80,8 @@ class PluginRegistry {
     private val interfaceDefinitionsByPlugin = ConcurrentHashMap<String, List<String>>()
     /** Which plugin's contract is the one currently registered for an interface. */
     private val interfaceDefinerOwner = ConcurrentHashMap<String, String>()
+    /** Interfaces a built-in has defined in this process; never redefinable from outside. */
+    private val builtInDefinedInterfaces = CopyOnWriteArraySet<String>()
 
     /** User ordering / enable-disable preferences per interface. Null until wired by the service. */
     var interfacePreferenceConfig: InterfacePreferenceConfig? = null
@@ -177,8 +179,11 @@ class PluginRegistry {
         if (descriptor.definesInterfaces.isNotEmpty()) {
             descriptor.definesInterfaces.forEach { contract ->
                 val id = contract.interfaceId
+                if (pluginInfo[plugin.pluginId]?.source == PluginSource.BUILT_IN) {
+                    builtInDefinedInterfaces.add(id)
+                }
                 val owner = interfaceDefinerOwner[id]
-                if (owner == null || owner == plugin.pluginId || canTakeOverContract(plugin.pluginId, owner)) {
+                if (mayDefineContract(plugin.pluginId, id, owner)) {
                     registeredInterfaces[id] = contract
                     interfaceDefinerOwner[id] = plugin.pluginId
                 } else {
@@ -205,9 +210,15 @@ class PluginRegistry {
      * deliberately the opposite of [tryRegister]'s rule for plugins, where external wins: there a
      * replacement swaps an implementation, here it would swap the contract everyone is held to.
      */
-    private fun canTakeOverContract(candidateId: String, ownerId: String): Boolean =
-        pluginInfo[candidateId]?.source == PluginSource.BUILT_IN &&
-            pluginInfo[ownerId]?.source == PluginSource.EXTERNAL
+    private fun mayDefineContract(candidateId: String, interfaceId: String, owner: String?): Boolean {
+        val candidateSource = pluginInfo[candidateId]?.source
+        // An interface a built-in defines is never redefined from outside — not even by a plugin that
+        // took the built-in's own pluginId. `tryRegister` unindexes the displaced definer before
+        // indexing the replacement, so at that moment the owner map alone would look free.
+        if (candidateSource == PluginSource.EXTERNAL && interfaceId in builtInDefinedInterfaces) return false
+        if (owner == null || owner == candidateId) return true
+        return candidateSource == PluginSource.BUILT_IN && pluginInfo[owner]?.source == PluginSource.EXTERNAL
+    }
 
     /** Removes a plugin's interface registrations/bindings. Uses stored state (no getDescriptor call). */
     private fun unindexInterfaces(pluginId: String) {
@@ -218,6 +229,7 @@ class PluginRegistry {
             val successor = interfaceDefinitionsByPlugin.entries
                 .filter { id in it.value }
                 .map { it.key }
+                .filter { mayDefineContract(it, id, null) }
                 .minByOrNull { if (pluginInfo[it]?.source == PluginSource.BUILT_IN) 0 else 1 }
             val contract = successor?.let { sid ->
                 try {
@@ -661,6 +673,7 @@ class PluginRegistry {
         interfaceBindings.clear()
         interfaceDefinitionsByPlugin.clear()
         interfaceDefinerOwner.clear()
+        builtInDefinedInterfaces.clear()
         pendingInit = null
     }
 

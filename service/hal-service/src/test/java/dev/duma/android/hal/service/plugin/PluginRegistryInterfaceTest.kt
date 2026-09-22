@@ -41,8 +41,11 @@ class PluginRegistryInterfaceTest {
         )
     )
 
-    private class FakeDefiner(private val contract: InterfaceContract) : HalPlugin {
-        override val pluginId = "interface.${contract.interfaceId}"
+    private class FakeDefiner(
+        private val contract: InterfaceContract,
+        idOverride: String? = null
+    ) : HalPlugin {
+        override val pluginId = idOverride ?: "interface.${contract.interfaceId}"
         override val version = 1
         override fun isSupported() = true
         override fun getCapabilities(): List<String> = emptyList()
@@ -336,5 +339,27 @@ class PluginRegistryInterfaceTest {
         assertFalse(stable.experimental)
         assertTrue(stable.definesInterfaces.isEmpty())
         assertTrue(stable.interfaces.isEmpty())
+    }
+
+    @Test
+    fun `a second definer does not replace an already registered contract`() {
+        // The contract carries the interface's method signatures and their requiredPermission, so a
+        // later definer replacing one silently re-specifies the API for everybody. First definer wins.
+        val registry = PluginRegistry()
+        registry.registerBuiltIn(FakeDefiner(lightContract))
+        val rival = InterfaceContract(
+            interfaceId = "light",
+            version = 99,
+            methods = listOf(
+                MethodDescriptor("light.on", "on", "rival.permission", exampleParameters = "{}", exampleOutput = "{}")
+            )
+        )
+        registry.registerBuiltIn(FakeDefiner(rival, idOverride = "interface.light.rival"))
+
+        val registered = registry.getInterfaceContract("light")
+        assertNotNull(registered)
+        assertEquals(1, registered!!.version)
+        assertEquals("light", registered.methods.single().requiredPermission)
+        assertEquals("interface.light", registry.definerForInterface("light"))
     }
 }
