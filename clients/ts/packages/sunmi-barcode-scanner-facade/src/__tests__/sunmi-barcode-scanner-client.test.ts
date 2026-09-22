@@ -63,15 +63,15 @@ describe('SunmiBarcodeScannerClient (barcodeScanner interface)', () => {
   });
 
   describe('calls', () => {
-    it('calls barcodeScanner.* on the default provider without a selector suffix', async () => {
+    it('pins its backend even when that backend is the default provider', async () => {
       const client = clientWithScanner([INNER]);
       const scanner = await SunmiBarcodeScannerClient.create(client);
 
       await scanner.trigger();
-      expect(client.execute).toHaveBeenCalledWith('barcodeScanner.trigger', {});
+      expect(client.execute).toHaveBeenCalledWith('barcodeScanner.trigger@sunmi.scanner.inner', {});
 
       await scanner.stop();
-      expect(client.execute).toHaveBeenCalledWith('barcodeScanner.stop', {});
+      expect(client.execute).toHaveBeenCalledWith('barcodeScanner.stop@sunmi.scanner.inner', {});
     });
 
     it('appends the @provider suffix when bound to a non-default provider', async () => {

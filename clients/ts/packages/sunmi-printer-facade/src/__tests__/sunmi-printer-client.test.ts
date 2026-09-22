@@ -86,18 +86,18 @@ describe('SunmiPrinterClient (printer interface)', () => {
       expect(printer.printZpl).toBeUndefined();
     });
 
-    it('calls printer.* on the default provider without a selector suffix', async () => {
+    it('pins its backend even when that backend is the default provider', async () => {
       const client = clientWithPrinter([PRINTERX]);
       const printer = await SunmiPrinterClient.create(client);
 
       await printer.printEscPos!('G0A=');
-      expect(client.execute).toHaveBeenCalledWith('printer.printEscPos', { data: 'G0A=' });
+      expect(client.execute).toHaveBeenCalledWith('printer.printEscPos@sunmi.printerx.printer', { data: 'G0A=' });
 
       await printer.cut!();
-      expect(client.execute).toHaveBeenCalledWith('printer.cut', {});
+      expect(client.execute).toHaveBeenCalledWith('printer.cut@sunmi.printerx.printer', {});
 
       await printer.printImage!('iVBOR', { algorithm: 'BINARIZATION', value: 200 });
-      expect(client.execute).toHaveBeenCalledWith('printer.printImage', {
+      expect(client.execute).toHaveBeenCalledWith('printer.printImage@sunmi.printerx.printer', {
         bitmap: 'iVBOR',
         style: { algorithm: 'BINARIZATION', value: 200 },
       });
@@ -107,7 +107,7 @@ describe('SunmiPrinterClient (printer interface)', () => {
       const client = clientWithPrinter([PRINTERX]);
       const printer = await SunmiPrinterClient.create(client);
       await printer.printImage!('iVBOR');
-      expect(client.execute).toHaveBeenCalledWith('printer.printImage', { bitmap: 'iVBOR' });
+      expect(client.execute).toHaveBeenCalledWith('printer.printImage@sunmi.printerx.printer', { bitmap: 'iVBOR' });
     });
   });
 

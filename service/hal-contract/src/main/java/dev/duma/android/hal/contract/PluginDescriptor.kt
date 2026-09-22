@@ -53,8 +53,11 @@ val PluginDescriptor.allEvents: List<EventDescriptor>
 /**
  * Returns a copy of this descriptor with all experimental content removed.
  *
- * - If the whole plugin is experimental, the result exposes nothing (empty groups, flag cleared) —
- *   the plugin has no stable surface.
+ * - If the whole plugin is experimental, the result exposes nothing — empty groups, no interfaces
+ *   defined and none provided, flag cleared. The `interfaces` bindings must go with the rest: they
+ *   are an API surface of their own, the emptiness check treats a binding as a reason to register,
+ *   and the cleared flag means the runtime gate would see an ordinary provider. Leaving them would
+ *   let an experimental provider into a `stable` build as a normal one.
  * - Otherwise, experimental methods and events are dropped, and groups left empty by that filter
  *   are removed.
  * - Interfaces this plugin *defines* get the same treatment: an experimental contract disappears
@@ -66,7 +69,7 @@ val PluginDescriptor.allEvents: List<EventDescriptor>
  */
 fun PluginDescriptor.stripExperimental(): PluginDescriptor =
     if (experimental) {
-        copy(experimental = false, groups = emptyList(), definesInterfaces = emptyList())
+        copy(experimental = false, groups = emptyList(), definesInterfaces = emptyList(), interfaces = emptyList())
     } else {
         copy(
             groups = groups.map { group ->

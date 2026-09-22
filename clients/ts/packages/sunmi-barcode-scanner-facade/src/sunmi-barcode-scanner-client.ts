@@ -32,12 +32,10 @@ export class SunmiBarcodeScannerClient {
   readonly backend: string;
 
   private readonly client: IHalClient;
-  private readonly isDefaultProvider: boolean;
 
-  private constructor(client: IHalClient, backend: string, isDefaultProvider: boolean) {
+  private constructor(client: IHalClient, backend: string) {
     this.client = client;
     this.backend = backend;
-    this.isDefaultProvider = isDefaultProvider;
   }
 
   /** Binds to the interface's default provider; throws if `barcodeScanner` has no provider. */
@@ -99,15 +97,18 @@ export class SunmiBarcodeScannerClient {
   }
 
   private static fromProvider(client: IHalClient, provider: InterfaceProvider): SunmiBarcodeScannerClient {
-    return new SunmiBarcodeScannerClient(client, provider.pluginId, provider.isDefault);
+    return new SunmiBarcodeScannerClient(client, provider.pluginId);
   }
 
   /**
-   * Appends the `@provider` selector to a method name unless this client is bound to the
-   * interface's default provider, in which case the bare name routes to that default.
+   * The method name for a call, always pinned to this client's backend. A client is bound to one
+   * `pluginId` for its whole life — its capabilities and its `onScan`-style subscriptions come from
+   * that provider — so it must keep addressing that provider explicitly. Sending the bare name would
+   * route to whoever is default at call time, which `setOrder` or a hot-plug can change underneath a
+   * live client, splitting the calls from the events.
    */
   private method(name: string): string {
-    return methodForProvider(name, this.isDefaultProvider ? null : this.backend);
+    return methodForProvider(name, this.backend);
   }
 
   async trigger(): Promise<void> {

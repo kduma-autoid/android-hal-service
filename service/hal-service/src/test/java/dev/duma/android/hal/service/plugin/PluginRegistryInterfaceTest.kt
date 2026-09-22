@@ -10,6 +10,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
+import dev.duma.android.hal.contract.stripExperimental
 import dev.duma.android.hal.plugins.generic.PrinterInterface
 import dev.duma.android.hal.plugins.generic.BarcodeScannerInterface
 import dev.duma.android.hal.service.config.InterfacePreferenceConfig
@@ -316,5 +317,24 @@ class PluginRegistryInterfaceTest {
         val registry = registryWithProviders()
         assertNotNull(registry.getInterfaceContract("light"))
         assertEquals(listOf("p.high", "p.low"), registry.getInterfaceProviders("light").map { it.pluginId })
+    }
+
+    @Test
+    fun `a wholly experimental plugin keeps no interface surface in a stable build`() {
+        // stripExperimental() clears the `experimental` flag, so nothing downstream can tell what the
+        // plugin was: the InterfaceBinding has to go with the methods. Left behind, the emptiness
+        // check sees a reason to register and the runtime gate sees an ordinary provider, so an
+        // experimental backend joins the interface in a stable build as a normal one.
+        val descriptor = PluginDescriptor(
+            pluginId = "p.exp", name = "p.exp", version = 1,
+            experimental = true,
+            capabilities = listOf("p.exp"), groups = emptyList(),
+            definesInterfaces = listOf(lightContract),
+            interfaces = listOf(InterfaceBinding("light", priority = 100))
+        )
+        val stable = descriptor.stripExperimental()
+        assertFalse(stable.experimental)
+        assertTrue(stable.definesInterfaces.isEmpty())
+        assertTrue(stable.interfaces.isEmpty())
     }
 }

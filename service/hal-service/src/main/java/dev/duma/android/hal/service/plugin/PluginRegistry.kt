@@ -20,6 +20,8 @@ import dev.duma.android.hal.contract.allEvents
 import dev.duma.android.hal.contract.allMethods
 import dev.duma.android.hal.service.config.ExperimentalConfig
 import dev.duma.android.hal.service.config.InterfacePreferenceConfig
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArraySet
 
@@ -422,9 +424,11 @@ class PluginRegistry {
      * ALL implementors of [interfaceId] for the Dashboard — including dynamically unavailable ones
      * and unsupported ones (which are not in the interface index, so they are scanned from
      * [unsupportedPlugins] descriptors). Sorted in effective order; [ProviderRef.isDefault] marks the
-     * one routing would pick (first available + enabled). Carries `available`/`supported`/`enabled` flags.
+     * one routing would pick for a caller with this [callerHasExperimental] access (first available
+     * and enabled that also clears the experimental gate). Carries
+     * `available`/`supported`/`enabled`/`experimental` flags.
      */
-    fun getAllInterfaceImplementors(interfaceId: String): List<ProviderRef> {
+    fun getAllInterfaceImplementors(interfaceId: String, callerHasExperimental: Boolean = false): List<ProviderRef> {
         val config = interfacePreferenceConfig
         val order = config?.getOrder(interfaceId) ?: emptyList()
         val result = LinkedHashMap<String, ProviderRef>()
@@ -466,7 +470,13 @@ class PluginRegistry {
             )
         }
         val sorted = result.values.sortedWith(providerComparator(order))
-        val defaultId = sorted.firstOrNull { it.available && it.enabled }?.pluginId
+        // `isDefault` must name the provider a call would actually reach, so it is computed with the
+        // same experimental gate routing applies — otherwise an experimental provider sitting first
+        // either takes the flag with it when the caller's listing filters it out, or is advertised as
+        // the default for a call that would never go there.
+        val defaultId = sorted.firstOrNull {
+            it.available && it.enabled && passesExperimentalGate(it.pluginId, callerHasExperimental)
+        }?.pluginId
         return sorted.map { it.copy(isDefault = it.pluginId == defaultId) }
     }
 
@@ -492,9 +502,12 @@ class PluginRegistry {
     }
 
     private fun emitInterfacesChanged(interfaceId: String) {
+        // Built, not concatenated: `interfaceId` arrives in `system.interface.setOrder`/`setEnabled`
+        // params from any client holding a token, and a value containing a quote would otherwise
+        // break the frame for every subscriber.
         pendingInit?.second?.emit(
             EVENT_INTERFACES_CHANGED,
-            """{"interfaceId":"$interfaceId"}""",
+            buildJsonObject { put("interfaceId", interfaceId) }.toString(),
             sourcePluginId = "system"
         )
     }

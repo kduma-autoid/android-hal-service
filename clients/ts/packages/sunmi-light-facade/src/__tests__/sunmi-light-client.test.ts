@@ -63,15 +63,15 @@ describe('SunmiLightClient (light interface)', () => {
   });
 
   describe('calls', () => {
-    it('calls light.* on the default provider without a selector suffix', async () => {
+    it('pins its backend even when that backend is the default provider', async () => {
       const client = clientWithLight([TMS_LED]);
       const light = await SunmiLightClient.create(client);
 
       await light.on('green', { timeoutMs: 5000 });
-      expect(client.execute).toHaveBeenCalledWith('light.on', { color: 'green', timeoutMs: 5000 });
+      expect(client.execute).toHaveBeenCalledWith('light.on@sunmi.tms.led', { color: 'green', timeoutMs: 5000 });
 
       await light.off();
-      expect(client.execute).toHaveBeenCalledWith('light.off', {});
+      expect(client.execute).toHaveBeenCalledWith('light.off@sunmi.tms.led', {});
     });
 
     it('appends the @provider suffix when bound to a non-default provider', async () => {
@@ -92,7 +92,7 @@ describe('SunmiLightClient (light interface)', () => {
       expect(flex.multiFlash).toBeTypeOf('function');
 
       await flex.multiFlash!(['red', 'green'], 400, 100);
-      expect(flexClient.execute).toHaveBeenCalledWith('light.multiFlash', {
+      expect(flexClient.execute).toHaveBeenCalledWith('light.multiFlash@sunmi.statuslight', {
         colors: ['red', 'green'],
         onMs: 400,
         offMs: 100,

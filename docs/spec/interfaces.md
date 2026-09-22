@@ -228,8 +228,10 @@ await client.on('demo.notice@demo.beta', (name, data, meta) => { /* meta.source 
 ```
 
 Albo przez fasady `Sunmi<Interfejs>Client`, które same wykrywają providerów przez
-`system.describe`, dokleją sufiks `@provider` dla nie-domyślnego backendu i wystawiają cechy jako
-flagi/opcjonalne metody:
+`system.describe` i wystawiają cechy jako flagi/opcjonalne metody. Fasada jest związana z jednym
+`pluginId` na całe życie, więc **zawsze** dokleja sufiks `@provider` — także wtedy, gdy trafiła na
+providera domyślnego. Inaczej `setOrder` albo hot-plug mógłby przestawić default pod działającym
+klientem, a wywołania poszłyby gdzie indziej niż jego cechy i subskrypcje:
 
 ```ts
 // printer — metody bramkowane cechą są obecne tylko gdy backend je wspiera:
@@ -238,10 +240,10 @@ if (printer.printEscPos) await printer.printEscPos(escposBase64);
 if (printer.cut) await printer.cut();
 printer.printZpl;   // undefined na sunmi.printerx.printer (brak cechy `zpl`)
 
-// scanner — onScan filtruje po źródle (tylko ten backend):
-const scanner = await SunmiBarcodeScannerClient.create(client);   // domyślny provider `barcodeScanner`
-const off = await barcodeScanner.onScan(({ data, format }) => console.log(data, format));
-await barcodeScanner.trigger();
+// barcodeScanner — onScan filtruje po źródle (tylko ten backend):
+const scanner = await SunmiBarcodeScannerClient.create(client);   // wiąże się z domyślnym providerem
+const off = await scanner.onScan(({ data, format }) => console.log(data, format));
+await scanner.trigger();   // leci jako `barcodeScanner.trigger@<backend tego klienta>`
 
 // lista backendów (do pickera) + pinowanie konkretnego:
 const backends = await SunmiBarcodeScannerClient.listBackends(client);   // InterfaceProvider[]

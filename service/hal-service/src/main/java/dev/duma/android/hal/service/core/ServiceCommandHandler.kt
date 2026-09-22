@@ -472,7 +472,7 @@ class ServiceCommandHandler(
                             // Only unavailable/unsupported implementors are hidden from the API.
                             // An experimental provider is hidden too until it is usable, because it is
                             // not part of the interface for this caller — routing skips it as well.
-                            pluginRegistry.getAllInterfaceImplementors(contract.interfaceId)
+                            pluginRegistry.getAllInterfaceImplementors(contract.interfaceId, expViaToken)
                                 .filter { it.available && it.supported }
                                 .filter { p ->
                                     !p.experimental || withExperimental || expViaToken ||
