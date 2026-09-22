@@ -43,12 +43,15 @@ jobs:
         run: pnpm install --frozen-lockfile
         working-directory: clients/ts
 
-      - name: Run TypeScript tests
-        run: pnpm -r test
-        working-directory: clients/ts
-
       - name: Build packages
         run: pnpm build
+        working-directory: clients/ts
+
+      # After the build, not before: the facade tests import `@kduma-autoid/hal-client-common`,
+      # which resolves to that package's `dist/`. Run first, vitest cannot resolve the entry and
+      # every cross-package suite fails before collecting a single test.
+      - name: Run TypeScript tests
+        run: pnpm -r test
         working-directory: clients/ts
 
       - name: Publish packages to GitHub Packages
