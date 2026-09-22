@@ -92,12 +92,14 @@ class ServiceCommandHandler(
                 CommandResult.Success(handleDescribe(tokenEntity, params))
             }
             "system.interface.setOrder" -> {
-                requireToken(token, callerContext) ?: return CommandResult.unauthorized("Invalid token")
-                handleSetInterfaceOrder(params)
+                val tokenEntity = requireToken(token, callerContext)
+                    ?: return CommandResult.unauthorized("Invalid token")
+                handleSetInterfaceOrder(params, tokenEntity)
             }
             "system.interface.setEnabled" -> {
-                requireToken(token, callerContext) ?: return CommandResult.unauthorized("Invalid token")
-                handleSetInterfaceEnabled(params)
+                val tokenEntity = requireToken(token, callerContext)
+                    ?: return CommandResult.unauthorized("Invalid token")
+                handleSetInterfaceEnabled(params, tokenEntity)
             }
             else -> {
                 val tokenEntity = requireToken(token, callerContext)
@@ -179,18 +181,19 @@ class ServiceCommandHandler(
         }
     }
 
-    private fun handleSetInterfaceOrder(params: String): CommandResult {
+    private fun handleSetInterfaceOrder(params: String, tokenEntity: TokenEntity): CommandResult {
         val obj = try { Json.parseToJsonElement(params) as? JsonObject } catch (_: Exception) { null }
             ?: return CommandResult.badRequest("Invalid JSON")
         val interfaceId = obj["interfaceId"]?.jsonPrimitive?.contentOrNull
             ?: return CommandResult.badRequest("Missing 'interfaceId'")
         val order = obj["order"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull }
             ?: return CommandResult.badRequest("Missing 'order' array")
+        requireInterfacePermission(interfaceId, tokenEntity)?.let { return it }
         pluginRegistry.setInterfaceOrder(interfaceId, order)
         return CommandResult.Success()
     }
 
-    private fun handleSetInterfaceEnabled(params: String): CommandResult {
+    private fun handleSetInterfaceEnabled(params: String, tokenEntity: TokenEntity): CommandResult {
         val obj = try { Json.parseToJsonElement(params) as? JsonObject } catch (_: Exception) { null }
             ?: return CommandResult.badRequest("Invalid JSON")
         val interfaceId = obj["interfaceId"]?.jsonPrimitive?.contentOrNull
@@ -199,14 +202,39 @@ class ServiceCommandHandler(
             ?: return CommandResult.badRequest("Missing 'pluginId'")
         val enabled = obj["enabled"]?.jsonPrimitive?.booleanOrNull
             ?: return CommandResult.badRequest("Missing 'enabled' boolean")
+        requireInterfacePermission(interfaceId, tokenEntity)?.let { return it }
         pluginRegistry.setInterfaceEnabled(interfaceId, pluginId, enabled)
         return CommandResult.Success()
     }
 
     override suspend fun subscribe(token: String, events: String, callerContext: CallerContext): CommandResult {
-        requireToken(token, callerContext)
+        val tokenEntity = requireToken(token, callerContext)
             ?: return CommandResult.unauthorized("Invalid token")
+        val denied = deniedSubscriptions(events, tokenEntity)
+        if (denied.isNotEmpty()) {
+            return CommandResult.forbidden("No permission to subscribe: ${denied.joinToString(",")}")
+        }
         return CommandResult.Success()
+    }
+
+    /**
+     * Events a token may not subscribe to. Subscribing is how a client receives an event at all, so
+     * it is the gate — without this any authenticated session could listen to `barcodeScanner.onScan`
+     * or a native `*.barcode` with no permission for it.
+     *
+     * The `@source` half never widens access, so it is dropped before the permission is derived. The
+     * permission itself still comes from the event *name* rather than from a descriptor, unlike
+     * `execute`, because a wildcard subscription spans events that may not exist yet and so cannot be
+     * resolved to one descriptor.
+     */
+    private fun deniedSubscriptions(events: String, tokenEntity: TokenEntity): List<String> {
+        val permissions = tokenEntity.permissions.split(",").filter { it.isNotEmpty() }
+        if ("*" in permissions) return emptyList()
+        return events.split(",").map { it.trim() }.filter { it.isNotEmpty() }.filter { event ->
+            val name = event.substringBefore('@')
+            val capability = if (name.endsWith(".*")) name.dropLast(2) else name.substringBeforeLast(".")
+            permissions.none { capability.startsWith(it) }
+        }
     }
 
     override suspend fun unsubscribe(token: String, events: String, callerContext: CallerContext): CommandResult {
@@ -498,6 +526,24 @@ class ServiceCommandHandler(
                 }
             }
         }.toString()
+    }
+
+    /**
+     * Reordering or disabling an interface's providers is a persistent, device-wide write, so it takes
+     * the permission of the interface it rewrites: every permission the contract declares must be
+     * granted. A token scoped to `demo` cannot repoint the printer or the default scanner, which a
+     * token check alone allowed.
+     */
+    private fun requireInterfacePermission(interfaceId: String, tokenEntity: TokenEntity): CommandResult? {
+        val permissions = tokenEntity.permissions.split(",").filter { it.isNotEmpty() }
+        if ("*" in permissions) return null
+        val contract = pluginRegistry.getInterfaceContract(interfaceId)
+            ?: return CommandResult.notFound("Interface not registered: $interfaceId")
+        val required = (contract.methods.map { it.requiredPermission } +
+            contract.events.map { it.requiredPermission }).distinct()
+        val missing = required.filter { req -> permissions.none { req.startsWith(it) } }
+        return if (missing.isEmpty()) null
+        else CommandResult.forbidden("No permission for interface '$interfaceId': ${missing.joinToString(",")}")
     }
 
     private suspend fun requireToken(token: String, callerContext: CallerContext): TokenEntity? {

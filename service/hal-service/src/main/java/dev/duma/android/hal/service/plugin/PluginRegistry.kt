@@ -78,6 +78,8 @@ class PluginRegistry {
     private val interfaceProviders = ConcurrentHashMap<String, CopyOnWriteArraySet<String>>()
     private val interfaceBindings = ConcurrentHashMap<String, List<InterfaceBinding>>()
     private val interfaceDefinitionsByPlugin = ConcurrentHashMap<String, List<String>>()
+    /** Which plugin's contract is the one currently registered for an interface. */
+    private val interfaceDefinerOwner = ConcurrentHashMap<String, String>()
 
     /** User ordering / enable-disable preferences per interface. Null until wired by the service. */
     var interfacePreferenceConfig: InterfacePreferenceConfig? = null
@@ -173,7 +175,18 @@ class PluginRegistry {
     private fun indexInterfaces(plugin: HalPlugin) {
         val descriptor = plugin.getDescriptor()
         if (descriptor.definesInterfaces.isNotEmpty()) {
-            descriptor.definesInterfaces.forEach { registeredInterfaces[it.interfaceId] = it }
+            descriptor.definesInterfaces.forEach { contract ->
+                val id = contract.interfaceId
+                val owner = interfaceDefinerOwner[id]
+                if (owner == null || owner == plugin.pluginId || canTakeOverContract(plugin.pluginId, owner)) {
+                    registeredInterfaces[id] = contract
+                    interfaceDefinerOwner[id] = plugin.pluginId
+                } else {
+                    Log.w(TAG, "Interface '$id' is already defined by $owner; contract from ${plugin.pluginId} ignored")
+                }
+            }
+            // Recorded even for contracts that lost, so unindexing knows what this plugin claimed and
+            // can hand an interface over to it if the current owner goes away.
             interfaceDefinitionsByPlugin[plugin.pluginId] = descriptor.definesInterfaces.map { it.interfaceId }
         }
         if (descriptor.interfaces.isNotEmpty()) {
@@ -184,9 +197,45 @@ class PluginRegistry {
         }
     }
 
+    /**
+     * A contract carries the interface's method signatures and their `requiredPermission`, so a later
+     * definer replacing one silently re-specifies the API — and an external plugin's descriptor
+     * arrives over binder, from any app holding the HARDWARE_PLUGIN action. Only a built-in may take
+     * over from an external definer; otherwise the first definer keeps the interface. This is
+     * deliberately the opposite of [tryRegister]'s rule for plugins, where external wins: there a
+     * replacement swaps an implementation, here it would swap the contract everyone is held to.
+     */
+    private fun canTakeOverContract(candidateId: String, ownerId: String): Boolean =
+        pluginInfo[candidateId]?.source == PluginSource.BUILT_IN &&
+            pluginInfo[ownerId]?.source == PluginSource.EXTERNAL
+
     /** Removes a plugin's interface registrations/bindings. Uses stored state (no getDescriptor call). */
     private fun unindexInterfaces(pluginId: String) {
-        interfaceDefinitionsByPlugin.remove(pluginId)?.forEach { registeredInterfaces.remove(it) }
+        interfaceDefinitionsByPlugin.remove(pluginId)?.forEach { id ->
+            if (interfaceDefinerOwner[id] != pluginId) return@forEach
+            // Another plugin may still define this interface — hand the contract over rather than
+            // unregistering it, so detaching one definer does not take the interface down with it.
+            val successor = interfaceDefinitionsByPlugin.entries
+                .filter { id in it.value }
+                .map { it.key }
+                .minByOrNull { if (pluginInfo[it]?.source == PluginSource.BUILT_IN) 0 else 1 }
+            val contract = successor?.let { sid ->
+                try {
+                    plugins[sid]?.getDescriptor()?.definesInterfaces?.firstOrNull { it.interfaceId == id }
+                } catch (e: Exception) {
+                    Log.w(TAG, "getDescriptor() failed for successor definer $sid: ${e.message}")
+                    null
+                }
+            }
+            if (contract != null && successor != null) {
+                registeredInterfaces[id] = contract
+                interfaceDefinerOwner[id] = successor
+                Log.i(TAG, "Interface '$id': contract handed over from $pluginId to $successor")
+            } else {
+                registeredInterfaces.remove(id)
+                interfaceDefinerOwner.remove(id)
+            }
+        }
         interfaceBindings.remove(pluginId)?.forEach { binding ->
             interfaceProviders[binding.interfaceId]?.remove(pluginId)
         }
@@ -354,8 +403,7 @@ class PluginRegistry {
     fun getRegisteredInterfaces(): List<InterfaceContract> = registeredInterfaces.values.toList()
 
     /** The plugin that registered [interfaceId] — the settings key gating an experimental interface. */
-    fun definerForInterface(interfaceId: String): String? =
-        interfaceDefinitionsByPlugin.entries.firstOrNull { interfaceId in it.value }?.key
+    fun definerForInterface(interfaceId: String): String? = interfaceDefinerOwner[interfaceId]
 
     /** Whether [pluginId]'s own descriptor marks it experimental. */
     private fun isPluginExperimental(pluginId: String): Boolean {
@@ -612,6 +660,7 @@ class PluginRegistry {
         interfaceProviders.clear()
         interfaceBindings.clear()
         interfaceDefinitionsByPlugin.clear()
+        interfaceDefinerOwner.clear()
         pendingInit = null
     }
 

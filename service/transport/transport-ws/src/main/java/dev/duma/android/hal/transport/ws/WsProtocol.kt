@@ -90,36 +90,4 @@ object WsProtocol {
     fun matchesAnySubscription(subscriptions: Set<String>, eventName: String, source: String): Boolean {
         return subscriptions.any { EventBus.matchesSubscription(it, eventName, source) }
     }
-
-    data class SubscriptionValidation(
-        val allowed: List<String>,
-        val denied: List<String>
-    )
-
-    fun validateSubscriptions(events: List<String>, permissions: List<String>): SubscriptionValidation {
-        if ("*" in permissions) {
-            return SubscriptionValidation(allowed = events, denied = emptyList())
-        }
-
-        val allowed = mutableListOf<String>()
-        val denied = mutableListOf<String>()
-
-        for (event in events) {
-            // Permission is derived from the event-name half; the optional `@source` filter doesn't
-            // widen access.
-            val name = event.substringBefore('@')
-            val eventCapability = if (name.endsWith(".*")) {
-                name.dropLast(2)
-            } else {
-                name.substringBeforeLast(".")
-            }
-            if (permissions.any { eventCapability.startsWith(it) }) {
-                allowed.add(event)
-            } else {
-                denied.add(event)
-            }
-        }
-
-        return SubscriptionValidation(allowed, denied)
-    }
 }

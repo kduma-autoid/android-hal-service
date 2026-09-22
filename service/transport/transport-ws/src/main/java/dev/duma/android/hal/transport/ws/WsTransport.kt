@@ -149,8 +149,12 @@ class WsTransport : CommandTransport, EventTransport {
             is WsMessage.Subscribe -> {
                 val token = session.token
                     ?: return WsProtocol.serializeError(msg.id, "unauthorized", "Not authenticated")
-                session.subscribedEvents.addAll(msg.events)
+                // Ask first, record second: the handler is the permission gate, and adding the events
+                // before it answered let a denied subscription still deliver.
                 val result = handler.subscribe(token, msg.events.joinToString(","), callerContext)
+                if (result is CommandResult.Success) {
+                    session.subscribedEvents.addAll(msg.events)
+                }
                 serializeCommandResult(msg.id, result)
             }
 
