@@ -158,17 +158,24 @@ class PluginRegistry {
             }
 
             if (!shouldReplace) {
-                Log.i(TAG, "Plugin $id v${plugin.version} (${info.source}) skipped — existing v${existing.version} (${existingInfo.source}) has priority")
+                if (info.source == PluginSource.BUILT_IN && existingInfo.source == PluginSource.EXTERNAL) {
+                    reserveBuiltIn(id, plugin, info)
+                } else {
+                    Log.i(TAG, "Plugin $id v${plugin.version} (${info.source}) skipped — existing v${existing.version} (${existingInfo.source}) has priority")
+                }
                 return false
             }
 
             if (existingInfo.source == PluginSource.BUILT_IN) {
-                displacedPlugins[id] = existing to existingInfo
+                // Only an external plugin displaces a built-in into reserve: the built-in waits for it
+                // to disconnect. One superseded by a newer built-in has nothing to wait for; kept in
+                // reserve it would still lend its contracts to interfaces nobody defines any more.
+                if (info.source == PluginSource.EXTERNAL) displacedPlugins[id] = existing to existingInfo
                 // Release the displaced built-in's resources; it is re-initialized if restored.
                 safeDispose(existing, id)
             }
             existing.getCapabilities().forEach { capabilityToPlugin.remove(it, existing) }
-            unindexInterfaces(existing.pluginId)
+            unindexInterfaces(id)
             Log.i(TAG, "Plugin $id: replacing v${existing.version} (${existingInfo.source}) with v${plugin.version} (${info.source})")
         }
 
@@ -178,6 +185,47 @@ class PluginRegistry {
         plugin.getCapabilities().forEach { capabilityToPlugin[it] = plugin }
         indexInterfaces(plugin)
         return true
+    }
+
+    /**
+     * A built-in arriving after an external plugin already took its pluginId. It is put where it would
+     * be had it registered first and been displaced: in reserve, restored when the external one
+     * disconnects. Built-ins normally register before external discovery, but nothing in the registry
+     * guarantees that order, so the outcome must not depend on it.
+     *
+     * That includes its contracts. Waiting does not make them any less a built-in's: its interfaces
+     * are closed to external redefinition from now on, and it takes over those an external definer
+     * holds — which is what the external plugin under its id would have been refused had the built-in
+     * come first. The plugin itself is not initialized here, since it never ran; [unregisterExternal]
+     * initializes it on restore.
+     *
+     * Only one built-in waits per slot. A second one with the same pluginId is dropped: replacing the
+     * waiting one would mean unwinding contracts it already took over, and built-in ids are unique by
+     * construction.
+     */
+    private fun reserveBuiltIn(id: String, plugin: HalPlugin, info: PluginInfo) {
+        val waiting = displacedPlugins[id]
+        if (waiting != null) {
+            Log.i(TAG, "Plugin $id v${plugin.version} (BUILT_IN) skipped — built-in v${waiting.first.version} already waits for this id")
+            return
+        }
+        displacedPlugins[id] = plugin to info
+        val contracts = try {
+            plugin.getDescriptor().definesInterfaces
+        } catch (e: Exception) {
+            Log.w(TAG, "getDescriptor() failed for reserved built-in $id: ${e.message}")
+            emptyList()
+        }
+        contracts.forEach { contract ->
+            val interfaceId = contract.interfaceId
+            builtInDefinedInterfaces.add(interfaceId)
+            val owner = interfaceDefinerOwner[interfaceId]
+            if (owner == null || pluginInfo[owner]?.source == PluginSource.EXTERNAL) {
+                registeredInterfaces[interfaceId] = contract
+                interfaceDefinerOwner[interfaceId] = id
+            }
+        }
+        Log.i(TAG, "Built-in plugin $id v${plugin.version} waits in reserve behind the external plugin holding its id")
     }
 
     /** Indexes a plugin's defined interfaces (definer) and provided interfaces (bindings). */

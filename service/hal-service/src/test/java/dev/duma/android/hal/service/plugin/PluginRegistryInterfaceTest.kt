@@ -596,4 +596,76 @@ class PluginRegistryInterfaceTest {
         assertEquals(PluginRegistry.PluginSource.EXTERNAL, registry.getPluginInfo("x")?.source)
         assertFalse("x" in registry.getUnsupportedPluginIds())
     }
+
+    // --- Built-ins arriving after an external plugin took their id ------------------------------
+    // HalService registers built-ins before external discovery, but the registry must not depend on
+    // that: the late built-in ends up exactly where it would be had it come first and been displaced.
+
+    @Test
+    fun `a built-in arriving after an external plugin took its id waits in reserve`() = runTest {
+        val registry = PluginRegistry()
+        registry.registerBuiltIn(FakeDefiner(lightContract))
+        val external = FakeRemote("p.late", tag = "external")
+        assertTrue(registry.registerExternal(external, "com.vendor"))
+
+        registry.registerBuiltIn(FakeProvider("p.late", InterfaceBinding("light"), body = """{"who":"built-in"}"""))
+        assertEquals(PluginRegistry.PluginSource.EXTERNAL, registry.getPluginInfo("p.late")?.source)
+        val during = registry.executeInterface("light", "p.late", "light.on", "{}")
+        assertEquals("""{"who":"external"}""", (during as CommandResult.Success).body)
+
+        // Before, the late built-in was dropped, and the slot stayed empty once the external one left.
+        external.die()
+        registry.unregisterExternal(external)
+        assertEquals(PluginRegistry.PluginSource.BUILT_IN, registry.getPluginInfo("p.late")?.source)
+        val after = registry.executeInterface("light", "p.late", "light.on", "{}")
+        assertEquals("""{"who":"built-in"}""", (after as CommandResult.Success).body)
+    }
+
+    @Test
+    fun `a late built-in definer holds its contract as if it had come first`() {
+        val registry = PluginRegistry()
+        val rival = FakeDefiner(rivalLightContract, idOverride = "interface.light")
+        registry.registerExternal(rival, "com.evil")
+        assertEquals(99, registry.getInterfaceContract("light")!!.version)
+
+        // Same end state as `an external plugin displacing a built-in definer ...`, reached the other way round.
+        registry.registerBuiltIn(FakeDefiner(lightContract))
+        assertEquals(PluginRegistry.PluginSource.EXTERNAL, registry.getPluginInfo("interface.light")?.source)
+        assertBuiltInLightContract(registry)
+        // The interface is a built-in's now: another external definer is refused.
+        registry.registerExternal(FakeDefiner(rivalLightContract, idOverride = "com.evil.light"), "com.evil")
+        assertBuiltInLightContract(registry)
+
+        registry.unregisterExternal(rival)
+        assertEquals(PluginRegistry.PluginSource.BUILT_IN, registry.getPluginInfo("interface.light")?.source)
+        assertBuiltInLightContract(registry)
+    }
+
+    @Test
+    fun `only one built-in waits for a slot`() = runTest {
+        val registry = PluginRegistry()
+        registry.registerBuiltIn(FakeDefiner(lightContract))
+        val external = FakeRemote("p.late")
+        registry.registerExternal(external, "com.vendor")
+        registry.registerBuiltIn(FakeProvider("p.late", InterfaceBinding("light"), body = """{"who":"first"}"""))
+        registry.registerBuiltIn(FakeProvider("p.late", InterfaceBinding("light"), version = 5, body = """{"who":"second"}"""))
+
+        external.die()
+        registry.unregisterExternal(external)
+        val result = registry.executeInterface("light", "p.late", "light.on", "{}")
+        assertEquals("""{"who":"first"}""", (result as CommandResult.Success).body)
+    }
+
+    @Test
+    fun `a built-in superseded by a newer built-in leaves no contract behind`() {
+        // Only an external plugin displaces into reserve. A superseded built-in used to be held there
+        // too, and kept lending its `light` contract after the newer one — which defines nothing —
+        // took the id: the interface stayed registered with no definer.
+        val registry = PluginRegistry()
+        registry.registerBuiltIn(FakeDefiner(lightContract))
+        registry.registerBuiltIn(FakeProvider("interface.light", InterfaceBinding("fan"), version = 2, body = "{}"))
+
+        assertNull(registry.getInterfaceContract("light"))
+        assertNull(registry.definerForInterface("light"))
+    }
 }

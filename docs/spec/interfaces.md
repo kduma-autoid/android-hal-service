@@ -33,7 +33,9 @@ wszystkich. Dlatego własność jest odwrotna niż przy konflikcie `pluginId`, g
 - jedyny wyjątek: definer wbudowany przejmuje interfejs od zewnętrznego;
 - interfejsu zdefiniowanego przez plugin wbudowany nie przedefiniuje żaden plugin zewnętrzny —
   także taki, który zajął `pluginId` wbudowanego definera. Kontrakt wypartego definera zostaje, a
-  po rozłączeniu zewnętrznego wbudowany wraca z tym samym kontraktem;
+  po rozłączeniu zewnętrznego wbudowany wraca z tym samym kontraktem. Kolejność rejestracji nie ma
+  znaczenia: wbudowany definer, który przyjdzie po zewnętrznym o tym samym id, czeka w rezerwie i
+  od razu przejmuje swoje interfejsy od definerów zewnętrznych;
 - gdy właściciel kontraktu się rozłącza, kontrakt przechodzi na innego definera tego interfejsu
   (wbudowany ma pierwszeństwo). Interfejs znika z rejestru (metody znów niewołalne) dopiero wtedy,
   gdy nikt inny go nie definiuje.

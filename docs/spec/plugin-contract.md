@@ -198,6 +198,12 @@ onEvent → eventBus.addPluginListener(listenerPluginId = ownerPluginId)
 - Konflikt `pluginId`: external wygrywa z built-in (wyparty built-in czeka w rezerwie i wraca, gdy
   external się rozłączy); między dwoma tego samego źródła wygrywa wyższa `version`, przy równej —
   pierwszy zarejestrowany.
+- Rezerwa nie zależy od kolejności: built-in, który przyjdzie **po** externalu o tym samym id, też
+  do niej trafia (nie jest inicjalizowany, dopóki nie wróci), a jego kontrakty od razu działają jak
+  kontrakty built-ina — stan końcowy jest ten sam, co przy built-inie zarejestrowanym pierwszy. Na
+  jeden slot czeka jeden built-in; kolejny o tym samym id jest pomijany.
+- Built-in zastąpiony nowszym built-inem nie trafia do rezerwy — nie czeka na żaden external, więc
+  jest zwalniany i znika razem ze swoimi kontraktami.
 - Rozłączenie (`onServiceDisconnected`) zdejmuje plugin po **instancji**, nie po `pluginId`: plugin,
   który przegrał konflikt, nie zdejmuje zwycięzcy. Nic przy tym nie woła pluginu — binder już nie
   żyje i każde wywołanie `AidlPluginAdapter` rzuciłoby `DeadObjectException`.
