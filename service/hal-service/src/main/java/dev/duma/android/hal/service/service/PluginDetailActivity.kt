@@ -294,7 +294,19 @@ class PluginDetailActivity : AppCompatActivity() {
             }
         }
 
+        val held = pluginReg.heldInterfaces(pluginId)
         for (contract in definedContracts) {
+            if (contract.interfaceId !in held) {
+                // Claimed but refused: show the claim, not a contract nobody is held to.
+                layout.addView(interfaceHeader(contract.interfaceId, "defined · ignored", contract.version))
+                val holder = pluginReg.definerForInterface(contract.interfaceId)
+                layout.addView(emptyText(when (holder) {
+                    null -> "Contract ignored — interface not registered"
+                    pluginId -> "Contract ignored — the built-in plugin this one displaced still defines it"
+                    else -> "Contract ignored — defined by $holder"
+                }))
+                continue
+            }
             layout.addView(interfaceHeader(contract.interfaceId, "defined", contract.version))
             if (contract.features.isNotEmpty()) {
                 layout.addView(infoRow("Features", contract.features.joinToString(", ") { it.key }))

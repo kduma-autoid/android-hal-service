@@ -19,6 +19,12 @@ import dev.duma.android.hal.transport.core.TransportRegistry
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -44,8 +50,10 @@ class ServiceCommandHandlerGateTest {
         )
     )
 
-    private class FakeDefiner(private val contract: InterfaceContract) : HalPlugin {
-        override val pluginId = "interface.${contract.interfaceId}"
+    private class FakeDefiner(
+        private val contract: InterfaceContract,
+        override val pluginId: String = "interface.${contract.interfaceId}"
+    ) : HalPlugin {
         override val version = 1
         override fun isSupported() = true
         override fun getCapabilities(): List<String> = emptyList()
@@ -59,10 +67,11 @@ class ServiceCommandHandlerGateTest {
         override fun setEventCallback(callback: HalPluginEventCallback?) {}
     }
 
-    private fun handlerFor(permissions: String): ServiceCommandHandler {
+    private fun handlerFor(permissions: String, setup: (PluginRegistry) -> Unit = {}): ServiceCommandHandler {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val registry = PluginRegistry()
         registry.registerBuiltIn(FakeDefiner(lightContract))
+        setup(registry)
         val tokenManager = mockk<TokenManager>()
         coEvery { tokenManager.validateToken(any(), any()) } returns TokenEntity(
             token = "t",
@@ -160,5 +169,29 @@ class ServiceCommandHandlerGateTest {
             handlerFor("light").execute("t", "system.interface.setOrder", params, caller)
                 is CommandResult.Failure
         )
+    }
+
+    // --- describe ---
+
+    @Test
+    fun `describe does not advertise a contract the registry refused`() = runTest {
+        // An external plugin trying to redefine a built-in interface: refused, but its descriptor
+        // still claims `light`, and describe used to repeat that claim.
+        val rival = lightContract.copy(
+            version = 99,
+            methods = listOf(MethodDescriptor("light.on", "on", "rival", exampleParameters = "{}", exampleOutput = "{}"))
+        )
+        for (permissions in listOf("light", "*")) {
+            val handler = handlerFor(permissions) {
+                it.registerExternal(FakeDefiner(rival, pluginId = "com.evil.light"), "com.evil")
+            }
+            val body = (handler.execute("t", "system.describe", "{}", caller) as CommandResult.Success).body
+            val plugins = Json.parseToJsonElement(body).jsonObject["plugins"]!!.jsonArray.map { it.jsonObject }
+
+            // It defines nothing in effect and offers nothing else, so it is not listed at all.
+            assertFalse(plugins.any { it["pluginId"]!!.jsonPrimitive.content == "com.evil.light" })
+            val definer = plugins.single { it["pluginId"]!!.jsonPrimitive.content == "interface.light" }
+            assertEquals(listOf("light"), definer["definesInterfaces"]!!.jsonArray.map { it.jsonPrimitive.content })
+        }
     }
 }

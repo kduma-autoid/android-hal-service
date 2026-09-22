@@ -555,6 +555,26 @@ class PluginRegistry {
     /** The plugin that registered [interfaceId] — the settings key gating an experimental interface. */
     fun definerForInterface(interfaceId: String): String? = interfaceDefinerOwner[interfaceId]
 
+    /**
+     * The interfaces whose registered contract the plugin registered as [pluginId] actually holds —
+     * as opposed to [PluginDescriptor.definesInterfaces], which is what it claims. A definer whose
+     * contract was refused (another definer came first, or it is external and the interface is a
+     * built-in's) claims the interface and holds nothing.
+     *
+     * Under an id an external plugin took from a built-in, the owner map names that id for both of
+     * them. A built-in-defined interface is then held by the built-in waiting in reserve — never by
+     * the external plugin in the slot — so it is not counted for the live plugin.
+     */
+    fun heldInterfaces(pluginId: String): Set<String> {
+        val liveIsBuiltIn = pluginInfo[pluginId]?.source == PluginSource.BUILT_IN
+        return interfaceDefinerOwner.entries
+            .filter { (interfaceId, owner) ->
+                owner == pluginId && (liveIsBuiltIn || interfaceId !in builtInDefinedInterfaces)
+            }
+            .map { it.key }
+            .toSet()
+    }
+
     /** Whether [pluginId]'s own descriptor marks it experimental. */
     private fun isPluginExperimental(pluginId: String): Boolean {
         val plugin = plugins[pluginId] ?: return false
@@ -779,8 +799,21 @@ class PluginRegistry {
         return capabilityToPlugin.keys().toList()
     }
 
+    /**
+     * Descriptors of the plugins in effect, as callers should see them: `definesInterfaces` keeps only
+     * the contracts each plugin holds ([heldInterfaces]). A definer whose contract was refused would
+     * otherwise advertise, in `system.describe`, an interface it does not define — for an external
+     * plugin trying to redefine a built-in one, exactly the claim the registry rejected.
+     * [getAllDescriptors] stays raw, for the Dashboard to show what was claimed and ignored.
+     */
     fun getSupportedDescriptors(): List<PluginDescriptor> {
-        return plugins.filterKeys { isAvailable(it) }.values.map { it.getDescriptor() }
+        return plugins.filterKeys { isAvailable(it) }.map { (id, plugin) ->
+            val desc = plugin.getDescriptor()
+            if (desc.definesInterfaces.isEmpty()) return@map desc
+            val held = heldInterfaces(id)
+            if (desc.definesInterfaces.all { it.interfaceId in held }) desc
+            else desc.copy(definesInterfaces = desc.definesInterfaces.filter { it.interfaceId in held })
+        }
     }
 
     fun getAllDescriptors(): List<PluginDescriptor> {

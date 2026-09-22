@@ -715,4 +715,49 @@ class PluginRegistryInterfaceTest {
         assertEquals(PluginRegistry.PluginSource.BUILT_IN, registry.getPluginInfo("interface.light")?.source)
         assertBuiltInLightContract(registry)
     }
+
+    // --- What a plugin advertises as defining -------------------------------------------------
+
+    private fun PluginRegistry.advertisedDefinitions(pluginId: String): List<String> =
+        getSupportedDescriptors().single { it.pluginId == pluginId }.definesInterfaces.map { it.interfaceId }
+
+    @Test
+    fun `a refused contract is not advertised as defined`() {
+        val registry = PluginRegistry()
+        registry.registerBuiltIn(FakeDefiner(lightContract))
+        registry.registerExternal(FakeDefiner(rivalLightContract, idOverride = "com.evil.light"), "com.evil")
+
+        // The descriptor still claims it; the registry says who holds it.
+        assertEquals(setOf("light"), registry.heldInterfaces("interface.light"))
+        assertTrue(registry.heldInterfaces("com.evil.light").isEmpty())
+        assertEquals(listOf("light"), registry.advertisedDefinitions("interface.light"))
+        assertTrue(registry.advertisedDefinitions("com.evil.light").isEmpty())
+        assertEquals(listOf("light"), registry.getAllDescriptors()
+            .single { it.pluginId == "com.evil.light" }.definesInterfaces.map { it.interfaceId })
+    }
+
+    @Test
+    fun `an external plugin in a built-in definer's slot does not advertise the built-in's interface`() {
+        val registry = PluginRegistry()
+        registry.registerBuiltIn(FakeDefiner(lightContract))
+        val rival = FakeDefiner(rivalLightContract, idOverride = "interface.light")
+        registry.registerExternal(rival, "com.evil")
+
+        // Same id in the owner map for both; the holder is the built-in waiting in reserve.
+        assertEquals("interface.light", registry.definerForInterface("light"))
+        assertTrue(registry.heldInterfaces("interface.light").isEmpty())
+        assertTrue(registry.advertisedDefinitions("interface.light").isEmpty())
+
+        registry.unregisterExternal(rival)
+        assertEquals(listOf("light"), registry.advertisedDefinitions("interface.light"))
+    }
+
+    @Test
+    fun `an external definer advertises an interface it holds`() {
+        val registry = PluginRegistry()
+        registry.registerExternal(FakeDefiner(fanContract, idOverride = "com.vendor.fan"), "com.vendor")
+
+        assertEquals(setOf("fan"), registry.heldInterfaces("com.vendor.fan"))
+        assertEquals(listOf("fan"), registry.advertisedDefinitions("com.vendor.fan"))
+    }
 }

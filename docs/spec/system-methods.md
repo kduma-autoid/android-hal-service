@@ -79,7 +79,8 @@ Wymaga tokenu. Klient widzi tylko metody/eventy do których ma uprawnienia.
 HTTP: `GET /api/describe` (z Bearer)
 
 Obok `plugins`, `system.describe` zwraca `interfaces: [...]` (warstwa interfejsów — m.in. `printer`,
-`barcodeScanner`, `light`) oraz — dla każdego pluginu — `providesInterfaces` / `definesInterfaces`. Skaner
+`barcodeScanner`, `light`) oraz — dla każdego pluginu — `providesInterfaces` / `definesInterfaces`
+(tylko kontrakty, które plugin faktycznie trzyma; odrzucony kontrakt nie jest ogłaszany). Skaner
 `sunmi.scanner.inner` udostępnia interfejs `barcodeScanner` (metoda `barcodeScanner.trigger`, event `barcodeScanner.onScan`),
 a `sunmi.printerx.printer` — interfejs `printer`. Szczegóły: [`interfaces.md`](interfaces.md).
 

@@ -187,7 +187,11 @@ Obok `plugins`, `describe` zwraca `interfaces: [InterfaceDescriptor]` (filtrowan
 ```
 API listuje tylko available (ale pokazuje **wyłączonych** z `enabled:false`, żeby dało się je
 włączyć). Każdy wpis pluginu w `plugins` ma też `providesInterfaces` / `definesInterfaces` (id-ki do
-cross-referencji).
+cross-referencji). `definesInterfaces` wymienia tylko kontrakty, które plugin faktycznie **trzyma** —
+nie to, co deklaruje deskryptor. Definer z odrzuconym kontraktem (inny był pierwszy albo jest
+zewnętrzny, a interfejs należy do wbudowanego) go nie ogłasza; zewnętrzny plugin na slocie
+wbudowanego definera też nie, bo kontrakt trzyma czekający w rezerwie wbudowany. Dashboard pokazuje
+taki kontrakt na ekranie pluginu jako zignorowany, z nazwą tego, kto trzyma interfejs.
 
 Filtrowanie działa tak samo jak w sekcji `plugins`: metody `super` znikają bez `withSuper:true`,
 a treść eksperymentalna bez dostępu (token lub ustawienie) albo bez `withExperimental:true`.

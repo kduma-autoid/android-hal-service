@@ -69,7 +69,11 @@ export interface PluginDescriptor {
   groups: DescriptorGroup[];
   /** Interface ids this plugin provides (implements). Cross-reference DescribeResponse.interfaces. */
   providesInterfaces?: string[];
-  /** Interface ids this plugin defines (registers). Cross-reference DescribeResponse.interfaces. */
+  /**
+   * Interface ids whose registered contract this plugin holds. A contract the service refused (another
+   * definer came first, or an external plugin tried to redefine a built-in interface) is not listed,
+   * even though the plugin's own descriptor claims it. Cross-reference DescribeResponse.interfaces.
+   */
   definesInterfaces?: string[];
 }
 
