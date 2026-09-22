@@ -8,6 +8,7 @@ import dev.duma.android.hal.contract.InterfaceContract
 import dev.duma.android.hal.contract.InterfaceFeature
 import dev.duma.android.hal.contract.MethodDescriptor
 import android.content.Context
+import android.os.DeadObjectException
 import androidx.test.core.app.ApplicationProvider
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
@@ -423,7 +424,8 @@ class PluginRegistryInterfaceTest {
         val registry = registryWithProviders()
 
         // Same pluginId as the built-in definer: the external plugin wins the slot, as plugins do...
-        assertTrue(registry.registerExternal(FakeDefiner(rivalLightContract, idOverride = "interface.light"), "com.evil"))
+        val rival = FakeDefiner(rivalLightContract, idOverride = "interface.light")
+        assertTrue(registry.registerExternal(rival, "com.evil"))
         assertEquals(PluginRegistry.PluginSource.EXTERNAL, registry.getPluginInfo("interface.light")?.source)
         // ...but neither replaces the contract nor unregisters it. Before the displaced built-in's
         // contract was kept, the interface vanished here and every call was not_found.
@@ -432,7 +434,7 @@ class PluginRegistryInterfaceTest {
         assertEquals("p.high", (during as CommandResult.Success).provider)
 
         // Disconnecting restores the built-in, which picks its own contract back up.
-        registry.unregisterExternal("interface.light")
+        registry.unregisterExternal(rival)
         assertEquals(PluginRegistry.PluginSource.BUILT_IN, registry.getPluginInfo("interface.light")?.source)
         assertBuiltInLightContract(registry)
         val after = registry.executeInterface("light", null, "light.on", "{}")
@@ -444,11 +446,12 @@ class PluginRegistryInterfaceTest {
         val registry = registryWithProviders()
 
         // The plugin itself registers; only its contract is refused.
-        assertTrue(registry.registerExternal(FakeDefiner(rivalLightContract, idOverride = "com.evil.light"), "com.evil"))
+        val rival = FakeDefiner(rivalLightContract, idOverride = "com.evil.light")
+        assertTrue(registry.registerExternal(rival, "com.evil"))
         assertBuiltInLightContract(registry)
 
         // It never owned the interface, so its departure changes nothing.
-        registry.unregisterExternal("com.evil.light")
+        registry.unregisterExternal(rival)
         assertBuiltInLightContract(registry)
     }
 
@@ -460,13 +463,14 @@ class PluginRegistryInterfaceTest {
     @Test
     fun `an external definer registers an interface no built-in defines`() {
         val registry = PluginRegistry()
+        val vendor = FakeDefiner(fanContract, idOverride = "com.vendor.fan")
 
-        assertTrue(registry.registerExternal(FakeDefiner(fanContract, idOverride = "com.vendor.fan"), "com.vendor"))
+        assertTrue(registry.registerExternal(vendor, "com.vendor"))
         assertEquals("com.vendor.fan", registry.definerForInterface("fan"))
         assertEquals("fan", registry.interfaceIdForMethod("fan.spin"))
 
         // No other definer to hand it to, so the interface goes with its only definer.
-        registry.unregisterExternal("com.vendor.fan")
+        registry.unregisterExternal(vendor)
         assertNull(registry.getInterfaceContract("fan"))
         assertNull(registry.definerForInterface("fan"))
     }
@@ -474,15 +478,104 @@ class PluginRegistryInterfaceTest {
     @Test
     fun `a built-in definer takes an interface over from an external one`() {
         val registry = PluginRegistry()
-        registry.registerExternal(FakeDefiner(fanContract, idOverride = "com.vendor.fan"), "com.vendor")
+        val vendor = FakeDefiner(fanContract, idOverride = "com.vendor.fan")
+        registry.registerExternal(vendor, "com.vendor")
 
         registry.registerBuiltIn(FakeDefiner(fanContract.copy(version = 2), idOverride = "builtin.fan"))
         assertEquals("builtin.fan", registry.definerForInterface("fan"))
         assertEquals(2, registry.getInterfaceContract("fan")!!.version)
 
         // The external definer no longer owns it, so disconnecting leaves the built-in's contract.
-        registry.unregisterExternal("com.vendor.fan")
+        registry.unregisterExternal(vendor)
         assertEquals("builtin.fan", registry.definerForInterface("fan"))
         assertEquals(2, registry.getInterfaceContract("fan")!!.version)
+    }
+
+    // --- External plugins going away ----------------------------------------------------------
+
+    /**
+     * An external plugin as the registry sees it through [dev.duma.android.hal.contract.AidlPluginAdapter]:
+     * every member is a binder call, so after [die] — the state `onServiceDisconnected` runs in —
+     * each one throws. Provides `light`, so it is not skipped as an empty API.
+     */
+    private class FakeRemote(
+        private val id: String,
+        private val ver: Int = 1,
+        private val supported: Boolean = true,
+        private val tag: String = id
+    ) : HalPlugin {
+        private var dead = false
+        fun die() { dead = true }
+        private fun <T> call(value: () -> T): T = if (dead) throw DeadObjectException() else value()
+
+        override val pluginId: String get() = call { id }
+        override val version: Int get() = call { ver }
+        override fun isSupported() = call { supported }
+        override fun getCapabilities(): List<String> = call { listOf(id) }
+        override fun getDescriptor() = call {
+            PluginDescriptor(
+                pluginId = id, name = id, version = ver,
+                capabilities = listOf(id), groups = emptyList(),
+                interfaces = listOf(InterfaceBinding("light", priority = 50))
+            )
+        }
+        override fun initialize(pluginContext: PluginContext) = call {}
+        override suspend fun execute(method: String, params: String): CommandResult =
+            call { CommandResult.Success("""{"who":"$tag"}""") }
+        override fun setEventCallback(callback: HalPluginEventCallback?) = call {}
+    }
+
+    @Test
+    fun `an external plugin that lost its slot does not unregister the winner`() = runTest {
+        val registry = registryWithProviders()
+        val winner = FakeRemote("ext.light", ver = 2, tag = "winner")
+        val loser = FakeRemote("ext.light", ver = 1, tag = "loser")
+        assertTrue(registry.registerExternal(winner, "com.vendor.a"))
+        assertFalse(registry.registerExternal(loser, "com.vendor.b"))
+
+        loser.die()
+        registry.unregisterExternal(loser)
+        assertEquals(PluginRegistry.PluginInfo(PluginRegistry.PluginSource.EXTERNAL, "com.vendor.a"), registry.getPluginInfo("ext.light"))
+        val routed = registry.executeInterface("light", "ext.light", "light.on", "{}")
+        assertEquals("""{"who":"winner"}""", (routed as CommandResult.Success).body)
+
+        // The winner's own disconnect does remove it — without a single call into the dead binder.
+        winner.die()
+        registry.unregisterExternal(winner)
+        assertNull(registry.getPluginInfo("ext.light"))
+        assertFalse("ext.light" in registry.allCapabilities())
+        assertEquals(listOf("p.high", "p.low"), registry.getInterfaceProviders("light").map { it.pluginId })
+    }
+
+    @Test
+    fun `an unsupported external plugin does not relabel a built-in under the same id`() = runTest {
+        val registry = registryWithProviders()
+        val ghost = FakeRemote("p.high", supported = false)
+
+        assertFalse(registry.registerExternal(ghost, "com.evil"))
+        assertEquals(PluginRegistry.PluginSource.BUILT_IN, registry.getPluginInfo("p.high")?.source)
+        assertFalse("p.high" in registry.getUnsupportedPluginIds())
+
+        ghost.die()
+        registry.unregisterExternal(ghost)
+        assertEquals(PluginRegistry.PluginSource.BUILT_IN, registry.getPluginInfo("p.high")?.source)
+        val result = registry.executeInterface("light", null, "light.on", "{}")
+        assertEquals("p.high", (result as CommandResult.Success).provider)
+    }
+
+    @Test
+    fun `an unsupported external plugin is listed until it disconnects`() {
+        val registry = PluginRegistry()
+        val unsupported = FakeRemote("ext.unsupported", supported = false)
+
+        assertFalse(registry.registerExternal(unsupported, "com.vendor"))
+        assertTrue("ext.unsupported" in registry.getUnsupportedPluginIds())
+        assertEquals(PluginRegistry.PluginSource.EXTERNAL, registry.getPluginInfo("ext.unsupported")?.source)
+
+        // Removed by instance — before, the disconnect left it listed with a dead binder behind it.
+        unsupported.die()
+        registry.unregisterExternal(unsupported)
+        assertFalse("ext.unsupported" in registry.getUnsupportedPluginIds())
+        assertNull(registry.getPluginInfo("ext.unsupported"))
     }
 }

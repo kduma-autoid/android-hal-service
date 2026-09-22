@@ -24,8 +24,19 @@ Provider identyfikowany jest wszędzie przez **`pluginId`** (sufiks `@provider` 
 
 Interfejs istnieje tylko wtedy, gdy jakiś plugin go **definiuje** (`definesInterfaces`). Bez definera
 jego metody są niewołalne — `executeInterface(...)` zwraca `not_found`, nawet jeśli obecni są
-providerzy. Definer może być zewnętrznym pluginem. Gdy definer się rozłącza, interfejs znika z
-rejestru (metody znów niewołalne).
+providerzy. Definer może być zewnętrznym pluginem.
+
+Kontrakt niesie sygnatury metod i ich `requiredPermission`, więc jego podmiana zmienia API dla
+wszystkich. Dlatego własność jest odwrotna niż przy konflikcie `pluginId`, gdzie external wygrywa:
+
+- kontrakt trzyma **pierwszy** definer; kolejny definer tego samego interfejsu go nie podmienia;
+- jedyny wyjątek: definer wbudowany przejmuje interfejs od zewnętrznego;
+- interfejsu zdefiniowanego przez plugin wbudowany nie przedefiniuje żaden plugin zewnętrzny —
+  także taki, który zajął `pluginId` wbudowanego definera. Kontrakt wypartego definera zostaje, a
+  po rozłączeniu zewnętrznego wbudowany wraca z tym samym kontraktem;
+- gdy właściciel kontraktu się rozłącza, kontrakt przechodzi na innego definera tego interfejsu
+  (wbudowany ma pierwszeństwo). Interfejs znika z rejestru (metody znów niewołalne) dopiero wtedy,
+  gdy nikt inny go nie definiuje.
 
 ## Wybór providera per-wywołanie — `metoda@providerId`
 

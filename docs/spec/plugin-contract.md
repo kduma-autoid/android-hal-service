@@ -195,3 +195,11 @@ onEvent → eventBus.addPluginListener(listenerPluginId = ownerPluginId)
 - findForMethod(method) → mapuje prefix na capability → plugin
 - allCapabilities(), getAllDescriptors()
 - Kolejność: vendor-specific → generic → external → initializeAll()
+- Konflikt `pluginId`: external wygrywa z built-in (wyparty built-in czeka w rezerwie i wraca, gdy
+  external się rozłączy); między dwoma tego samego źródła wygrywa wyższa `version`, przy równej —
+  pierwszy zarejestrowany.
+- Rozłączenie (`onServiceDisconnected`) zdejmuje plugin po **instancji**, nie po `pluginId`: plugin,
+  który przegrał konflikt, nie zdejmuje zwycięzcy. Nic przy tym nie woła pluginu — binder już nie
+  żyje i każde wywołanie `AidlPluginAdapter` rzuciłoby `DeadObjectException`.
+- Nieobsługiwany external (`isSupported() == false`) jest tylko listowany i nie zajmuje `pluginId`,
+  który już jest znany — nie przemianowuje wbudowanego pluginu na zewnętrzny.

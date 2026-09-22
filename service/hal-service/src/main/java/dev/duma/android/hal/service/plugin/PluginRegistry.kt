@@ -309,12 +309,19 @@ class PluginRegistry {
             val pluginId = info.serviceInfo.metaData?.getString("plugin.id") ?: continue
 
             val connection = object : ServiceConnection {
+                /** What this connection handed to the registry; the only handle left once the remote side is gone. */
+                private var adapter: HalPlugin? = null
+
                 override fun onServiceConnected(name: ComponentName, service: IBinder) {
-                    registerExternal(AidlPluginAdapter(IHardwarePlugin.Stub.asInterface(service)), name.packageName)
+                    val plugin = AidlPluginAdapter(IHardwarePlugin.Stub.asInterface(service))
+                    adapter = plugin
+                    registerExternal(plugin, name.packageName)
                 }
 
                 override fun onServiceDisconnected(name: ComponentName) {
-                    unregisterExternal(pluginId)
+                    Log.w(TAG, "Disconnected external plugin service: $pluginId from ${name.packageName}")
+                    adapter?.let { unregisterExternal(it) }
+                    adapter = null
                 }
             }
 
@@ -343,6 +350,13 @@ class PluginRegistry {
         }
         val extInfo = PluginInfo(PluginSource.EXTERNAL, packageName)
         if (!plugin.isSupported()) {
+            // Only listed, never routed, so it must not shadow anything already known under this id:
+            // writing its info over a registered built-in's relabelled that built-in as external, and
+            // the disconnect then deleted the built-in's info outright.
+            if (plugins.containsKey(pluginId) || unsupportedPlugins.containsKey(pluginId)) {
+                Log.i(TAG, "External plugin not supported on this device, id already taken — ignored: $pluginId from $packageName")
+                return false
+            }
             unsupportedPlugins[pluginId] = plugin
             pluginInfo[pluginId] = extInfo
             Log.i(TAG, "External plugin not supported on this device: $pluginId from $packageName")
@@ -359,17 +373,34 @@ class PluginRegistry {
     /**
      * Drops an external plugin that went away — [discoverExternal]'s `onServiceDisconnected` — and
      * restores the built-in it displaced, if any.
+     *
+     * The plugin is identified by instance, not by id. Two apps may serve the same pluginId, and the
+     * one that lost [tryRegister] must not take the winner down when it disconnects. It also means
+     * nothing here calls into [plugin]: this runs once the remote process is gone, when every member
+     * of an [AidlPluginAdapter] is a binder call that throws `DeadObjectException`.
      */
-    internal fun unregisterExternal(pluginId: String) {
-        Log.w(TAG, "Disconnected external plugin: $pluginId")
-        val removed = plugins.remove(pluginId)
+    internal fun unregisterExternal(plugin: HalPlugin) {
+        val unsupportedId = unsupportedPlugins.entries.firstOrNull { it.value === plugin }?.key
+        if (unsupportedId != null) {
+            unsupportedPlugins.remove(unsupportedId, plugin)
+            // registerExternal wrote this info only because nothing else held the id; something
+            // registered under it since then owns the info now.
+            if (!plugins.containsKey(unsupportedId)) pluginInfo.remove(unsupportedId)
+            Log.i(TAG, "Removed unsupported external plugin: $unsupportedId")
+            return
+        }
+
+        val pluginId = plugins.entries.firstOrNull { it.value === plugin }?.key
+        if (pluginId == null || !plugins.remove(pluginId, plugin)) {
+            // Never registered (lost tryRegister, or had an empty API): nothing of it to remove.
+            return
+        }
         pluginInfo.remove(pluginId)
         available.remove(pluginId)
-        if (removed != null) {
-            removed.getCapabilities().forEach { capabilityToPlugin.remove(it, removed) }
-            unindexInterfaces(pluginId)
-            safeDispose(removed)
-        }
+        capabilityToPlugin.values.removeAll { it === plugin }
+        unindexInterfaces(pluginId)
+        safeDispose(plugin)
+        Log.i(TAG, "Removed external plugin: $pluginId")
 
         val (builtInPlugin, builtInInfo) = displacedPlugins.remove(pluginId) ?: return
         // The slot is empty now, so this is a plain registration, not a replacement.
