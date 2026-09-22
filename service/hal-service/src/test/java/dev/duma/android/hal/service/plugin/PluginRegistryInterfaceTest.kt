@@ -5,6 +5,7 @@ import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.InterfaceBinding
 import dev.duma.android.hal.contract.InterfaceContract
+import dev.duma.android.hal.contract.InterfaceFeature
 import dev.duma.android.hal.contract.MethodDescriptor
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
@@ -79,9 +80,9 @@ class PluginRegistryInterfaceTest {
         override fun setEventCallback(callback: HalPluginEventCallback?) {}
     }
 
-    private fun registryWithProviders(): PluginRegistry {
+    private fun registryWithProviders(contract: InterfaceContract = lightContract): PluginRegistry {
         val registry = PluginRegistry()
-        registry.registerBuiltIn(FakeDefiner(lightContract))
+        registry.registerBuiltIn(FakeDefiner(contract))
         registry.registerBuiltIn(
             FakeProvider("p.high", InterfaceBinding("light", priority = 100, features = listOf("timeout")), body = """{"who":"high"}""")
         )
@@ -250,6 +251,50 @@ class PluginRegistryInterfaceTest {
         val result = registry.executeInterface("barcodeScanner", null, "barcodeScanner.trigger", "{}")
         assertTrue(result is CommandResult.Success)
         assertEquals("sunmi.scanner.inner", (result as CommandResult.Success).provider)
+    }
+
+    // --- Feature-gated methods without a selector ----------------------------------------------
+    // Same providers as registryWithProviders(): the default p.high advertises only `timeout`, the
+    // lower-priority p.low advertises `multiFlash` — the CPad LED / FLEX status light split.
+
+    private val multiFlashContract = lightContract.copy(
+        methods = lightContract.methods + MethodDescriptor(
+            "light.multiFlash", "multiFlash", "light", exampleParameters = "{}", exampleOutput = "{}"
+        ),
+        features = listOf(InterfaceFeature("multiFlash", "cycle colors", methods = listOf("light.multiFlash")))
+    )
+
+    @Test
+    fun `feature-gated method without a selector falls back to a provider with the feature`() = runTest {
+        val registry = registryWithProviders(multiFlashContract)
+
+        val result = registry.executeInterface("light", null, "light.multiFlash", "{}")
+        assertTrue(result is CommandResult.Success)
+        assertEquals("p.low", (result as CommandResult.Success).provider)
+        // The fallback is per method: ungated methods still go to the default.
+        val on = registry.executeInterface("light", null, "light.on", "{}")
+        assertEquals("p.high", (on as CommandResult.Success).provider)
+    }
+
+    @Test
+    fun `an explicit selector is not rerouted to a provider with the feature`() = runTest {
+        val registry = registryWithProviders(multiFlashContract)
+
+        val pinned = registry.executeInterface("light", "p.high", "light.multiFlash", "{}")
+        assertTrue(pinned is CommandResult.Failure)
+        assertEquals("unavailable", (pinned as CommandResult.Failure).code)
+    }
+
+    @Test
+    fun `feature fallback never picks a provider the user disabled`() = runTest {
+        val registry = registryWithProviders(multiFlashContract)
+        val config = freshConfig()
+        registry.interfacePreferenceConfig = config
+        config.setEnabled("light", "p.low", false)
+
+        val result = registry.executeInterface("light", null, "light.multiFlash", "{}")
+        assertTrue(result is CommandResult.Failure)
+        assertEquals("unavailable", (result as CommandResult.Failure).code)
     }
 
     // --- Experimental providers -------------------------------------------------------------

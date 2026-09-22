@@ -129,8 +129,17 @@ Każdy provider ogłasza swoje w `InterfaceBinding.features`; interfejs ogłasza
 `InterfaceContract.features`. Są dwa rodzaje:
 
 - **Method-level** (`InterfaceFeature.methods` niepuste, np. `multiFlash` → `light.multiFlash`):
-  bramkują **całą metodę**. Egzekwuje rdzeń (`executeInterface` odrzuca metodę, jeśli provider nie
-  ma cechy) **oraz** UI (metoda wyszarzona/oznaczona).
+  bramkują **całą metodę**. Egzekwuje rdzeń **oraz** UI (metoda wyszarzona/oznaczona). Rdzeń
+  rozwiązuje providera per metoda:
+  - **bez sufiksu** — `executeInterface` wybiera pierwszego providera z efektywnej kolejności
+    (dostępny, włączony, przechodzący bramkę experimental), który ogłasza cechę; nie musi to być
+    default. Gołe `light.multiFlash` trafia więc do `sunmi.statuslight`, nawet gdy defaultem jest
+    `sunmi.tms.led`. `unavailable` tylko wtedy, gdy żaden taki provider nie ma cechy.
+  - **z sufiksem** (`light.multiFlash@sunmi.tms.led`) — nie ma przekierowania: wskazany provider bez
+    cechy daje `unavailable`.
+
+  Wynikowy provider jest w nagłówku odpowiedzi (`provider`), więc klient widzi, kto obsłużył
+  wywołanie. Fasady TS zawsze doklejają `@provider`, więc fallback dotyczy tylko surowych wywołań.
 - **Param-level** (`InterfaceFeature.methods` puste, np. `timeout` = opcja `timeoutMs`): bramkują
   **parametr**, nie metodę. Rdzeń przekazuje params nieprzezroczyście, więc **nie** egzekwuje ich —
   robi to provider (ignoruje/odrzuca param) i UI/klient (ukrywa pole na podstawie `features`).
@@ -200,7 +209,9 @@ szyny.
 
 - **`light`** (definer `LightInterface` w `plugin-generic-lib`): `light.on/off/flash/multiFlash`;
   providerzy `sunmi.tms.led` (CPad, `priority` wyższy, feature `timeout`) i `sunmi.statuslight`
-  (FLEX, feature `multiFlash`). `multiFlash` woła się tylko na FLEX; `timeout` działa tylko na CPad.
+  (FLEX, feature `multiFlash`). Gołe `light.multiFlash` idzie do FLEX-a mimo niższego priorytetu
+  (fallback po cesze); `light.multiFlash@sunmi.tms.led` → `unavailable`. `timeout` jest param-level,
+  więc działa tylko na CPad — rdzeń go nie przekierowuje.
 - **`printer`** (definer `PrinterInterface`): `printer.printEscPos/printTspl/printZpl/printImage/cut`,
   każda metoda bramkowana cechą (`escpos`/`tspl`/`zpl`/`image`/`cut`). Provider `sunmi.printerx.printer`
   ogłasza `escpos, tspl, image, cut` (SDK nie ma ZPL — `printer.printZpl` → `unavailable`); `printer.cut`
