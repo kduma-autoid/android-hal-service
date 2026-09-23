@@ -325,4 +325,29 @@ class TokenManagerTest {
         )
         assertNotNull(result)
     }
+
+    @Test
+    fun `a token minted with no permissions is not reused for any request`() = runTest {
+        // Stored as "", which split(",") turns into [""] — an entry that startsWith-matches anything.
+        val empty = manager.createToken(
+            clientId = "test",
+            permissions = emptyList(),
+            grantedBy = "user",
+            duration = "permanent",
+            boundPackageName = null,
+            boundCertHash = null,
+            boundOrigin = null
+        )
+        assertTrue(empty.permissionList.isEmpty())
+
+        val result = manager.findExistingToken(
+            clientId = "test",
+            grantedBy = "user",
+            requiredPermissions = listOf("printer"),
+            boundPackageName = null,
+            boundCertHash = null,
+            boundOrigin = null
+        )
+        assertNull(result)
+    }
 }

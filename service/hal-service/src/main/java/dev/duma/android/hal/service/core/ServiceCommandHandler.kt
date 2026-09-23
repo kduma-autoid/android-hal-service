@@ -3,6 +3,7 @@ package dev.duma.android.hal.service.core
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.service.auth.AuthManager
 import dev.duma.android.hal.service.auth.TokenEntity
+import dev.duma.android.hal.service.auth.permissionList
 import dev.duma.android.hal.service.auth.TokenManager
 import dev.duma.android.hal.service.auth.TokenRequest
 import dev.duma.android.hal.service.auth.TokenResponse
@@ -14,6 +15,7 @@ import dev.duma.android.hal.transport.core.TransportRegistry
 import dev.duma.android.hal.contract.DescriptorGroup
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.EventDescriptor
+import dev.duma.android.hal.contract.InterfaceContract
 import dev.duma.android.hal.contract.PluginDescriptor
 import dev.duma.android.hal.contract.allMethods
 import dev.duma.android.hal.contract.allEvents
@@ -111,7 +113,7 @@ class ServiceCommandHandler(
                 val baseMethod = if (selector >= 0) method.substring(0, selector) else method
                 val provider = if (selector >= 0) method.substring(selector + 1).ifEmpty { null } else null
 
-                val permissions = tokenEntity.permissions.split(",")
+                val permissions = tokenEntity.permissionList
                 val methodDescriptor = pluginRegistry.getMethodDescriptor(baseMethod)
 
                 // The descriptor's declared permission is the source of truth — the same field
@@ -226,7 +228,7 @@ class ServiceCommandHandler(
      * resolved to one descriptor.
      */
     private fun deniedSubscriptions(events: String, tokenEntity: TokenEntity): List<String> {
-        val permissions = tokenEntity.permissions.split(",").filter { it.isNotEmpty() }
+        val permissions = tokenEntity.permissionList
         if ("*" in permissions) return emptyList()
         return events.split(",").map { it.trim() }.filter { it.isNotEmpty() }.filter { event ->
             val name = event.substringBefore('@')
@@ -316,8 +318,15 @@ class ServiceCommandHandler(
         val withSuper = json?.get("withSuper")?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
         val withExperimental = json?.get("withExperimental")?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
 
-        val permissions = tokenEntity.permissions.split(",")
+        val permissions = tokenEntity.permissionList
         val allDescriptors = pluginRegistry.getSupportedDescriptors()
+
+        // The interfaces this caller sees, decided once. The `interfaces` section lists exactly these,
+        // a plugin is listed for its interface work only through one of them, and its
+        // providesInterfaces / definesInterfaces name only these — so a token scoped to `light` does
+        // not learn from a dual light+printer provider that `printer` is wired there too.
+        val visibleInterfaces = visibleInterfaces(permissions, withSuper, withExperimental)
+        val visibleInterfaceIds = visibleInterfaces.map { it.contract.interfaceId }.toSet()
 
         // Step 1: Filter by token permissions
         val filtered = if ("*" in permissions) {
@@ -330,7 +339,7 @@ class ServiceCommandHandler(
                 ))
             }.filter {
                 it.allMethods.isNotEmpty() || it.allEvents.isNotEmpty() ||
-                    hasVisibleInterface(it, permissions)
+                    hasVisibleInterface(it, visibleInterfaceIds)
             }
         }
 
@@ -382,11 +391,13 @@ class ServiceCommandHandler(
                             put("experimentalActive", isExpEnabledViaPrefs || hasExpViaToken)
                         }
                         putJsonArray("capabilities") { desc.capabilities.forEach { add(JsonPrimitive(it)) } }
-                        if (desc.interfaces.isNotEmpty()) {
-                            putJsonArray("providesInterfaces") { desc.interfaces.forEach { add(JsonPrimitive(it.interfaceId)) } }
+                        val provided = desc.interfaces.map { it.interfaceId }.filter { it in visibleInterfaceIds }
+                        if (provided.isNotEmpty()) {
+                            putJsonArray("providesInterfaces") { provided.forEach { add(JsonPrimitive(it)) } }
                         }
-                        if (desc.definesInterfaces.isNotEmpty()) {
-                            putJsonArray("definesInterfaces") { desc.definesInterfaces.forEach { add(JsonPrimitive(it.interfaceId)) } }
+                        val defined = desc.definesInterfaces.map { it.interfaceId }.filter { it in visibleInterfaceIds }
+                        if (defined.isNotEmpty()) {
+                            putJsonArray("definesInterfaces") { defined.forEach { add(JsonPrimitive(it)) } }
                         }
                         putJsonArray("groups") {
                             desc.groups.forEach { group ->
@@ -429,30 +440,8 @@ class ServiceCommandHandler(
                 }
             }
             putJsonArray("interfaces") {
-                pluginRegistry.getRegisteredInterfaces().forEach { contract ->
-                    // Experimental access for this interface: the caller's token, or the user having
-                    // enabled the plugin that *defines* it. `withExperimental` reveals it in the
-                    // listing regardless, mirroring how the plugins section above behaves.
-                    val definer = pluginRegistry.definerForInterface(contract.interfaceId)
-                    val expViaToken = permissions.any { perm ->
-                        perm == "experimental" ||
-                        contract.methods.any { m -> perm == "${m.requiredPermission}.experimental" }
-                    }
-                    val expViaPrefs = definer?.let { experimentalConfig.isPluginEnabled(it) } ?: false
-                    val expUsable = expViaToken || expViaPrefs
-                    val expVisible = withExperimental || expUsable
-                    if (contract.experimental && !expVisible) return@forEach
-
-                    var methods = if ("*" in permissions) contract.methods
-                        else contract.methods.filter { m -> permissions.any { m.requiredPermission.startsWith(it) } }
-                    var events = if ("*" in permissions) contract.events
-                        else contract.events.filter { e -> permissions.any { e.requiredPermission.startsWith(it) } }
-                    if (!withSuper) methods = methods.filterNot { it.superRequired }
-                    if (!expVisible) {
-                        methods = methods.filterNot { it.experimental }
-                        events = events.filterNot { it.experimental }
-                    }
-                    if (methods.isEmpty() && events.isEmpty()) return@forEach
+                visibleInterfaces.forEach { visible ->
+                    val (contract, methods, events, expViaToken, expUsable) = visible
                     add(buildJsonObject {
                         put("kind", "interface")
                         put("interfaceId", contract.interfaceId)
@@ -541,7 +530,7 @@ class ServiceCommandHandler(
      * token check alone allowed.
      */
     private fun requireInterfacePermission(interfaceId: String, tokenEntity: TokenEntity): CommandResult? {
-        val permissions = tokenEntity.permissions.split(",").filter { it.isNotEmpty() }
+        val permissions = tokenEntity.permissionList
         if ("*" in permissions) return null
         val contract = pluginRegistry.getInterfaceContract(interfaceId)
             ?: return CommandResult.notFound("Interface not registered: $interfaceId")
@@ -556,22 +545,62 @@ class ServiceCommandHandler(
         return tokenManager.validateToken(token, callerContext)
     }
 
+    /** A registered interface as one caller sees it: what of it is visible, and their experimental access. */
+    private data class VisibleInterface(
+        val contract: InterfaceContract,
+        val methods: List<MethodDescriptor>,
+        val events: List<EventDescriptor>,
+        val expViaToken: Boolean,
+        val expUsable: Boolean
+    )
+
     /**
-     * Whether a plugin earns its place in the listing purely through interface work. A provider with
-     * no native methods has nothing else to show, so it must stay visible to a caller who may use the
-     * interface — but keeping every such plugin for everyone listed the device's pluginIds and its
-     * interface wiring to tokens holding no permission for any of it.
+     * The registered interfaces a caller sees in `system.describe`, each narrowed to the methods and
+     * events visible to it: permitted by the token, `super` ones only with [withSuper], experimental
+     * ones only with access (token, or the user enabling the *defining* plugin) or
+     * [withExperimental]. An interface with nothing left is not visible at all.
      */
-    private fun hasVisibleInterface(desc: PluginDescriptor, permissions: List<String>): Boolean {
-        val ids = (desc.interfaces.map { it.interfaceId } +
-            desc.definesInterfaces.map { it.interfaceId }).distinct()
-        return ids.any { id ->
-            val contract = pluginRegistry.getInterfaceContract(id) ?: return@any false
-            val required = (contract.methods.map { it.requiredPermission } +
-                contract.events.map { it.requiredPermission }).distinct()
-            required.any { req -> permissions.any { req.startsWith(it) } }
+    private fun visibleInterfaces(
+        permissions: List<String>,
+        withSuper: Boolean,
+        withExperimental: Boolean
+    ): List<VisibleInterface> = pluginRegistry.getRegisteredInterfaces().mapNotNull { contract ->
+        // Experimental access for this interface: the caller's token, or the user having enabled the
+        // plugin that *defines* it. `withExperimental` reveals it in the listing regardless, mirroring
+        // how the plugins section behaves.
+        val definer = pluginRegistry.definerForInterface(contract.interfaceId)
+        val expViaToken = permissions.any { perm ->
+            perm == "experimental" ||
+            contract.methods.any { m -> perm == "${m.requiredPermission}.experimental" }
         }
+        val expViaPrefs = definer?.let { experimentalConfig.isPluginEnabled(it) } ?: false
+        val expUsable = expViaToken || expViaPrefs
+        val expVisible = withExperimental || expUsable
+        if (contract.experimental && !expVisible) return@mapNotNull null
+
+        var methods = if ("*" in permissions) contract.methods
+            else contract.methods.filter { m -> permissions.any { m.requiredPermission.startsWith(it) } }
+        var events = if ("*" in permissions) contract.events
+            else contract.events.filter { e -> permissions.any { e.requiredPermission.startsWith(it) } }
+        if (!withSuper) methods = methods.filterNot { it.superRequired }
+        if (!expVisible) {
+            methods = methods.filterNot { it.experimental }
+            events = events.filterNot { it.experimental }
+        }
+        if (methods.isEmpty() && events.isEmpty()) null
+        else VisibleInterface(contract, methods, events, expViaToken, expUsable)
     }
+
+    /**
+     * Whether a plugin earns its place in the listing through interface work: it provides or defines
+     * an interface the caller sees. A provider with no native methods has nothing else to show, so it
+     * must stay visible to a caller who may use the interface — but keeping every such plugin for
+     * everyone listed the device's pluginIds and its interface wiring to tokens holding no permission
+     * for any of it.
+     */
+    private fun hasVisibleInterface(desc: PluginDescriptor, visibleInterfaceIds: Set<String>): Boolean =
+        desc.interfaces.any { it.interfaceId in visibleInterfaceIds } ||
+            desc.definesInterfaces.any { it.interfaceId in visibleInterfaceIds }
 
     private fun filterGroups(
         groups: List<DescriptorGroup>,

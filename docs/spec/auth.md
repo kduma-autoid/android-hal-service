@@ -129,7 +129,7 @@ Token z unrestricted serviceKey → brak binding, działa z dowolnego kontekstu.
 | token | String (unique index) | Random 64 hex |
 | clientId | String | Identyfikator klienta |
 | clientType | String | android / web / unrestricted |
-| permissions | String | JSON array ["printer","scanner"] |
+| permissions | String | Rozdzielone przecinkami, np. `printer,scanner`; pusty napis = brak uprawnień |
 | grantedBy | String | developer_key / device_key / user |
 | grantedAt | Long | Timestamp |
 | expiresAt | Long? | Nullable — permanent nie wygasa |
@@ -154,6 +154,18 @@ Token z unrestricted serviceKey → brak binding, działa z dowolnego kontekstu.
 - validateToken(token, callerContext): TokenEntity? — existence + expiry + binding
 - revokeToken(token), revokeAllForClient(clientId)
 - Na starcie: deleteExpired()
+
+### Dopasowanie uprawnień
+
+Wymagane uprawnienie (z `MethodDescriptor.requiredPermission` / `EventDescriptor.requiredPermission`)
+jest spełnione, gdy zaczyna się od któregoś z przyznanych (`light` pokrywa `light.*`) albo token ma `*`.
+Każde sprawdzenie — `execute`, `system.describe`, subskrypcja eventów, `system.interface.setOrder` /
+`setEnabled` i ponowne użycie istniejącego tokenu — czyta listę przez jeden parser
+(`TokenEntity.permissionList`), który pomija puste wpisy. Bez tego token wydany z pustą listą
+(`""`, a `"".split(",")` to `[""]`) pasowałby prefiksem `""` do wszystkiego.
+
+Token bez uprawnień jest prawidłowy i nie jest odrzucany przy wydaniu: ma dostęp tylko do metod i
+eventów `system.*` (`system.status`, `system.describe`, `system.*.changed`), jak każdy inny token.
 
 ## Dialog zgody użytkownika
 

@@ -187,7 +187,9 @@ Obok `plugins`, `describe` zwraca `interfaces: [InterfaceDescriptor]` (filtrowan
 ```
 API listuje tylko available (ale pokazuje **wyłączonych** z `enabled:false`, żeby dało się je
 włączyć). Każdy wpis pluginu w `plugins` ma też `providesInterfaces` / `definesInterfaces` (id-ki do
-cross-referencji). `definesInterfaces` wymienia tylko kontrakty, które plugin faktycznie **trzyma** —
+cross-referencji). Oba wymieniają tylko interfejsy obecne w sekcji `interfaces` dla tego
+wywołującego — token z samym `light` nie dowie się z providera `light`+`printer`, że jest tam też
+`printer`. `definesInterfaces` wymienia przy tym tylko kontrakty, które plugin faktycznie **trzyma** —
 nie to, co deklaruje deskryptor. Definer z odrzuconym kontraktem (inny był pierwszy albo jest
 zewnętrzny, a interfejs należy do wbudowanego) go nie ogłasza; zewnętrzny plugin na slocie
 wbudowanego definera też nie, bo kontrakt trzyma czekający w rezerwie wbudowany. Dashboard pokazuje

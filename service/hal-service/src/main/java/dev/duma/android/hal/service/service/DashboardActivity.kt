@@ -32,6 +32,7 @@ import android.widget.TextView
 import android.widget.Toast
 import dev.duma.android.hal.service.BuildConfig
 import dev.duma.android.hal.service.auth.DeviceKeyManager
+import dev.duma.android.hal.service.auth.permissionList
 import dev.duma.android.hal.service.config.ServerConfig
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.ItemTouchHelper
@@ -850,8 +851,9 @@ class DashboardActivity : AppCompatActivity() {
                 setTypeface(null, Typeface.BOLD)
             })
 
-            val permList = token.permissions.split(",")
-            val permText = "Permissions:\n" + permList.joinToString("\n") { "  \u2022 $it" }
+            val permList = token.permissionList
+            val permText = if (permList.isEmpty()) "Permissions: none (service methods only)"
+                else "Permissions:\n" + permList.joinToString("\n") { "  \u2022 $it" }
             holder.layout.addView(TextView(this@DashboardActivity).apply {
                 text = permText
                 textSize = 13f

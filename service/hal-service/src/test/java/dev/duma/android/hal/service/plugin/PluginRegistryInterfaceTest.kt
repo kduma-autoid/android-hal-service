@@ -505,7 +505,8 @@ class PluginRegistryInterfaceTest {
         private val id: String,
         private val ver: Int = 1,
         private val supported: Boolean = true,
-        private val tag: String = id
+        private val tag: String = id,
+        private val binding: InterfaceBinding? = InterfaceBinding("light", priority = 50)
     ) : HalPlugin {
         private var dead = false
         fun die() { dead = true }
@@ -519,7 +520,7 @@ class PluginRegistryInterfaceTest {
             PluginDescriptor(
                 pluginId = id, name = id, version = ver,
                 capabilities = listOf(id), groups = emptyList(),
-                interfaces = listOf(InterfaceBinding("light", priority = 50))
+                interfaces = listOfNotNull(binding)
             )
         }
         override fun initialize(pluginContext: PluginContext) = call {}
@@ -553,6 +554,15 @@ class PluginRegistryInterfaceTest {
     }
 
     @Test
+    fun `an external plugin with no API is not kept`() {
+        // False tells discoverExternal to release the binding instead of keeping the service alive.
+        val registry = PluginRegistry()
+        assertFalse(registry.registerExternal(FakeRemote("ext.empty", binding = null), "com.vendor"))
+        assertNull(registry.getPluginInfo("ext.empty"))
+        assertFalse("ext.empty" in registry.getUnsupportedPluginIds())
+    }
+
+    @Test
     fun `an unsupported external plugin does not relabel a built-in under the same id`() = runTest {
         val registry = registryWithProviders()
         val ghost = FakeRemote("p.high", supported = false)
@@ -573,7 +583,8 @@ class PluginRegistryInterfaceTest {
         val registry = PluginRegistry()
         val unsupported = FakeRemote("ext.unsupported", supported = false)
 
-        assertFalse(registry.registerExternal(unsupported, "com.vendor"))
+        // Kept: it is listed, and its descriptor is read over its binding.
+        assertTrue(registry.registerExternal(unsupported, "com.vendor"))
         assertTrue("ext.unsupported" in registry.getUnsupportedPluginIds())
         assertEquals(PluginRegistry.PluginSource.EXTERNAL, registry.getPluginInfo("ext.unsupported")?.source)
 

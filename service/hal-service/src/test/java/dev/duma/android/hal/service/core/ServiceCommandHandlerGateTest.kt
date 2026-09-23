@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
+import dev.duma.android.hal.contract.InterfaceBinding
 import dev.duma.android.hal.contract.InterfaceContract
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
@@ -64,6 +65,24 @@ class ServiceCommandHandlerGateTest {
         )
         override fun initialize(pluginContext: PluginContext) {}
         override suspend fun execute(method: String, params: String) = CommandResult.unsupportedMethod(method)
+        override fun setEventCallback(callback: HalPluginEventCallback?) {}
+    }
+
+    /** A provider with no native API: it is listed for its interfaces alone. */
+    private class FakeProvider(
+        override val pluginId: String,
+        private val interfaceIds: List<String>
+    ) : HalPlugin {
+        override val version = 1
+        override fun isSupported() = true
+        override fun getCapabilities(): List<String> = listOf(pluginId)
+        override fun getDescriptor() = PluginDescriptor(
+            pluginId = pluginId, name = pluginId, version = version,
+            capabilities = getCapabilities(), groups = emptyList(),
+            interfaces = interfaceIds.map { InterfaceBinding(it) }
+        )
+        override fun initialize(pluginContext: PluginContext) {}
+        override suspend fun execute(method: String, params: String) = CommandResult.Success("{}")
         override fun setEventCallback(callback: HalPluginEventCallback?) {}
     }
 
@@ -193,5 +212,51 @@ class ServiceCommandHandlerGateTest {
             val definer = plugins.single { it["pluginId"]!!.jsonPrimitive.content == "interface.light" }
             assertEquals(listOf("light"), definer["definesInterfaces"]!!.jsonArray.map { it.jsonPrimitive.content })
         }
+    }
+
+    // --- a token with no permissions ---
+
+    @Test
+    fun `a token with no permissions is not unrestricted`() = runTest {
+        // Minted from an empty list it stores "", and "".split(",") is [""]: an empty entry that
+        // startsWith-matches every required permission. The event gate filtered it; execute and
+        // describe did not, so the same token was permissionless for events and unrestricted else.
+        val handler = handlerFor("")
+
+        val call = handler.execute("t", "light.on", "{}", caller)
+        assertEquals("forbidden", (call as CommandResult.Failure).code)
+
+        val body = (handler.execute("t", "system.describe", "{}", caller) as CommandResult.Success).body!!
+        assertTrue(Json.parseToJsonElement(body).jsonObject["plugins"]!!.jsonArray.isEmpty())
+
+        assertTrue(handler.subscribe("t", "light.changed", caller) is CommandResult.Failure)
+        // Service methods and events stay open to any valid token, as for every other one.
+        assertTrue(handler.subscribe("t", "system.plugins.changed", caller) is CommandResult.Success)
+    }
+
+    @Test
+    fun `describe cross-references only the interfaces the token sees`() = runTest {
+        // A token scoped to `light` looking at a provider of both `light` and `printer`: listing every
+        // binding told it `printer` is wired there too.
+        val printerContract = InterfaceContract(
+            interfaceId = "printer",
+            methods = listOf(MethodDescriptor("printer.cut", "cut", "printer", exampleParameters = "{}", exampleOutput = "{}"))
+        )
+        val handler = handlerFor("light") {
+            it.registerBuiltIn(FakeDefiner(printerContract))
+            it.registerBuiltIn(FakeProvider("p.dual", listOf("light", "printer")))
+        }
+        val body = (handler.execute("t", "system.describe", "{}", caller) as CommandResult.Success).body!!
+        val json = Json.parseToJsonElement(body).jsonObject
+        val plugins = json["plugins"]!!.jsonArray.map { it.jsonObject }
+
+        val dual = plugins.single { it["pluginId"]!!.jsonPrimitive.content == "p.dual" }
+        assertEquals(listOf("light"), dual["providesInterfaces"]!!.jsonArray.map { it.jsonPrimitive.content })
+        // The printer definer offers nothing this token may use, so it is not listed either.
+        assertFalse(plugins.any { it["pluginId"]!!.jsonPrimitive.content == "interface.printer" })
+        assertEquals(
+            listOf("light"),
+            json["interfaces"]!!.jsonArray.map { it.jsonObject["interfaceId"]!!.jsonPrimitive.content }
+        )
     }
 }

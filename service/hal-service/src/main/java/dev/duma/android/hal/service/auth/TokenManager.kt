@@ -101,7 +101,7 @@ class TokenManager(private val dao: TokenDao) {
     }
 
     private fun permissionsAreSufficient(stored: String, required: List<String>): Boolean {
-        val granted = stored.split(",")
+        val granted = parsePermissions(stored)
         if ("*" in granted) return true
         return required.all { req -> granted.any { req.startsWith(it) } }
     }

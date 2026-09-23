@@ -120,6 +120,14 @@ class PluginRegistry {
         return descriptor.allMethods.isEmpty() && descriptor.allEvents.isEmpty()
     }
 
+    /*
+     * Registration is serialized. Its ownership rules are check-then-act across several maps — "is
+     * this interface free", then "take it" — so two registrations interleaving could both see it free
+     * and the last writer would win over the first definer. Today every call comes from the main
+     * thread (HalService.onCreate, ServiceConnection callbacks), so the lock costs nothing and keeps
+     * the rules true if that ever changes.
+     */
+    @Synchronized
     fun registerBuiltIn(plugin: HalPlugin) {
         if (hasEmptyApi(plugin)) {
             Log.i(TAG, "Plugin has no methods or events in this build, skipping: ${plugin.pluginId}")
@@ -390,8 +398,21 @@ class PluginRegistry {
 
                 override fun onServiceConnected(name: ComponentName, service: IBinder) {
                     val plugin = AidlPluginAdapter(IHardwarePlugin.Stub.asInterface(service))
-                    adapter = plugin
-                    registerExternal(plugin, name.packageName)
+                    if (registerExternal(plugin, name.packageName)) {
+                        adapter = plugin
+                        return
+                    }
+                    // Nothing of it is in use: it lost its pluginId to another plugin, or its build
+                    // left it no API. BIND_AUTO_CREATE would keep the other app's service alive for as
+                    // long as this one runs, so let it go. It is not retried; neither was it before,
+                    // when the binding stayed but the plugin never registered.
+                    serviceConnections.remove(this)
+                    try {
+                        context.unbindService(this)
+                    } catch (e: IllegalArgumentException) {
+                        Log.w(TAG, "unbindService failed for $pluginId: ${e.message}")
+                    }
+                    Log.i(TAG, "Released unused external plugin service: $pluginId from ${name.packageName}")
                 }
 
                 override fun onServiceDisconnected(name: ComponentName) {
@@ -415,8 +436,12 @@ class PluginRegistry {
      * `onServiceConnected`, kept out of the anonymous connection so the displacement and
      * contract-ownership rules can be exercised without binding a real service.
      *
-     * @return true when the plugin was registered.
+     * @return true when the registry holds on to [plugin] — registered, or listed as unsupported,
+     *   whose descriptor is still read over binder — so its binding must stay. False when nothing of
+     *   it is in use (lost its pluginId, empty API, unsupported under an id already taken), and the
+     *   caller should release the binding.
      */
+    @Synchronized
     internal fun registerExternal(plugin: HalPlugin, packageName: String): Boolean {
         val pluginId = plugin.pluginId
         if (hasEmptyApi(plugin)) {
@@ -436,7 +461,7 @@ class PluginRegistry {
             unsupportedPlugins[pluginId] = plugin
             pluginInfo[pluginId] = extInfo
             Log.i(TAG, "External plugin not supported on this device: $pluginId from $packageName")
-            return false
+            return true
         }
         if (!tryRegister(plugin, extInfo)) return false
         Log.i(TAG, "Connected external plugin: $pluginId v${plugin.version} from $packageName")
@@ -455,6 +480,7 @@ class PluginRegistry {
      * nothing here calls into [plugin]: this runs once the remote process is gone, when every member
      * of an [AidlPluginAdapter] is a binder call that throws `DeadObjectException`.
      */
+    @Synchronized
     internal fun unregisterExternal(plugin: HalPlugin) {
         val unsupportedId = unsupportedPlugins.entries.firstOrNull { it.value === plugin }?.key
         if (unsupportedId != null) {
@@ -836,6 +862,7 @@ class PluginRegistry {
             .toSet()
     }
 
+    @Synchronized
     fun disconnectAll(context: Context) {
         serviceConnections.forEach { connection ->
             try {
