@@ -8,6 +8,7 @@ import {
   type PrinterFeature,
 } from '@kduma-autoid/hal-client-plugin-sunmi-printer-facade';
 import type { InterfaceProvider } from '@kduma-autoid/hal-client-common';
+import { bindBackend, enabledBackends, serialized } from '../composables/backendBinding';
 
 const { client, isConnected } = useHalClient();
 const toast = useToast();
@@ -19,29 +20,40 @@ const printer = shallowRef<SunmiPrinterClient | null>(null);
 const backends = ref<InterfaceProvider[]>([]);
 const selectedBackend = ref<string>('');
 const detecting = ref(false);
+const bindError = ref('');
+const usable = computed(() => enabledBackends(backends.value));
 let unsubscribeChanges: (() => Promise<void>) | null = null;
 
-async function bind(pluginId?: string) {
+// Serialized: two `system.interfaces.changed` in a row must not interleave two binds.
+const bind = serialized(async (pluginId?: string) => {
   if (!client.value || !isConnected.value) {
     printer.value = null;
     backends.value = [];
     return;
   }
+  const c = client.value;
   detecting.value = true;
   try {
-    backends.value = await SunmiPrinterClient.listBackends(client.value);
-    printer.value = pluginId
-      ? await SunmiPrinterClient.forBackend(client.value, pluginId)
-      : await SunmiPrinterClient.create(client.value);
-    selectedBackend.value = printer.value.backend;
-  } catch {
-    // No provider (or the pinned one vanished) — the template shows the "no backend" banner.
+    backends.value = await SunmiPrinterClient.listBackends(c);
+    const { bound, pinFailed } = await bindBackend(
+      pluginId,
+      (id) => SunmiPrinterClient.forBackend(c, id),
+      () => SunmiPrinterClient.create(c),
+    );
+    printer.value = bound;
+    selectedBackend.value = bound.backend;
+    bindError.value = '';
+    if (pinFailed) toast.info(`${pinFailed} is not available — using ${bound.backend}`);
+  } catch (e) {
+    // Nothing bindable. The template tells "no provider at all" apart from "all disabled" and from
+    // a failure while enabled providers exist — only the first is "no backend".
     printer.value = null;
     selectedBackend.value = '';
+    bindError.value = e instanceof Error ? e.message : String(e);
   } finally {
     detecting.value = false;
   }
-}
+});
 
 async function teardownChanges() {
   if (unsubscribeChanges) {
@@ -184,6 +196,14 @@ function cut() {
     to configure and connect.
   </div>
   <div v-else-if="detecting && !printer" class="banner banner-info">Resolving printer backend...</div>
+  <div v-else-if="!printer && usable.length" class="banner banner-warning">
+    Could not bind a printer backend: {{ bindError }}
+    <router-link to="/interfaces">Go to Interfaces</router-link> to inspect the registry.
+  </div>
+  <div v-else-if="!printer && backends.length" class="banner banner-warning">
+    Every provider of the <code>printer</code> interface is disabled.
+    <router-link to="/interfaces">Go to Interfaces</router-link> to enable one.
+  </div>
   <div v-else-if="!printer" class="banner banner-warning">
     No printer backend is available — the <code>printer</code> interface has no provider on this
     service. <router-link to="/interfaces">Go to Interfaces</router-link> to inspect the registry.
@@ -192,8 +212,8 @@ function cut() {
     <span>
       Active backend:
       <select v-if="backends.length > 1" :value="selectedBackend" @change="onBackendChange">
-        <option v-for="b in backends" :key="b.pluginId" :value="b.pluginId">
-          {{ b.pluginId }}{{ b.isDefault ? ' (default)' : '' }}
+        <option v-for="b in backends" :key="b.pluginId" :value="b.pluginId" :disabled="b.enabled === false">
+          {{ b.pluginId }}{{ b.isDefault ? ' (default)' : '' }}{{ b.enabled === false ? ' (disabled)' : '' }}
         </option>
       </select>
       <code v-else>{{ selectedBackend }}</code>

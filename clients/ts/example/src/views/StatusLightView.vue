@@ -8,6 +8,7 @@ import {
   type LightColor,
 } from '@kduma-autoid/hal-client-plugin-sunmi-light-facade';
 import type { InterfaceProvider } from '@kduma-autoid/hal-client-common';
+import { bindBackend, enabledBackends, serialized } from '../composables/backendBinding';
 
 const { client, isConnected } = useHalClient();
 const toast = useToast();
@@ -21,31 +22,39 @@ const backends = ref<InterfaceProvider[]>([]);
 const selectedBackend = ref<string>('');
 const detecting = ref(false);
 const detectError = ref<string | null>(null);
+const usable = computed(() => enabledBackends(backends.value));
 let unsubscribeChanges: (() => Promise<void>) | null = null;
 
-async function bind(pluginId?: string) {
+// Serialized: two `system.interfaces.changed` in a row must not interleave two binds.
+const bind = serialized(async (pluginId?: string) => {
   if (!client.value || !isConnected.value) {
     light.value = null;
     backends.value = [];
     return;
   }
+  const c = client.value;
   detecting.value = true;
   detectError.value = null;
   try {
-    backends.value = await SunmiLightClient.listBackends(client.value);
-    light.value = pluginId
-      ? await SunmiLightClient.forBackend(client.value, pluginId)
-      : await SunmiLightClient.create(client.value);
-    selectedBackend.value = light.value.backend;
+    backends.value = await SunmiLightClient.listBackends(c);
+    const { bound, pinFailed } = await bindBackend(
+      pluginId,
+      (id) => SunmiLightClient.forBackend(c, id),
+      () => SunmiLightClient.create(c),
+    );
+    light.value = bound;
+    selectedBackend.value = bound.backend;
+    if (pinFailed) toast.info(`${pinFailed} is not available — using ${bound.backend}`);
   } catch (e) {
-    // No provider (or the pinned one vanished) — the template shows the "no backend" banner.
+    // Nothing bindable. The template tells "no provider at all" apart from "all disabled" and from
+    // a failure while enabled providers exist — only the first is "no backend".
     light.value = null;
     selectedBackend.value = '';
     detectError.value = e instanceof Error ? e.message : String(e);
   } finally {
     detecting.value = false;
   }
-}
+});
 
 function onBackendChange(e: Event) {
   bind((e.target as HTMLSelectElement).value);
@@ -168,6 +177,14 @@ function textColor(color: LightColor): string {
   <div v-else-if="detecting" class="banner banner-info">
     Detecting light backend...
   </div>
+  <div v-else-if="!light && usable.length" class="banner banner-warning">
+    Could not bind a light backend: {{ detectError }}
+    <router-link to="/interfaces">Go to Interfaces</router-link> to inspect the registry.
+  </div>
+  <div v-else-if="!light && backends.length" class="banner banner-warning">
+    Every provider of the <code>light</code> interface is disabled.
+    <router-link to="/interfaces">Go to Interfaces</router-link> to enable one.
+  </div>
   <div v-else-if="!light" class="banner banner-warning">
     No light backend is available on the connected service.
     Neither <code>sunmi.tms.led</code> nor <code>sunmi.statuslight</code> is present.
@@ -177,8 +194,8 @@ function textColor(color: LightColor): string {
     <span>
       Active backend:
       <select v-if="backends.length > 1" :value="selectedBackend" @change="onBackendChange">
-        <option v-for="b in backends" :key="b.pluginId" :value="b.pluginId">
-          {{ b.pluginId }}{{ b.isDefault ? ' (default)' : '' }}
+        <option v-for="b in backends" :key="b.pluginId" :value="b.pluginId" :disabled="b.enabled === false">
+          {{ b.pluginId }}{{ b.isDefault ? ' (default)' : '' }}{{ b.enabled === false ? ' (disabled)' : '' }}
         </option>
       </select>
       <code v-else>{{ backendLabel }}</code>

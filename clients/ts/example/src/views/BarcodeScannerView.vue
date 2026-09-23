@@ -4,6 +4,7 @@ import { useHalClient } from '../composables/useHalClient';
 import { useToast } from '../composables/useToast';
 import { SunmiBarcodeScannerClient } from '@kduma-autoid/hal-client-plugin-sunmi-barcode-scanner-facade';
 import type { InterfaceProvider, ScanResult } from '@kduma-autoid/hal-client-common';
+import { bindBackend, enabledBackends, serialized } from '../composables/backendBinding';
 
 const { client, isConnected } = useHalClient();
 const toast = useToast();
@@ -27,6 +28,8 @@ const scans = ref<LoggedScan[]>([]);
 // Subscribing can fail on its own (HTTP has no event channel, and the permission gate can refuse)
 // while the scanner itself resolved fine — kept apart so the view does not claim there is no backend.
 const scanError = ref('');
+const bindError = ref('');
+const usable = computed(() => enabledBackends(backends.value));
 
 let unsubscribeScan: (() => Promise<void>) | null = null;
 let unsubscribeChanges: (() => Promise<void>) | null = null;
@@ -53,16 +56,7 @@ async function subscribeScans() {
 
 // Two `system.interfaces.changed` in a row would otherwise run bind() concurrently and leave two
 // onScan subscriptions, one of which nothing ever unsubscribes.
-let binding: Promise<void> | null = null;
-
-async function bind(pluginId?: string) {
-  const previous = binding;
-  binding = (async () => {
-    await previous?.catch(() => {});
-    await bindOnce(pluginId);
-  })();
-  return binding;
-}
+const bind = serialized((pluginId?: string) => bindOnce(pluginId));
 
 async function bindOnce(pluginId?: string) {
   if (!client.value || !isConnected.value) {
@@ -71,18 +65,26 @@ async function bindOnce(pluginId?: string) {
     backends.value = [];
     return;
   }
+  const c = client.value;
   detecting.value = true;
   try {
-    backends.value = await SunmiBarcodeScannerClient.listBackends(client.value);
-    scanner.value = pluginId
-      ? await SunmiBarcodeScannerClient.forBackend(client.value, pluginId)
-      : await SunmiBarcodeScannerClient.create(client.value);
-    selectedBackend.value = scanner.value.backend;
-  } catch {
-    // No provider (or the pinned one vanished) — the template shows the "no backend" banner.
+    backends.value = await SunmiBarcodeScannerClient.listBackends(c);
+    const { bound, pinFailed } = await bindBackend(
+      pluginId,
+      (id) => SunmiBarcodeScannerClient.forBackend(c, id),
+      () => SunmiBarcodeScannerClient.create(c),
+    );
+    scanner.value = bound;
+    selectedBackend.value = bound.backend;
+    bindError.value = '';
+    if (pinFailed) toast.info(`${pinFailed} is not available — using ${bound.backend}`);
+  } catch (e) {
+    // Nothing bindable. The template tells "no provider at all" apart from "all disabled" and from
+    // a failure while enabled providers exist — only the first is "no backend".
     await stopScanSubscription();
     scanner.value = null;
     selectedBackend.value = '';
+    bindError.value = e instanceof Error ? e.message : String(e);
     return;
   } finally {
     detecting.value = false;
@@ -186,6 +188,14 @@ function time(d: Date): string {
     Trigger still works; switch to the WebSocket transport in
     <router-link to="/settings">Settings</router-link> to receive <code>onScan</code>.
   </div>
+  <div v-else-if="!scanner && usable.length" class="banner banner-warning">
+    Could not bind a barcode scanner backend: {{ bindError }}
+    <router-link to="/interfaces">Go to Interfaces</router-link> to inspect the registry.
+  </div>
+  <div v-else-if="!scanner && backends.length" class="banner banner-warning">
+    Every provider of the <code>barcodeScanner</code> interface is disabled.
+    <router-link to="/interfaces">Go to Interfaces</router-link> to enable one.
+  </div>
   <div v-else-if="!scanner" class="banner banner-warning">
     No barcode scanner backend is available — the <code>barcodeScanner</code> interface has no
     provider on this
@@ -195,8 +205,8 @@ function time(d: Date): string {
     <span>
       Active backend:
       <select v-if="backends.length > 1" :value="selectedBackend" @change="onBackendChange">
-        <option v-for="b in backends" :key="b.pluginId" :value="b.pluginId">
-          {{ b.pluginId }}{{ b.isDefault ? ' (default)' : '' }}
+        <option v-for="b in backends" :key="b.pluginId" :value="b.pluginId" :disabled="b.enabled === false">
+          {{ b.pluginId }}{{ b.isDefault ? ' (default)' : '' }}{{ b.enabled === false ? ' (disabled)' : '' }}
         </option>
       </select>
       <code v-else>{{ selectedBackend }}</code>
