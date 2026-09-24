@@ -34,7 +34,7 @@ class EventBus {
 
         listeners.forEach { listener ->
             if (listener.listenerPluginId != sourcePluginId &&
-                matchesPattern(listener.pattern, eventName)
+                matchesSubscription(listener.pattern, eventName, sourcePluginId)
             ) {
                 listener.callback(eventName, jsonData)
             }
@@ -61,6 +61,19 @@ class EventBus {
                 }
                 else -> pattern == eventName
             }
+        }
+
+        /**
+         * Matches an event against a subscription entry of the form `namePattern[@sourcePattern]`.
+         * Both halves use [matchesPattern] (exact / `prefix.*` / `*`); a missing `@source` matches any
+         * emitter — e.g. `scanner.*@sunmi.*` or `demo.notice@demo.beta`.
+         */
+        fun matchesSubscription(subscription: String, eventName: String, sourcePluginId: String): Boolean {
+            val at = subscription.indexOf('@')
+            if (at < 0) return matchesPattern(subscription, eventName)
+            val namePattern = subscription.substring(0, at)
+            val sourcePattern = subscription.substring(at + 1)
+            return matchesPattern(namePattern, eventName) && matchesPattern(sourcePattern, sourcePluginId)
         }
     }
 }

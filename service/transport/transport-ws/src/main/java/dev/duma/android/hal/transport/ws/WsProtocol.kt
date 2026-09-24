@@ -55,10 +55,13 @@ object WsProtocol {
         }
     }
 
-    fun serializeResponse(id: String, result: String): String {
+    fun serializeResponse(id: String, result: String, provider: String? = null): String {
         return buildJsonObject {
             put("id", id)
             put("type", "response")
+            // Provider that handled the call (interface methods), in the frame header — sibling of
+            // `result`, not inside it. Absent for native/system methods.
+            provider?.let { put("provider", it) }
             put("result", json.parseToJsonElement(result))
         }.toString()
     }
@@ -74,44 +77,17 @@ object WsProtocol {
         }.toString()
     }
 
-    fun serializeEvent(eventName: String, jsonData: String): String {
+    fun serializeEvent(eventName: String, jsonData: String, source: String): String {
         return buildJsonObject {
             put("type", "event")
             put("event", eventName)
+            // Emitting plugin id, exposed in the frame header (sibling of `data`, not inside it).
+            put("source", source)
             put("data", json.parseToJsonElement(jsonData))
         }.toString()
     }
 
-    fun matchesAnySubscription(subscriptions: Set<String>, eventName: String): Boolean {
-        return subscriptions.any { EventBus.matchesPattern(it, eventName) }
-    }
-
-    data class SubscriptionValidation(
-        val allowed: List<String>,
-        val denied: List<String>
-    )
-
-    fun validateSubscriptions(events: List<String>, permissions: List<String>): SubscriptionValidation {
-        if ("*" in permissions) {
-            return SubscriptionValidation(allowed = events, denied = emptyList())
-        }
-
-        val allowed = mutableListOf<String>()
-        val denied = mutableListOf<String>()
-
-        for (event in events) {
-            val eventCapability = if (event.endsWith(".*")) {
-                event.dropLast(2)
-            } else {
-                event.substringBeforeLast(".")
-            }
-            if (permissions.any { eventCapability.startsWith(it) }) {
-                allowed.add(event)
-            } else {
-                denied.add(event)
-            }
-        }
-
-        return SubscriptionValidation(allowed, denied)
+    fun matchesAnySubscription(subscriptions: Set<String>, eventName: String, source: String): Boolean {
+        return subscriptions.any { EventBus.matchesSubscription(it, eventName, source) }
     }
 }

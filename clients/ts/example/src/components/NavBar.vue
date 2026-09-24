@@ -8,7 +8,8 @@ const { isConnected, error, connect, disconnect } = useHalClient();
 const menuOpen = ref(false);
 const demosOpen = ref(false);
 const isDescribeActive = computed(() => route.path.startsWith('/describe'));
-const isDemosActive = computed(() => route.path === '/statuslight' || route.path === '/screens');
+const DEMO_PATHS = ['/statuslight', '/printer', '/barcode-scanner', '/screens'];
+const isDemosActive = computed(() => DEMO_PATHS.includes(route.path));
 
 function closeMenu() {
   menuOpen.value = false;
@@ -63,12 +64,15 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick));
         <div class="nav-links">
           <router-link to="/" class="nav-link" @click="closeMenu">Dashboard</router-link>
           <router-link to="/describe" class="nav-link" :class="{ 'router-link-active': isDescribeActive }" @click="closeMenu">API Explorer</router-link>
+          <router-link to="/interfaces" class="nav-link" @click="closeMenu">Interfaces</router-link>
           <div ref="dropdownRef" class="nav-dropdown" :class="{ open: demosOpen }">
             <button class="nav-link nav-dropdown-toggle" :class="{ 'router-link-active': isDemosActive }" @click.stop="demosOpen = !demosOpen">
               Demos<span class="caret" />
             </button>
             <div class="nav-dropdown-menu">
               <router-link to="/statuslight" class="nav-link dropdown-link" @click="closeMenu">Status Light</router-link>
+              <router-link to="/printer" class="nav-link dropdown-link" @click="closeMenu">Printer</router-link>
+              <router-link to="/barcode-scanner" class="nav-link dropdown-link" @click="closeMenu">Barcode Scanner</router-link>
               <router-link to="/screens" class="nav-link dropdown-link" @click="closeMenu">Screens &amp; NFC</router-link>
             </div>
           </div>

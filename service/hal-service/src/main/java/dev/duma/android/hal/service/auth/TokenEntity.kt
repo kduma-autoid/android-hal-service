@@ -28,3 +28,16 @@ data class TokenEntity(
     val boundOrigin: String?,
     @ColumnInfo(defaultValue = "{}") val clientInfo: String = "{}"
 )
+
+/**
+ * The token's permissions, without empty entries. They are stored as one comma-separated string, so
+ * a token minted with no permissions holds "" — and `"".split(",")` is `[""]`, whose empty entry
+ * `startsWith`-matches every required permission and made a permissionless token unrestricted.
+ * Every check of a token's permissions goes through this.
+ */
+val TokenEntity.permissionList: List<String>
+    get() = parsePermissions(permissions)
+
+/** [permissionList] for a permissions string as stored in [TokenEntity.permissions]. */
+fun parsePermissions(stored: String): List<String> =
+    stored.split(",").map { it.trim() }.filter { it.isNotEmpty() }

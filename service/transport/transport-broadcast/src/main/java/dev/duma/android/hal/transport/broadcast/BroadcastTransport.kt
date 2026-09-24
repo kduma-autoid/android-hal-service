@@ -35,13 +35,14 @@ class BroadcastTransport : EventTransport {
         eventFilter = null
     }
 
-    override fun pushEvent(eventName: String, jsonData: String) {
+    override fun pushEvent(eventName: String, jsonData: String, source: String) {
         if (!isEnabled) return
         if (eventFilter?.invoke(eventName) != true) return
 
         val intent = Intent("dev.duma.hal.event.$eventName").apply {
             putExtra("event", eventName)
             putExtra("data", jsonData)
+            putExtra("source", source)
         }
         context?.sendBroadcast(intent)
     }

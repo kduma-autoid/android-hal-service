@@ -27,6 +27,7 @@ import dev.duma.android.hal.service.auth.TokenManager
 import dev.duma.android.hal.service.BuildConfig
 import dev.duma.android.hal.service.config.BroadcastConfig
 import dev.duma.android.hal.service.config.ExperimentalConfig
+import dev.duma.android.hal.service.config.InterfacePreferenceConfig
 import dev.duma.android.hal.service.config.ServerConfig
 import dev.duma.android.hal.service.core.ServiceCommandHandler
 import dev.duma.android.hal.service.core.TransportBootstrap
@@ -68,6 +69,8 @@ class HalService : Service() {
         var broadcastConfig: BroadcastConfig? = null
             private set
         var experimentalConfig: ExperimentalConfig? = null
+            private set
+        var interfacePreferenceConfig: InterfacePreferenceConfig? = null
             private set
         var serverConfig: ServerConfig? = null
             private set
@@ -176,8 +179,17 @@ class HalService : Service() {
         pluginRegistry.discoverExternal(this)
 
         // 7. Register generic plugins (always available)
-        tryRegisterPlugin("dev.duma.android.hal.plugins.generic.GenericPrinterPlugin")
-        tryRegisterPlugin("dev.duma.android.hal.plugins.generic.GenericScannerPlugin")
+        // Interface definers (register interface contracts; providers opt in via bindings).
+        // `printer`/`scanner` replace the former GenericPrinterPlugin/GenericScannerPlugin wrappers.
+        tryRegisterPlugin("dev.duma.android.hal.plugins.generic.LightInterface")
+        tryRegisterPlugin("dev.duma.android.hal.plugins.generic.PrinterInterface")
+        tryRegisterPlugin("dev.duma.android.hal.plugins.generic.BarcodeScannerInterface")
+        // Hardware-free demo interface + two providers, for exercising the interface layer without
+        // hardware. Development builds only — the module is not on a stable APK's classpath, so these
+        // reflective lookups simply find nothing there.
+        tryRegisterPlugin("dev.duma.android.hal.plugins.generic.demo.DemoInterface")
+        tryRegisterPlugin("dev.duma.android.hal.plugins.generic.demo.DemoAlphaPlugin")
+        tryRegisterPlugin("dev.duma.android.hal.plugins.generic.demo.DemoBetaPlugin")
 
         // 8. Initialize all plugins (PluginContext per plugin)
         pluginRegistry.initializeAll(applicationContext, eventBus)
@@ -188,6 +200,11 @@ class HalService : Service() {
         // 10. ExperimentalConfig + ServerConfig + TransportConfig
         val experimentalConfig = ExperimentalConfig(applicationContext)
         val broadcastConfig = BroadcastConfig(applicationContext)
+        val interfacePreferenceConfig = InterfacePreferenceConfig(applicationContext)
+        pluginRegistry.interfacePreferenceConfig = interfacePreferenceConfig
+        // The registry consults this when resolving interface providers: an experimental provider is
+        // excluded until the user enables it (or the caller holds experimental access).
+        pluginRegistry.experimentalConfig = experimentalConfig
         val serverConfig = ServerConfig(applicationContext)
 
         // Production binds localhost on the fixed port. Development builds default to the same
@@ -235,7 +252,7 @@ class HalService : Service() {
         // 15. Bridge: EventBus.events -> TransportRegistry.pushEvent
         scope.launch {
             eventBus.events.collect { envelope ->
-                transportRegistry.pushEvent(envelope.eventName, envelope.jsonData)
+                transportRegistry.pushEvent(envelope.eventName, envelope.jsonData, envelope.sourcePluginId)
             }
         }
 
@@ -264,6 +281,7 @@ class HalService : Service() {
         Companion.tokenDao = db.tokenDao()
         Companion.broadcastConfig = broadcastConfig
         Companion.experimentalConfig = experimentalConfig
+        Companion.interfacePreferenceConfig = interfacePreferenceConfig
         Companion.serverConfig = serverConfig
         Companion.boundHost = bindHost
         Companion.boundPort = bindPort
@@ -291,6 +309,7 @@ class HalService : Service() {
         Companion.tokenDao = null
         Companion.broadcastConfig = null
         Companion.experimentalConfig = null
+        Companion.interfacePreferenceConfig = null
         Companion.serverConfig = null
         transportRegistry.stopAll()
         ktorServerManager.stop()

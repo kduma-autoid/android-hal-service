@@ -7,34 +7,57 @@ import {
   LIGHT_COLORS,
   type LightColor,
 } from '@kduma-autoid/hal-client-plugin-sunmi-light-facade';
+import type { InterfaceProvider } from '@kduma-autoid/hal-client-common';
+import { bindBackend, enabledBackends, serialized } from '../composables/backendBinding';
 
 const { client, isConnected } = useHalClient();
 const toast = useToast();
 
-// The facade detects the available backend (prefers CPad sunmi.tms.led, falls back
-// to FLEX sunmi.statuslight) and exposes the unified ILight surface. Backend availability
-// is dynamic (light plugged/unplugged, CPad LED confirmed after connect), so we re-detect
-// whenever the service reports a plugin availability change.
+// The facade resolves the `light` interface and binds a provider — the interface default, or one
+// the user pins from the picker below, which matters when both the CPad LED and a FLEX status
+// light provide the interface at once. Backend availability is dynamic (light plugged/unplugged,
+// CPad LED confirmed after connect), so we re-resolve whenever the service reports a change.
 const light = shallowRef<SunmiLightClient | null>(null);
+const backends = ref<InterfaceProvider[]>([]);
+const selectedBackend = ref<string>('');
 const detecting = ref(false);
 const detectError = ref<string | null>(null);
+const usable = computed(() => enabledBackends(backends.value));
 let unsubscribeChanges: (() => Promise<void>) | null = null;
 
-async function detect() {
+// Serialized: two `system.interfaces.changed` in a row must not interleave two binds.
+const bind = serialized(async (pluginId?: string) => {
   if (!client.value || !isConnected.value) {
     light.value = null;
+    backends.value = [];
     return;
   }
+  const c = client.value;
   detecting.value = true;
   detectError.value = null;
   try {
-    light.value = await SunmiLightClient.create(client.value);
+    backends.value = await SunmiLightClient.listBackends(c);
+    const { bound, pinFailed } = await bindBackend(
+      pluginId,
+      (id) => SunmiLightClient.forBackend(c, id),
+      () => SunmiLightClient.create(c),
+    );
+    light.value = bound;
+    selectedBackend.value = bound.backend;
+    if (pinFailed) toast.info(`${pinFailed} is not available — using ${bound.backend}`);
   } catch (e) {
+    // Nothing bindable. The template tells "no provider at all" apart from "all disabled" and from
+    // a failure while enabled providers exist — only the first is "no backend".
     light.value = null;
+    selectedBackend.value = '';
     detectError.value = e instanceof Error ? e.message : String(e);
   } finally {
     detecting.value = false;
   }
+});
+
+function onBackendChange(e: Event) {
+  bind((e.target as HTMLSelectElement).value);
 }
 
 async function teardownChanges() {
@@ -49,10 +72,11 @@ async function teardownChanges() {
 }
 
 async function connectAndWatch() {
-  await detect();
+  await bind();
   if (client.value && isConnected.value && !unsubscribeChanges) {
+    // Hot-plug / interface reorder: re-resolve, keeping the user's pinned backend if it survives.
     unsubscribeChanges = await SunmiLightClient.onChanged(client.value, () => {
-      detect();
+      bind(selectedBackend.value || undefined);
     });
   }
 }
@@ -67,6 +91,8 @@ watch(
     } else {
       teardownChanges();
       light.value = null;
+      backends.value = [];
+      selectedBackend.value = '';
       detectError.value = null;
     }
   },
@@ -75,11 +101,16 @@ watch(
 
 const isReady = computed(() => isConnected.value && light.value !== null);
 const caps = computed(() => light.value?.capabilities ?? { multiFlash: false, timeout: false });
+// Friendly names for the backends we know about; any other provider of the `light` interface is
+// shown by its raw pluginId rather than being mislabelled as one of these two.
+const BACKEND_LABELS: Record<string, string> = {
+  'sunmi.tms.led': 'sunmi.tms.led (CPad)',
+  'sunmi.statuslight': 'sunmi.statuslight (FLEX 3)',
+};
 const backendLabel = computed(() => {
-  if (!light.value) return null;
-  return light.value.backend === 'sunmi.tms.led'
-    ? 'sunmi.tms.led (CPad)'
-    : 'sunmi.statuslight (FLEX 3)';
+  const id = light.value?.backend;
+  if (!id) return null;
+  return BACKEND_LABELS[id] ?? id;
 });
 
 const flashColor = ref<LightColor>('red');
@@ -146,13 +177,29 @@ function textColor(color: LightColor): string {
   <div v-else-if="detecting" class="banner banner-info">
     Detecting light backend...
   </div>
+  <div v-else-if="!light && usable.length" class="banner banner-warning">
+    Could not bind a light backend: {{ detectError }}
+    <router-link to="/interfaces">Go to Interfaces</router-link> to inspect the registry.
+  </div>
+  <div v-else-if="!light && backends.length" class="banner banner-warning">
+    Every provider of the <code>light</code> interface is disabled.
+    <router-link to="/interfaces">Go to Interfaces</router-link> to enable one.
+  </div>
   <div v-else-if="!light" class="banner banner-warning">
     No light backend is available on the connected service.
     Neither <code>sunmi.tms.led</code> nor <code>sunmi.statuslight</code> is present.
     <router-link to="/">Go to Dashboard</router-link> to see available plugins.
   </div>
   <div v-else class="banner banner-info">
-    Active backend: <code>{{ backendLabel }}</code>
+    <span>
+      Active backend:
+      <select v-if="backends.length > 1" :value="selectedBackend" @change="onBackendChange">
+        <option v-for="b in backends" :key="b.pluginId" :value="b.pluginId" :disabled="b.enabled === false">
+          {{ b.pluginId }}{{ b.isDefault ? ' (default)' : '' }}{{ b.enabled === false ? ' (disabled)' : '' }}
+        </option>
+      </select>
+      <code v-else>{{ backendLabel }}</code>
+    </span>
   </div>
 
   <div class="card">

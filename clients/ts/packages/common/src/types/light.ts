@@ -1,6 +1,6 @@
 /**
- * Shared types for the Sunmi light/LED HAL plugins (CPad `sunmi.tms.led` and
- * FLEX `sunmi.statuslight`). Both clients speak the same unified surface.
+ * Shared types for the `light` HAL interface and the Sunmi light/LED plugins behind it
+ * (CPad `sunmi.tms.led` and FLEX `sunmi.statuslight`).
  */
 export const LIGHT_COLORS = ['red', 'green', 'blue', 'yellow', 'cyan', 'magenta', 'white'] as const;
 
@@ -25,4 +25,14 @@ export interface LightCapabilities {
   multiFlash: boolean;
   /** Supports the `timeoutMs` option on `on()` / `flash()`. */
   timeout: boolean;
+}
+
+/**
+ * Overloaded signature for a light client's `multiFlash`: accept either an explicit list of
+ * per-step objects `{color, onMs, offMs}`, or a list of colors with uniform timing. Present only on
+ * backends whose `capabilities.multiFlash` is true.
+ */
+export interface MultiFlash {
+  (steps: FlashStep[]): Promise<void>;
+  (colors: LightColor[], onMs: number, offMs: number): Promise<void>;
 }

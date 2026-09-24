@@ -10,6 +10,7 @@ function createMockTransport(): IEventTransport {
     off: vi.fn(),
     dispose: vi.fn(),
     setToken: vi.fn(),
+    getToken: vi.fn().mockReturnValue(null),
   };
 }
 
@@ -93,6 +94,60 @@ describe('EventSubscriberAdapter', () => {
 
     await adapter.on('sunmi.nfc.modulesChanged', () => {});
 
+    expect(transport.subscribe).toHaveBeenCalledTimes(2);
+  });
+
+  it('subscribes once for concurrent first handlers of the same event', async () => {
+    let accept!: () => void;
+    (transport.subscribe as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        accept = resolve;
+      }),
+    );
+
+    const first = adapter.on('light.changed', () => {});
+    const second = adapter.on('light.changed', () => {});
+    accept();
+    const [unsub1, unsub2] = await Promise.all([first, second]);
+
+    expect(transport.subscribe).toHaveBeenCalledTimes(1);
+    expect(transport.on).toHaveBeenCalledTimes(2);
+    // Both handlers are counted in one set: the pattern goes away only with the last of them.
+    await unsub1();
+    expect(transport.unsubscribe).not.toHaveBeenCalled();
+    await unsub2();
+    expect(transport.unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects on a failed subscribe and subscribes again next time', async () => {
+    (transport.subscribe as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('forbidden'));
+
+    await expect(adapter.on('light.changed', () => {})).rejects.toThrow('forbidden');
+    expect(transport.on).not.toHaveBeenCalled();
+
+    await adapter.on('light.changed', () => {});
+    expect(transport.subscribe).toHaveBeenCalledTimes(2);
+    expect(transport.on).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects every concurrent first handler when the shared subscribe fails', async () => {
+    let refuse!: (e: Error) => void;
+    (transport.subscribe as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+      new Promise<void>((_, reject) => {
+        refuse = reject;
+      }),
+    );
+
+    const first = adapter.on('light.changed', () => {});
+    const second = adapter.on('light.changed', () => {});
+    refuse(new Error('forbidden'));
+
+    await expect(first).rejects.toThrow('forbidden');
+    await expect(second).rejects.toThrow('forbidden');
+    expect(transport.subscribe).toHaveBeenCalledTimes(1);
+    expect(transport.on).not.toHaveBeenCalled();
+
+    await adapter.on('light.changed', () => {});
     expect(transport.subscribe).toHaveBeenCalledTimes(2);
   });
 });

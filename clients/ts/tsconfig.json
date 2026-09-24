@@ -8,6 +8,8 @@
     { "path": "packages/token-store-browser" },
     { "path": "packages/sunmi-statuslight" },
     { "path": "packages/sunmi-tms-led" },
-    { "path": "packages/sunmi-light-facade" }
+    { "path": "packages/sunmi-light-facade" },
+    { "path": "packages/sunmi-printer-facade" },
+    { "path": "packages/sunmi-barcode-scanner-facade" }
   ]
 }

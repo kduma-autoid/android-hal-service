@@ -3,6 +3,7 @@ package dev.duma.android.hal.plugins.sunmi.tms.led
 import android.content.Context
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.DescriptorGroup
+import dev.duma.android.hal.contract.InterfaceBinding
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginDescriptor
 import dev.duma.android.hal.plugins.sunmi.tms.base.BaseTmsPlugin
@@ -39,6 +40,11 @@ class SunmiTmsLedPlugin(context: Context? = null) : BaseTmsPlugin(context) {
                 name = "RGB LED",
                 methods = buildLedMethods(),
             ),
+        ),
+        // Provides the unified `light` interface. Preferred over the FLEX status light (higher
+        // priority). Supports the timeoutMs option (auto-release) but not multiFlash.
+        interfaces = listOf(
+            InterfaceBinding(interfaceId = "light", priority = 100, features = listOf("timeout"))
         )
     )
 

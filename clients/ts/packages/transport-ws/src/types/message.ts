@@ -49,6 +49,8 @@ export interface WsResponseMessage {
   id: string;
   type: 'response';
   result: unknown;
+  /** Provider that handled the call (interface methods), in the frame header. Absent otherwise. */
+  provider?: string;
 }
 
 export interface WsErrorMessage {
@@ -64,4 +66,6 @@ export interface WsEventMessage {
   type: 'event';
   event: string;
   data: unknown;
+  /** Plugin id that emitted the event (frame header, sibling of `data`). */
+  source?: string;
 }

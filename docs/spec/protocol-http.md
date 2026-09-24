@@ -43,6 +43,10 @@ Content-Type: application/json
 → 404 {"error":"device_unavailable","message":"..."}
 ```
 
+Dla metod interfejsu odpowiedź niesie nagłówek `X-Hal-Provider: <pluginId>` — handler, który obsłużył
+wywołanie (w nagłówku, nie w ciele). Metody natywne/systemowe go nie mają. Patrz
+[`interfaces.md`](interfaces.md).
+
 ### GET /api/health — publiczny
 
 ```

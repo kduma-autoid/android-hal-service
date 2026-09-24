@@ -7,6 +7,7 @@ import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.CommandResult
+import dev.duma.android.hal.contract.InterfaceBinding
 import dev.duma.android.hal.contract.PluginDescriptor
 import dev.duma.android.hal.contract.stripExperimental
 import dev.duma.android.hal.plugins.sunmi.printerx.printer.handler.*
@@ -44,10 +45,17 @@ class SunmiPrinterXPrinterPlugin(context: Context? = null) : BasePrinterXPlugin(
         name = "Sunmi: Printer",
         version = version,
         capabilities = getCapabilities(),
-        groups = buildGroups()
+        groups = buildGroups(),
+        // Provides the unified `printer` interface. Advertises the formats the PrinterX SDK actually
+        // supports: raw ESC/POS + TSPL, bitmap image, and paper cut (via the combined feed+cut autoOut).
+        // No ZPL.
+        interfaces = listOf(
+            InterfaceBinding(interfaceId = "printer", priority = 100, features = listOf("escpos", "tspl", "image", "cut"))
+        )
     )
 
     override suspend fun handleExecute(method: String, params: String, json: JSONObject): CommandResult {
+        if (method.startsWith("printer.")) return handleInterfaceMethod(method, json)
         val module = method.removePrefix("sunmi.printerx.printer.").substringBefore(".")
         return when (module) {
             "query" -> guardedExecute { queryHandler.handle(method, json) }
@@ -65,6 +73,19 @@ class SunmiPrinterXPrinterPlugin(context: Context? = null) : BasePrinterXPlugin(
             "file" -> fileHandler.handle(method, json) // always async, skip mutex
             else -> CommandResult.unsupportedMethod(method)
         }
+    }
+
+    /**
+     * Routes the unified `printer.*` interface methods to the existing native PrinterX handlers.
+     * `printer.printZpl` is intentionally absent — this provider does not advertise the `zpl` feature,
+     * so the interface layer rejects it before it reaches here.
+     */
+    private suspend fun handleInterfaceMethod(method: String, json: JSONObject): CommandResult = when (method) {
+        "printer.printEscPos" -> guardedExecute { commandHandler.handle("sunmi.printerx.printer.command.sendEscCommand", json) }
+        "printer.printTspl" -> guardedExecute { commandHandler.handle("sunmi.printerx.printer.command.sendTsplCommand", json) }
+        "printer.printImage" -> guardedExecute { lineHandler.handle("sunmi.printerx.printer.line.printBitmap", json) }
+        "printer.cut" -> guardedExecute { lineHandler.handle("sunmi.printerx.printer.line.autoOut", json) }
+        else -> CommandResult.unsupportedMethod(method)
     }
 
     private fun buildGroups() = listOf(

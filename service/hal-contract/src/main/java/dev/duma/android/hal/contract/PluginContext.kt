@@ -25,4 +25,22 @@ interface PluginContext {
      * In-process (built-in) plugins only; for out-of-process (AIDL) plugins this is a no-op.
      */
     fun setPluginAvailable(available: Boolean) {}
+
+    /**
+     * Executes a method of a registered [InterfaceContract], routing to a specific provider when
+     * [providerPluginId] is given, otherwise to the interface's default provider. Fails if the
+     * interface is not registered or has no available provider.
+     *
+     * Default falls back to [execute] (ignoring provider selection) for contexts that do not
+     * support interface routing.
+     */
+    suspend fun executeInterface(
+        interfaceId: String,
+        providerPluginId: String?,
+        method: String,
+        params: String
+    ): CommandResult = execute(method, params)
+
+    /** Plugin ids currently providing [interfaceId], preferred first. Empty when unsupported. */
+    fun getInterfaceProviders(interfaceId: String): List<String> = emptyList()
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { matchPattern } from '../utils/pattern-matcher.js';
+import { matchPattern, matchSubscription } from '../utils/pattern-matcher.js';
 
 describe('matchPattern', () => {
   it('global wildcard matches everything', () => {
@@ -36,5 +36,29 @@ describe('matchPattern', () => {
     expect(matchPattern('*', '')).toBe(true);
     expect(matchPattern('scanner.*', '')).toBe(false);
     expect(matchPattern('', '')).toBe(true);
+  });
+});
+
+describe('matchSubscription', () => {
+  it('with no @source behaves like matchPattern (any emitter)', () => {
+    expect(matchSubscription('demo.notice', 'demo.notice', 'demo.alpha')).toBe(true);
+    expect(matchSubscription('scanner.*', 'scanner.barcode', 'sunmi.inner')).toBe(true);
+    expect(matchSubscription('demo.notice', 'demo.notice')).toBe(true);
+    expect(matchSubscription('demo.notice', 'demo.other', 'demo.alpha')).toBe(false);
+  });
+
+  it('with @source matches only the given emitter', () => {
+    expect(matchSubscription('demo.notice@demo.beta', 'demo.notice', 'demo.beta')).toBe(true);
+    expect(matchSubscription('demo.notice@demo.beta', 'demo.notice', 'demo.alpha')).toBe(false);
+  });
+
+  it('supports wildcards on both halves', () => {
+    expect(matchSubscription('scanner.*@sunmi.*', 'scanner.barcode', 'sunmi.inner')).toBe(true);
+    expect(matchSubscription('scanner.*@sunmi.*', 'scanner.barcode', 'honeywell.ext')).toBe(false);
+    expect(matchSubscription('scanner.*@sunmi.*', 'rfid.tag', 'sunmi.rfid')).toBe(false);
+  });
+
+  it('a source filter with a missing source does not match', () => {
+    expect(matchSubscription('demo.notice@demo.beta', 'demo.notice', undefined)).toBe(false);
   });
 });

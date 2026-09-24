@@ -44,14 +44,27 @@ class WsProtocolTest {
         val parsed = Json.parseToJsonElement(json).jsonObject
         assertEquals("1", parsed["id"]?.jsonPrimitive?.content)
         assertEquals("response", parsed["type"]?.jsonPrimitive?.content)
+        // No handling provider → no `provider` header.
+        assertEquals(null, parsed["provider"])
+    }
+
+    @Test
+    fun `serialize response with provider`() {
+        val json = WsProtocol.serializeResponse("1", """{"ok":true}""", "sunmi.tms.led")
+        val parsed = Json.parseToJsonElement(json).jsonObject
+        // Handling provider exposed in the frame header, sibling of `result`.
+        assertEquals("sunmi.tms.led", parsed["provider"]?.jsonPrimitive?.content)
+        assertEquals("response", parsed["type"]?.jsonPrimitive?.content)
     }
 
     @Test
     fun `serialize event`() {
-        val json = WsProtocol.serializeEvent("rfid.tag", """{"epc":"E200"}""")
+        val json = WsProtocol.serializeEvent("rfid.tag", """{"epc":"E200"}""", "sunmi.rfid")
         val parsed = Json.parseToJsonElement(json).jsonObject
         assertEquals("event", parsed["type"]?.jsonPrimitive?.content)
         assertEquals("rfid.tag", parsed["event"]?.jsonPrimitive?.content)
+        // Emitting plugin id is exposed in the frame header, not inside `data`.
+        assertEquals("sunmi.rfid", parsed["source"]?.jsonPrimitive?.content)
     }
 
     @Test

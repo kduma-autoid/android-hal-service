@@ -90,27 +90,30 @@ PluginContextImpl ma ownerPluginId — EventBus filtruje.
 ### Ograniczenia
 - PluginContext dostępny TYLKO dla in-process pluginów
 - Out-of-process (AIDL) pluginy NIE dostają PluginContext
-- Generic pluginy MUSZĄ być in-process (potrzebują PluginContext)
 
-## Transformacja eventów — flow
+## Eventy interfejsu — flow
+
+Interfejs (`barcodeScanner`, `light`, …) nie transformuje eventów przez pośrednika. Provider emituje event
+interfejsu **bezpośrednio, obok** swojego natywnego, a rdzeń oznacza go `source` = `pluginId` nadawcy.
+Zastępuje to dawną transformację `{vendor}.* → {device}.*` w generyku.
 
 ```
-1. Sunmi plugin:    emitEvent("sunmi.scanner.barcode", {"data":"590...","raw":"..."})
-2. EventBus:        → do onEvent listenerów (oprócz Sunmi)
-3. Generic scanner: onEvent("sunmi.scanner.*") dopasował!
-                    → transformuje → emitEvent("scanner.barcode", {"data":"590..."})
-4. EventBus:        → do klientów WS/AIDL (NIE z powrotem do generic scanner)
-5. Klient:          subscribe("scanner.barcode") → dostaje zunifikowany event
+1. Sunmi plugin:   emitEvent("sunmi.scanner.inner.barcode", {"data":"590...","rawData":"..."})
+                   emitEvent("barcodeScanner.onScan", {"data":"590...","format":"EAN13"})   // event interfejsu
+2. EventBus:       → oba do klientów WS/AIDL; source = "sunmi.scanner.inner" (ustawiany automatycznie)
+3. Klient:         subscribe("barcodeScanner.onScan")                    → zunifikowany event z każdego skanera
+                   subscribe("barcodeScanner.onScan@sunmi.scanner.inner") → tylko z wbudowanego skanera
 ```
 
-Klient może subskrybować zarówno "scanner.barcode" jak i "sunmi.scanner.barcode".
+Klient może subskrybować zarówno `barcodeScanner.onScan` (interfejs), jak i `sunmi.scanner.inner.barcode` (natywny).
+Szczegóły: [`interfaces.md`](interfaces.md).
 
 ## Naming conventions
 
-- Vendor-specific capabilities: prefixowane vendorem — `sunmi.printer`, `sunmi.scanner`
-- Generic capabilities: bez prefixu — `printer`, `scanner`
-- Metody: `{capability}.{operation}` — `sunmi.printer.print`, `printer.print`
-- Eventy: `{capability}.{event}` — `sunmi.scanner.barcode`, `scanner.barcode`
+- Vendor-specific capabilities: prefixowane vendorem — `sunmi.printer`, `sunmi.scanner.inner`
+- Interfejs: `interfaceId` bez prefixu — `printer`, `barcodeScanner`, `light`; definer ma `pluginId` `interface.{id}`
+- Metody: `{capability}.{operation}` — `sunmi.printer.print`; metody interfejsu `{interfaceId}.{operation}` — `printer.printEscPos`
+- Eventy: `{capability}.{event}` — `sunmi.scanner.inner.barcode`; event interfejsu `barcodeScanner.onScan` (z `source`)
 
 ## AIDL pluginów (out-of-process)
 
@@ -192,3 +195,18 @@ onEvent → eventBus.addPluginListener(listenerPluginId = ownerPluginId)
 - findForMethod(method) → mapuje prefix na capability → plugin
 - allCapabilities(), getAllDescriptors()
 - Kolejność: vendor-specific → generic → external → initializeAll()
+- Konflikt `pluginId`: external wygrywa z built-in (wyparty built-in czeka w rezerwie i wraca, gdy
+  external się rozłączy); między dwoma tego samego źródła wygrywa wyższa `version`, przy równej —
+  pierwszy zarejestrowany.
+- Rezerwa nie zależy od kolejności: built-in, który przyjdzie **po** externalu o tym samym id, też
+  do niej trafia (nie jest inicjalizowany, dopóki nie wróci), a jego kontrakty od razu działają jak
+  kontrakty built-ina — stan końcowy jest ten sam, co przy built-inie zarejestrowanym pierwszy. Na
+  jeden slot czeka jeden built-in; kolejny o tym samym id jest pomijany.
+- Built-in zastąpiony nowszym built-inem nie trafia do rezerwy — nie czeka na żaden external, więc
+  jest zwalniany i znika razem ze swoimi kontraktami.
+- Rozłączenie (`onServiceDisconnected`) zdejmuje plugin po **instancji**, nie po `pluginId`: plugin,
+  który przegrał konflikt, nie zdejmuje zwycięzcy. Nic przy tym nie woła pluginu — binder już nie
+  żyje i każde wywołanie `AidlPluginAdapter` rzuciłoby `DeadObjectException`.
+- Nieobsługiwany plugin (`isSupported() == false`), wbudowany czy zewnętrzny, jest tylko listowany i
+  nie zajmuje `pluginId`, który już jest znany — nie przemianowuje innego pluginu (built-in na
+  external ani odwrotnie) i nie dubluje wpisu na liście nieobsługiwanych.

@@ -9,6 +9,13 @@ import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.plugins.cors.routing.*
 
 /**
+ * Response header naming the interface provider that handled a call. Shared so the transport that
+ * writes it and the CORS config that exposes it cannot drift apart — they did, and the browser
+ * silently read `undefined` for every HTTP call.
+ */
+const val HAL_PROVIDER_HEADER = "X-Hal-Provider"
+
+/**
  * Manages a single shared Ktor embedded server for all Ktor-based transports.
  * transport-ws and transport-http register their routing modules via [addModule],
  * then hal-service calls [start] after all modules are registered.
@@ -48,6 +55,10 @@ class KtorServerManager {
                 allowHeader(HttpHeaders.Authorization)
                 allowMethod(HttpMethod.Post)
                 allowMethod(HttpMethod.Get)
+                // Fetch hides every non-safelisted response header cross-origin, so without this the
+                // browser reads `undefined` and an interface call over HTTP never reports which
+                // provider handled it — the WS path does. That is the demo's exact setup.
+                exposeHeader(HAL_PROVIDER_HEADER)
             }
             modules.forEach { it(this) }
         }.start(wait = false)

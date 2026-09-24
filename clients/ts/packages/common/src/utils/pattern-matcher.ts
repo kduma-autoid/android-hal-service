@@ -15,3 +15,16 @@ export function matchPattern(pattern: string, eventName: string): boolean {
   }
   return pattern === eventName;
 }
+
+/**
+ * Match an event against a subscription of the form `namePattern[@sourcePattern]`.
+ * Both halves use {@link matchPattern}; a missing `@source` matches any emitter — e.g.
+ * `scanner.*@sunmi.*` or `demo.notice@demo.beta`. Port of EventBus.matchesSubscription().
+ */
+export function matchSubscription(subscription: string, eventName: string, source?: string): boolean {
+  const at = subscription.indexOf('@');
+  if (at < 0) return matchPattern(subscription, eventName);
+  const namePattern = subscription.slice(0, at);
+  const sourcePattern = subscription.slice(at + 1);
+  return matchPattern(namePattern, eventName) && matchPattern(sourcePattern, source ?? '');
+}

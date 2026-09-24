@@ -6,6 +6,7 @@ import type {
   IEventTransport,
   ConnectionState,
   ConnectionStateHandler,
+  EventHandler,
   TokenRequest,
   TokenResult,
 } from '@kduma-autoid/hal-client-common';
@@ -86,7 +87,7 @@ describe('HalClient', () => {
       await client.requestToken();
       const result = await client.execute('test.method', { foo: 'bar' });
 
-      expect(commandTransport.execute).toHaveBeenCalledWith('test.method', { foo: 'bar' });
+      expect(commandTransport.execute).toHaveBeenCalledWith('test.method', { foo: 'bar' }, undefined);
       expect(result).toEqual({ result: 'ok' });
     });
 
@@ -109,6 +110,45 @@ describe('HalClient', () => {
       );
 
       expect(commandTransport.execute).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('execute onMeta option', () => {
+    it('forwards the onMeta option to the transport and surfaces provider meta', async () => {
+      (commandTransport.execute as ReturnType<typeof vi.fn>).mockImplementation(
+        (_method: string, _params: unknown, options?: { onMeta?: (m: unknown) => void }) => {
+          options?.onMeta?.({ provider: 'demo.beta' });
+          return Promise.resolve({ ok: true });
+        },
+      );
+      const client = new HalClient({ clientId: 'test' })
+        .useAuthTransport(authTransport)
+        .useCommandTransport(commandTransport);
+
+      await client.requestToken();
+      let seen: unknown;
+      const result = await client.execute('demo.emit', { message: 'hi' }, {
+        onMeta: (m) => { seen = m; },
+      });
+
+      expect(result).toEqual({ ok: true });
+      expect(seen).toEqual({ provider: 'demo.beta' });
+      expect(commandTransport.execute).toHaveBeenCalledWith(
+        'demo.emit',
+        { message: 'hi' },
+        expect.objectContaining({ onMeta: expect.any(Function) }),
+      );
+    });
+
+    it('forwards undefined options to the transport when none are given', async () => {
+      const client = new HalClient({ clientId: 'test' })
+        .useAuthTransport(authTransport)
+        .useCommandTransport(commandTransport);
+
+      await client.requestToken();
+      await client.execute('test.method', { foo: 'bar' });
+
+      expect(commandTransport.execute).toHaveBeenCalledWith('test.method', { foo: 'bar' }, undefined);
     });
   });
 
@@ -276,7 +316,7 @@ describe('HalClient', () => {
       await client.requestToken();
       const result = await client.getHealth();
 
-      expect(commandTransport.execute).toHaveBeenCalledWith('system.ping', undefined);
+      expect(commandTransport.execute).toHaveBeenCalledWith('system.ping', undefined, undefined);
       expect(result).toEqual(healthResponse);
     });
 
@@ -291,7 +331,7 @@ describe('HalClient', () => {
       await client.requestToken();
       const result = await client.getStatus();
 
-      expect(commandTransport.execute).toHaveBeenCalledWith('system.status', undefined);
+      expect(commandTransport.execute).toHaveBeenCalledWith('system.status', undefined, undefined);
       expect(result).toEqual(statusResponse);
     });
 
@@ -306,7 +346,7 @@ describe('HalClient', () => {
       await client.requestToken();
       const result = await client.getDescribe({ withSuper: true });
 
-      expect(commandTransport.execute).toHaveBeenCalledWith('system.describe', { withSuper: true });
+      expect(commandTransport.execute).toHaveBeenCalledWith('system.describe', { withSuper: true }, undefined);
       expect(result).toEqual(describeResponse);
     });
   });

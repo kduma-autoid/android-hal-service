@@ -37,10 +37,13 @@ interface IHalService {
 
 ```aidl
 interface IHalCallback {
-    void onEvent(String eventName, String jsonData);
+    void onEvent(String eventName, String jsonData, String source);
     void onError(String deviceType, int code, String message);
 }
 ```
+
+`source` to `pluginId` nadawcy eventu — dostarczany w nagłówku wywołania (osobny parametr),
+a nie wewnątrz `jsonData`, aby klient rozpoznał providera bez parsowania payloadu.
 
 ## Flow
 
@@ -50,6 +53,7 @@ interface IHalCallback {
 4. registerCallback(callback)
 5. subscribe(["scanner.barcode","rfid.*"])
 6. execute("printer.print", params) → result
+   (dla metod interfejsu `CommandResult.Success.provider` niesie handlera — w kopercie, nie w ciele)
 7. Eventy przychodzą przez callback.onEvent()
 
 ## Sesja AIDL

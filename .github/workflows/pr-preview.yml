@@ -1,0 +1,76 @@
+name: PR Preview
+
+# Deploys a live preview of the web demo app (clients/ts/example) for each pull
+# request to https://hal.duma.dev/pr-preview/pr-<N>/, comments the URL on the PR,
+# and removes the preview when the PR is closed. Previews live in the pr-preview/
+# umbrella directory on the gh-pages branch, alongside the production deploy
+# (which publishes to the branch root from .github/workflows/build.yml).
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, closed]
+    paths:
+      - 'clients/ts/**'
+      - '.github/workflows/pr-preview.yml'
+
+permissions:
+  contents: write        # push the preview to the gh-pages branch
+  pull-requests: write   # post/update the preview-URL comment
+
+concurrency:
+  group: pr-preview-${{ github.event.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    name: Deploy PR preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Fork PRs get a read-only token and no secrets, so they cannot push to
+    # gh-pages — skip them cleanly instead of failing the check.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      # Build only when deploying (open/reopen/synchronize). On close we skip
+      # straight to the removal step below.
+      - name: Setup pnpm
+        if: github.event.action != 'closed'
+        uses: pnpm/action-setup@v5
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        if: github.event.action != 'closed'
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: 'clients/ts/pnpm-lock.yaml'
+
+      - name: Install dependencies
+        if: github.event.action != 'closed'
+        run: pnpm install --frozen-lockfile
+        working-directory: clients/ts
+
+      - name: Build packages
+        if: github.event.action != 'closed'
+        run: pnpm build
+        working-directory: clients/ts
+
+      - name: Build example app
+        if: github.event.action != 'closed'
+        run: |
+          pnpm exec vue-tsc --noEmit
+          pnpm exec vite build --base="/pr-preview/pr-${{ github.event.number }}/"
+        working-directory: clients/ts/example
+
+      - name: Deploy / remove preview
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          source-dir: ./clients/ts/example/dist/
+          preview-branch: gh-pages
+          umbrella-dir: pr-preview

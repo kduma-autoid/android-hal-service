@@ -45,6 +45,7 @@ include(":service:transport:transport-intent")
 include(":service:transport:transport-broadcast")
 
 include(":plugins:generic:plugin-generic-lib")
+include(":plugins:generic:plugin-generic-demo-lib")
 
 include(":plugins:sunmi:plugin-sunmi-bundle")
 include(":plugins:sunmi:plugin-sunmi-printer-lib")

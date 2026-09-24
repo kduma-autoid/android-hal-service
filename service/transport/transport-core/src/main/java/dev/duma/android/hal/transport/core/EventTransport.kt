@@ -13,5 +13,11 @@ interface EventTransport {
     val isRunning: Boolean
     val isToggleable: Boolean
     var isEnabled: Boolean
-    fun pushEvent(eventName: String, jsonData: String)
+    /**
+     * Pushes an event to subscribed clients. [source] is the plugin id that emitted the event and is
+     * delivered in the transport-level header (WS frame `source`, AIDL `onEvent` param, Broadcast
+     * extra) — NOT merged into [jsonData] — so consumers can identify the provider without the
+     * payload having to carry it.
+     */
+    fun pushEvent(eventName: String, jsonData: String, source: String)
 }

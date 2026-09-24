@@ -31,9 +31,9 @@ class TransportRegistry {
 
     fun getEventTransports(): List<EventTransport> = eventTransports.toList()
 
-    fun pushEvent(eventName: String, jsonData: String) {
+    fun pushEvent(eventName: String, jsonData: String, source: String) {
         eventTransports
             .filter { it.isEnabled }
-            .forEach { it.pushEvent(eventName, jsonData) }
+            .forEach { it.pushEvent(eventName, jsonData, source) }
     }
 }

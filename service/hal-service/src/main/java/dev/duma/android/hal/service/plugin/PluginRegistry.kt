@@ -12,10 +12,18 @@ import dev.duma.android.hal.contract.EventBus
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.IHardwarePlugin
+import dev.duma.android.hal.contract.InterfaceBinding
+import dev.duma.android.hal.contract.InterfaceContract
+import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginDescriptor
 import dev.duma.android.hal.contract.allEvents
 import dev.duma.android.hal.contract.allMethods
+import dev.duma.android.hal.service.config.ExperimentalConfig
+import dev.duma.android.hal.service.config.InterfacePreferenceConfig
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArraySet
 
 /**
  * Registry of all hardware plugins (built-in and external). Manages plugin lifecycle:
@@ -32,6 +40,7 @@ class PluginRegistry {
         private const val TAG = "PluginRegistry"
         private const val ACTION_HARDWARE_PLUGIN = "dev.duma.android.hal.HARDWARE_PLUGIN"
         const val EVENT_PLUGINS_CHANGED = "system.plugins.changed"
+        const val EVENT_INTERFACES_CHANGED = "system.interfaces.changed"
     }
 
     enum class PluginSource { BUILT_IN, EXTERNAL }
@@ -39,6 +48,21 @@ class PluginRegistry {
     data class PluginInfo(
         val source: PluginSource,
         val packageName: String? = null
+    )
+
+    /** A provider of an interface, as surfaced to callers/clients (see [getInterfaceProviders]). */
+    data class ProviderRef(
+        val pluginId: String,
+        val source: PluginSource?,
+        val version: Int,
+        val priority: Int,
+        val features: List<String>,
+        val isDefault: Boolean,
+        val available: Boolean,
+        val supported: Boolean = true,
+        val enabled: Boolean = true,
+        /** The provider *plugin* is experimental — gated by settings or the caller's token. */
+        val experimental: Boolean = false
     )
 
     private val plugins = ConcurrentHashMap<String, HalPlugin>()
@@ -49,6 +73,22 @@ class PluginRegistry {
     // capabilities are not routable/advertised (e.g. hardware currently absent).
     private val available = ConcurrentHashMap<String, Boolean>()
 
+    // Interface layer (see InterfaceContract / InterfaceBinding). All keyed by interfaceId / pluginId.
+    private val registeredInterfaces = ConcurrentHashMap<String, InterfaceContract>()
+    private val interfaceProviders = ConcurrentHashMap<String, CopyOnWriteArraySet<String>>()
+    private val interfaceBindings = ConcurrentHashMap<String, List<InterfaceBinding>>()
+    private val interfaceDefinitionsByPlugin = ConcurrentHashMap<String, List<String>>()
+    /** Which plugin's contract is the one currently registered for an interface. */
+    private val interfaceDefinerOwner = ConcurrentHashMap<String, String>()
+    /** Interfaces a built-in has defined in this process; never redefinable from outside. */
+    private val builtInDefinedInterfaces = CopyOnWriteArraySet<String>()
+
+    /** User ordering / enable-disable preferences per interface. Null until wired by the service. */
+    var interfacePreferenceConfig: InterfacePreferenceConfig? = null
+
+    /** User's experimental opt-ins; consulted when an experimental plugin provides an interface. */
+    var experimentalConfig: ExperimentalConfig? = null
+
     private val pluginInfo = ConcurrentHashMap<String, PluginInfo>()
     private val displacedPlugins = ConcurrentHashMap<String, Pair<HalPlugin, PluginInfo>>()
     private var pendingInit: Pair<Context, EventBus>? = null
@@ -56,11 +96,18 @@ class PluginRegistry {
     fun getPluginInfo(pluginId: String): PluginInfo? = pluginInfo[pluginId]
 
     /**
-     * A plugin that declares no methods and no events has nothing to offer. That is what a `stable`
+     * A plugin that offers nothing at all has no reason to be registered. That is what a `stable`
      * build leaves behind for a plugin which is experimental as a whole: `stripExperimental()` empties
      * its descriptor, but the class itself is still on the classpath and still registers. Listing it
      * shows a plugin with an empty API in the Dashboard and in describe, so treat it as absent from
      * this build instead.
+     *
+     * Interface work does not go through `groups`, so it must be checked separately: a definer's
+     * entire contribution is [PluginDescriptor.definesInterfaces], and a provider implements the
+     * contract's methods without redeclaring their descriptors, leaving only
+     * [PluginDescriptor.interfaces]. Both legitimately have empty groups — judging them by
+     * methods/events alone would unregister every definer and every pure provider, which silently
+     * takes the whole interface layer down.
      */
     private fun hasEmptyApi(plugin: HalPlugin): Boolean {
         val descriptor = try {
@@ -69,9 +116,18 @@ class PluginRegistry {
             Log.w(TAG, "getDescriptor() failed for ${plugin.pluginId}: ${e.message}")
             return false
         }
+        if (descriptor.definesInterfaces.isNotEmpty() || descriptor.interfaces.isNotEmpty()) return false
         return descriptor.allMethods.isEmpty() && descriptor.allEvents.isEmpty()
     }
 
+    /*
+     * Registration is serialized. Its ownership rules are check-then-act across several maps — "is
+     * this interface free", then "take it" — so two registrations interleaving could both see it free
+     * and the last writer would win over the first definer. Today every call comes from the main
+     * thread (HalService.onCreate, ServiceConnection callbacks), so the lock costs nothing and keeps
+     * the rules true if that ever changes.
+     */
+    @Synchronized
     fun registerBuiltIn(plugin: HalPlugin) {
         if (hasEmptyApi(plugin)) {
             Log.i(TAG, "Plugin has no methods or events in this build, skipping: ${plugin.pluginId}")
@@ -82,9 +138,16 @@ class PluginRegistry {
                 Log.i(TAG, "Registered built-in plugin: ${plugin.pluginId} v${plugin.version}")
             }
         } else {
-            unsupportedPlugins[plugin.pluginId] = plugin
-            pluginInfo[plugin.pluginId] = PluginInfo(PluginSource.BUILT_IN)
-            Log.i(TAG, "Plugin not supported on this device: ${plugin.pluginId}")
+            // Same rule as for an unsupported external plugin: only listed, so it must not relabel a
+            // plugin already known under this id, or leave a second entry for it in the unsupported list.
+            val id = plugin.pluginId
+            if (plugins.containsKey(id) || unsupportedPlugins.containsKey(id)) {
+                Log.i(TAG, "Plugin not supported on this device, id already taken — ignored: $id")
+                return
+            }
+            unsupportedPlugins[id] = plugin
+            pluginInfo[id] = PluginInfo(PluginSource.BUILT_IN)
+            Log.i(TAG, "Plugin not supported on this device: $id")
         }
     }
 
@@ -103,16 +166,24 @@ class PluginRegistry {
             }
 
             if (!shouldReplace) {
-                Log.i(TAG, "Plugin $id v${plugin.version} (${info.source}) skipped — existing v${existing.version} (${existingInfo.source}) has priority")
+                if (info.source == PluginSource.BUILT_IN && existingInfo.source == PluginSource.EXTERNAL) {
+                    reserveBuiltIn(id, plugin, info)
+                } else {
+                    Log.i(TAG, "Plugin $id v${plugin.version} (${info.source}) skipped — existing v${existing.version} (${existingInfo.source}) has priority")
+                }
                 return false
             }
 
             if (existingInfo.source == PluginSource.BUILT_IN) {
-                displacedPlugins[id] = existing to existingInfo
+                // Only an external plugin displaces a built-in into reserve: the built-in waits for it
+                // to disconnect. One superseded by a newer built-in has nothing to wait for; kept in
+                // reserve it would still lend its contracts to interfaces nobody defines any more.
+                if (info.source == PluginSource.EXTERNAL) displacedPlugins[id] = existing to existingInfo
                 // Release the displaced built-in's resources; it is re-initialized if restored.
-                safeDispose(existing)
+                safeDispose(existing, id)
             }
             existing.getCapabilities().forEach { capabilityToPlugin.remove(it, existing) }
+            unindexInterfaces(id)
             Log.i(TAG, "Plugin $id: replacing v${existing.version} (${existingInfo.source}) with v${plugin.version} (${info.source})")
         }
 
@@ -120,7 +191,169 @@ class PluginRegistry {
         pluginInfo[id] = info
         available[id] = true
         plugin.getCapabilities().forEach { capabilityToPlugin[it] = plugin }
+        indexInterfaces(plugin)
         return true
+    }
+
+    /**
+     * A built-in arriving after an external plugin already took its pluginId. It is put where it would
+     * be had it registered first and been displaced: in reserve, restored when the external one
+     * disconnects. Built-ins normally register before external discovery, but nothing in the registry
+     * guarantees that order, so the outcome must not depend on it.
+     *
+     * That includes its contracts. Waiting does not make them any less a built-in's: its interfaces
+     * are closed to external redefinition from now on, and it takes over those an external definer
+     * holds — which is what the external plugin under its id would have been refused had the built-in
+     * come first. The plugin itself is not initialized here, since it never ran; [unregisterExternal]
+     * initializes it on restore.
+     *
+     * Only one built-in waits per slot. A second one with the same pluginId is dropped: replacing the
+     * waiting one would mean unwinding contracts it already took over, and built-in ids are unique by
+     * construction.
+     */
+    private fun reserveBuiltIn(id: String, plugin: HalPlugin, info: PluginInfo) {
+        val waiting = displacedPlugins[id]
+        if (waiting != null) {
+            Log.i(TAG, "Plugin $id v${plugin.version} (BUILT_IN) skipped — built-in v${waiting.first.version} already waits for this id")
+            return
+        }
+        displacedPlugins[id] = plugin to info
+        val contracts = try {
+            plugin.getDescriptor().definesInterfaces
+        } catch (e: Exception) {
+            Log.w(TAG, "getDescriptor() failed for reserved built-in $id: ${e.message}")
+            emptyList()
+        }
+        contracts.forEach { contract ->
+            val interfaceId = contract.interfaceId
+            val owner = interfaceDefinerOwner[interfaceId]
+            // pluginInfo[id] belongs to the external plugin holding the slot, so name the source.
+            val takesOver = mayDefineContract(id, interfaceId, owner, PluginSource.BUILT_IN)
+            builtInDefinedInterfaces.add(interfaceId)
+            if (takesOver) {
+                registeredInterfaces[interfaceId] = contract
+                interfaceDefinerOwner[interfaceId] = id
+            }
+        }
+        Log.i(TAG, "Built-in plugin $id v${plugin.version} waits in reserve behind the external plugin holding its id")
+    }
+
+    /** Indexes a plugin's defined interfaces (definer) and provided interfaces (bindings). */
+    private fun indexInterfaces(plugin: HalPlugin) {
+        val descriptor = plugin.getDescriptor()
+        if (descriptor.definesInterfaces.isNotEmpty()) {
+            descriptor.definesInterfaces.forEach { contract ->
+                val id = contract.interfaceId
+                val owner = interfaceDefinerOwner[id]
+                // Decided before this plugin marks the interface as built-in-defined: the mark closes
+                // it to everyone but its holder, and would otherwise shut out a built-in taking it
+                // over from an external definer — the one takeover the rules allow.
+                val mayDefine = mayDefineContract(plugin.pluginId, id, owner)
+                if (pluginInfo[plugin.pluginId]?.source == PluginSource.BUILT_IN) {
+                    builtInDefinedInterfaces.add(id)
+                }
+                if (mayDefine) {
+                    registeredInterfaces[id] = contract
+                    interfaceDefinerOwner[id] = plugin.pluginId
+                } else {
+                    Log.w(TAG, "Interface '$id' is already defined by $owner; contract from ${plugin.pluginId} ignored")
+                }
+            }
+            // Recorded even for contracts that lost, so unindexing knows what this plugin claimed and
+            // can hand an interface over to it if the current owner goes away.
+            interfaceDefinitionsByPlugin[plugin.pluginId] = descriptor.definesInterfaces.map { it.interfaceId }
+        }
+        if (descriptor.interfaces.isNotEmpty()) {
+            interfaceBindings[plugin.pluginId] = descriptor.interfaces
+            descriptor.interfaces.forEach { binding ->
+                interfaceProviders.getOrPut(binding.interfaceId) { CopyOnWriteArraySet() }.add(plugin.pluginId)
+            }
+        }
+    }
+
+    /** [interfaceId]'s contract as [plugin] (registered as [pluginId]) defines it, or null — also when its descriptor cannot be read. */
+    private fun definedContract(pluginId: String, plugin: HalPlugin?, interfaceId: String): InterfaceContract? = try {
+        plugin?.getDescriptor()?.definesInterfaces?.firstOrNull { it.interfaceId == interfaceId }
+    } catch (e: Exception) {
+        Log.w(TAG, "getDescriptor() failed for definer $pluginId: ${e.message}")
+        null
+    }
+
+    /**
+     * Who holds [interfaceId]'s contract once [leavingId] no longer does, and which contract — or null
+     * when nobody defines it any more. In order:
+     *
+     * 1. The built-in waiting in reserve under [leavingId]. The owner map is keyed by pluginId, and an
+     *    external plugin shares that key with the built-in it displaced: when the external one is
+     *    unindexed, the holder is not leaving. The same step keeps the contract when the built-in itself
+     *    is being displaced, since [tryRegister] reserves it first. Without it the displaced definer
+     *    either took the interface down (every call `not_found`) or lost it to a live definer that had
+     *    come second.
+     * 2. Another live definer, built-in first. External ones are out once a built-in defined it.
+     * 3. A built-in waiting under another id.
+     */
+    private fun contractHolderAfter(leavingId: String, interfaceId: String): Pair<String, InterfaceContract>? {
+        definedContract(leavingId, displacedPlugins[leavingId]?.first, interfaceId)?.let { return leavingId to it }
+        interfaceDefinitionsByPlugin.entries
+            .filter { interfaceId in it.value }
+            .map { it.key }
+            .filter { mayDefineContract(it, interfaceId, null) }
+            .minByOrNull { if (pluginInfo[it]?.source == PluginSource.BUILT_IN) 0 else 1 }
+            ?.let { sid -> definedContract(sid, plugins[sid], interfaceId)?.let { return sid to it } }
+        return displacedPlugins.entries.firstNotNullOfOrNull { (rid, reserved) ->
+            definedContract(rid, reserved.first, interfaceId)?.let { rid to it }
+        }
+    }
+
+    /**
+     * A contract carries the interface's method signatures and their `requiredPermission`, so a later
+     * definer replacing one silently re-specifies the API — and an external plugin's descriptor
+     * arrives over binder, from any app holding the HARDWARE_PLUGIN action. Only a built-in may take
+     * over from an external definer; otherwise the first definer keeps the interface. This is
+     * deliberately the opposite of [tryRegister]'s rule for plugins, where external wins: there a
+     * replacement swaps an implementation, here it would swap the contract everyone is held to.
+     */
+    private fun mayDefineContract(
+        candidateId: String,
+        interfaceId: String,
+        owner: String?,
+        candidateSource: PluginSource? = pluginInfo[candidateId]?.source
+    ): Boolean {
+        val builtInDefined = interfaceId in builtInDefinedInterfaces
+        // An interface a built-in defines is never redefined from outside — not even by a plugin that
+        // took the built-in's own pluginId. `tryRegister` unindexes the displaced definer before
+        // indexing the replacement, so at that moment the owner map alone would look free.
+        if (candidateSource == PluginSource.EXTERNAL && builtInDefined) return false
+        if (owner == null || owner == candidateId) return true
+        // Once a built-in defined it, whoever owns it is a built-in: a built-in marking an interface
+        // always takes it from an external owner, and when a built-in owner goes, the contract only
+        // passes to another built-in (external ones are refused above). That owner may be waiting in
+        // reserve under an id an external plugin holds, so pluginInfo[owner] would read EXTERNAL and
+        // the check below would hand the contract to a second built-in. The first one keeps it.
+        if (builtInDefined) return false
+        return candidateSource == PluginSource.BUILT_IN && pluginInfo[owner]?.source == PluginSource.EXTERNAL
+    }
+
+    /** Removes a plugin's interface registrations/bindings. Uses stored state (no getDescriptor call). */
+    private fun unindexInterfaces(pluginId: String) {
+        interfaceDefinitionsByPlugin.remove(pluginId)?.forEach { id ->
+            if (interfaceDefinerOwner[id] != pluginId) return@forEach
+            // Another plugin may still define this interface — hand the contract over rather than
+            // unregistering it, so detaching one definer does not take the interface down with it.
+            val handover = contractHolderAfter(pluginId, id)
+            if (handover != null) {
+                val (holder, contract) = handover
+                registeredInterfaces[id] = contract
+                interfaceDefinerOwner[id] = holder
+                Log.i(TAG, "Interface '$id': contract kept, now held by $holder")
+            } else {
+                registeredInterfaces.remove(id)
+                interfaceDefinerOwner.remove(id)
+            }
+        }
+        interfaceBindings.remove(pluginId)?.forEach { binding ->
+            interfaceProviders[binding.interfaceId]?.remove(pluginId)
+        }
     }
 
     /**
@@ -160,52 +393,32 @@ class PluginRegistry {
             val pluginId = info.serviceInfo.metaData?.getString("plugin.id") ?: continue
 
             val connection = object : ServiceConnection {
+                /** What this connection handed to the registry; the only handle left once the remote side is gone. */
+                private var adapter: HalPlugin? = null
+
                 override fun onServiceConnected(name: ComponentName, service: IBinder) {
-                    val binder = IHardwarePlugin.Stub.asInterface(service)
-                    val adapter = AidlPluginAdapter(binder)
-                    if (hasEmptyApi(adapter)) {
-                        // Same as a built-in: the other app's `stable` build emptied this plugin out.
-                        Log.i(TAG, "External plugin has no methods or events, skipping: $pluginId from ${name.packageName}")
+                    val plugin = AidlPluginAdapter(IHardwarePlugin.Stub.asInterface(service))
+                    if (registerExternal(plugin, name.packageName)) {
+                        adapter = plugin
                         return
                     }
-                    if (adapter.isSupported()) {
-                        val extInfo = PluginInfo(PluginSource.EXTERNAL, name.packageName)
-                        if (tryRegister(adapter, extInfo)) {
-                            Log.i(TAG, "Connected external plugin: $pluginId v${adapter.version} from ${name.packageName}")
-                            pendingInit?.let { (appContext, eventBus) ->
-                                initializePlugin(adapter, eventBus, appContext)
-                            }
-                        }
-                    } else {
-                        unsupportedPlugins[pluginId] = adapter
-                        pluginInfo[pluginId] = PluginInfo(PluginSource.EXTERNAL, name.packageName)
-                        Log.i(TAG, "External plugin not supported on this device: $pluginId from ${name.packageName}")
+                    // Nothing of it is in use: it lost its pluginId to another plugin, or its build
+                    // left it no API. BIND_AUTO_CREATE would keep the other app's service alive for as
+                    // long as this one runs, so let it go. It is not retried; neither was it before,
+                    // when the binding stayed but the plugin never registered.
+                    serviceConnections.remove(this)
+                    try {
+                        context.unbindService(this)
+                    } catch (e: IllegalArgumentException) {
+                        Log.w(TAG, "unbindService failed for $pluginId: ${e.message}")
                     }
+                    Log.i(TAG, "Released unused external plugin service: $pluginId from ${name.packageName}")
                 }
 
                 override fun onServiceDisconnected(name: ComponentName) {
-                    Log.w(TAG, "Disconnected external plugin: $pluginId")
-                    val removed = plugins.remove(pluginId)
-                    pluginInfo.remove(pluginId)
-                    available.remove(pluginId)
-                    if (removed != null) {
-                        removed.getCapabilities().forEach { capabilityToPlugin.remove(it, removed) }
-                        safeDispose(removed)
-                    }
-
-                    val fallback = displacedPlugins.remove(pluginId)
-                    if (fallback != null) {
-                        val (builtInPlugin, builtInInfo) = fallback
-                        plugins[pluginId] = builtInPlugin
-                        pluginInfo[pluginId] = builtInInfo
-                        available[pluginId] = true
-                        builtInPlugin.getCapabilities().forEach { capabilityToPlugin[it] = builtInPlugin }
-                        // Re-initialize so the restored built-in re-acquires resources released on displacement.
-                        pendingInit?.let { (appContext, eventBus) ->
-                            initializePlugin(builtInPlugin, eventBus, appContext)
-                        }
-                        Log.i(TAG, "Restored built-in plugin: $pluginId v${builtInPlugin.version}")
-                    }
+                    Log.w(TAG, "Disconnected external plugin service: $pluginId from ${name.packageName}")
+                    adapter?.let { unregisterExternal(it) }
+                    adapter = null
                 }
             }
 
@@ -216,6 +429,89 @@ class PluginRegistry {
                 Context.BIND_AUTO_CREATE
             )
         }
+    }
+
+    /**
+     * Registers a plugin served by another app — the whole of [discoverExternal]'s
+     * `onServiceConnected`, kept out of the anonymous connection so the displacement and
+     * contract-ownership rules can be exercised without binding a real service.
+     *
+     * @return true when the registry holds on to [plugin] — registered, or listed as unsupported,
+     *   whose descriptor is still read over binder — so its binding must stay. False when nothing of
+     *   it is in use (lost its pluginId, empty API, unsupported under an id already taken), and the
+     *   caller should release the binding.
+     */
+    @Synchronized
+    internal fun registerExternal(plugin: HalPlugin, packageName: String): Boolean {
+        val pluginId = plugin.pluginId
+        if (hasEmptyApi(plugin)) {
+            // Same as a built-in: the other app's `stable` build emptied this plugin out.
+            Log.i(TAG, "External plugin has no methods or events, skipping: $pluginId from $packageName")
+            return false
+        }
+        val extInfo = PluginInfo(PluginSource.EXTERNAL, packageName)
+        if (!plugin.isSupported()) {
+            // Only listed, never routed, so it must not shadow anything already known under this id:
+            // writing its info over a registered built-in's relabelled that built-in as external, and
+            // the disconnect then deleted the built-in's info outright.
+            if (plugins.containsKey(pluginId) || unsupportedPlugins.containsKey(pluginId)) {
+                Log.i(TAG, "External plugin not supported on this device, id already taken — ignored: $pluginId from $packageName")
+                return false
+            }
+            unsupportedPlugins[pluginId] = plugin
+            pluginInfo[pluginId] = extInfo
+            Log.i(TAG, "External plugin not supported on this device: $pluginId from $packageName")
+            return true
+        }
+        if (!tryRegister(plugin, extInfo)) return false
+        Log.i(TAG, "Connected external plugin: $pluginId v${plugin.version} from $packageName")
+        pendingInit?.let { (appContext, eventBus) ->
+            initializePlugin(plugin, eventBus, appContext)
+        }
+        return true
+    }
+
+    /**
+     * Drops an external plugin that went away — [discoverExternal]'s `onServiceDisconnected` — and
+     * restores the built-in it displaced, if any.
+     *
+     * The plugin is identified by instance, not by id. Two apps may serve the same pluginId, and the
+     * one that lost [tryRegister] must not take the winner down when it disconnects. It also means
+     * nothing here calls into [plugin]: this runs once the remote process is gone, when every member
+     * of an [AidlPluginAdapter] is a binder call that throws `DeadObjectException`.
+     */
+    @Synchronized
+    internal fun unregisterExternal(plugin: HalPlugin) {
+        val unsupportedId = unsupportedPlugins.entries.firstOrNull { it.value === plugin }?.key
+        if (unsupportedId != null) {
+            unsupportedPlugins.remove(unsupportedId, plugin)
+            // registerExternal wrote this info only because nothing else held the id; something
+            // registered under it since then owns the info now.
+            if (!plugins.containsKey(unsupportedId)) pluginInfo.remove(unsupportedId)
+            Log.i(TAG, "Removed unsupported external plugin: $unsupportedId")
+            return
+        }
+
+        val pluginId = plugins.entries.firstOrNull { it.value === plugin }?.key
+        if (pluginId == null || !plugins.remove(pluginId, plugin)) {
+            // Never registered (lost tryRegister, or had an empty API): nothing of it to remove.
+            return
+        }
+        pluginInfo.remove(pluginId)
+        available.remove(pluginId)
+        capabilityToPlugin.values.removeAll { it === plugin }
+        unindexInterfaces(pluginId)
+        safeDispose(plugin, pluginId)
+        Log.i(TAG, "Removed external plugin: $pluginId")
+
+        val (builtInPlugin, builtInInfo) = displacedPlugins.remove(pluginId) ?: return
+        // The slot is empty now, so this is a plain registration, not a replacement.
+        tryRegister(builtInPlugin, builtInInfo)
+        // Re-initialize so the restored built-in re-acquires resources released on displacement.
+        pendingInit?.let { (appContext, eventBus) ->
+            initializePlugin(builtInPlugin, eventBus, appContext)
+        }
+        Log.i(TAG, "Restored built-in plugin: $pluginId v${builtInPlugin.version}")
     }
 
     fun initializeAll(appContext: Context, eventBus: EventBus) {
@@ -268,17 +564,282 @@ class PluginRegistry {
         return plugin.execute(method, params)
     }
 
-    fun getMethodDescriptor(method: String): dev.duma.android.hal.contract.MethodDescriptor? {
+    fun getMethodDescriptor(method: String): MethodDescriptor? {
+        // Interface methods are owned by the registered contract, not by any provider descriptor.
+        for (contract in registeredInterfaces.values) {
+            contract.methods.find { it.name == method }?.let { return it }
+        }
         val plugin = findForMethod(method) ?: return null
         return plugin.getDescriptor().allMethods.find { it.name == method }
+    }
+
+    // ---- Interface layer ---------------------------------------------------------------------
+
+    /** All currently registered interface contracts. */
+    fun getRegisteredInterfaces(): List<InterfaceContract> = registeredInterfaces.values.toList()
+
+    /** The plugin that registered [interfaceId] — the settings key gating an experimental interface. */
+    fun definerForInterface(interfaceId: String): String? = interfaceDefinerOwner[interfaceId]
+
+    /**
+     * The interfaces whose registered contract the plugin registered as [pluginId] actually holds —
+     * as opposed to [PluginDescriptor.definesInterfaces], which is what it claims. A definer whose
+     * contract was refused (another definer came first, or it is external and the interface is a
+     * built-in's) claims the interface and holds nothing.
+     *
+     * Under an id an external plugin took from a built-in, the owner map names that id for both of
+     * them. A built-in-defined interface is then held by the built-in waiting in reserve — never by
+     * the external plugin in the slot — so it is not counted for the live plugin.
+     */
+    fun heldInterfaces(pluginId: String): Set<String> {
+        val liveIsBuiltIn = pluginInfo[pluginId]?.source == PluginSource.BUILT_IN
+        return interfaceDefinerOwner.entries
+            .filter { (interfaceId, owner) ->
+                owner == pluginId && (liveIsBuiltIn || interfaceId !in builtInDefinedInterfaces)
+            }
+            .map { it.key }
+            .toSet()
+    }
+
+    /** Whether [pluginId]'s own descriptor marks it experimental. */
+    private fun isPluginExperimental(pluginId: String): Boolean {
+        val plugin = plugins[pluginId] ?: return false
+        return try { plugin.getDescriptor().experimental } catch (_: Exception) { false }
+    }
+
+    /**
+     * Whether an experimental provider is usable by this caller: either the user enabled the plugin
+     * in settings, or the caller holds experimental access. A provider failing this gate is not part
+     * of the interface for that caller — not the default, not routable, not listed.
+     */
+    private fun passesExperimentalGate(pluginId: String, callerHasExperimental: Boolean): Boolean =
+        !isPluginExperimental(pluginId) ||
+            callerHasExperimental ||
+            experimentalConfig?.isPluginEnabled(pluginId) == true
+
+    /** The registered contract for [interfaceId], or null if no plugin defines it. */
+    fun getInterfaceContract(interfaceId: String): InterfaceContract? = registeredInterfaces[interfaceId]
+
+    /**
+     * The registered interface a method belongs to, or null. A method is an interface method only
+     * when its interface is registered — so an unregistered interface's methods are never routed
+     * here even if a provider is present.
+     */
+    fun interfaceIdForMethod(method: String): String? {
+        for ((id, contract) in registeredInterfaces) {
+            if (contract.methods.any { it.name == method }) return id
+        }
+        return null
+    }
+
+    /**
+     * Providers of [interfaceId], available ones only, preferred first (priority desc, then external
+     * over built-in, then version desc). The first is marked [ProviderRef.isDefault].
+     *
+     * Experimental provider plugins are omitted unless the user enabled them in settings or
+     * [callerHasExperimental] is set, so an experimental backend never becomes the silent default.
+     * The default is conservative: callers serving a token pass the caller's access explicitly.
+     */
+    fun getInterfaceProviders(interfaceId: String, callerHasExperimental: Boolean = false): List<ProviderRef> {
+        val ids = interfaceProviders[interfaceId] ?: return emptyList()
+        val config = interfacePreferenceConfig
+        val order = config?.getOrder(interfaceId) ?: emptyList()
+        val refs = ids.mapNotNull { id ->
+            if (!plugins.containsKey(id) || !isAvailable(id)) return@mapNotNull null
+            if (config?.isEnabled(interfaceId, id) == false) return@mapNotNull null
+            if (!passesExperimentalGate(id, callerHasExperimental)) return@mapNotNull null
+            val binding = interfaceBindings[id]?.firstOrNull { it.interfaceId == interfaceId } ?: return@mapNotNull null
+            val plugin = plugins[id] ?: return@mapNotNull null
+            ProviderRef(
+                pluginId = id,
+                source = pluginInfo[id]?.source,
+                version = plugin.version,
+                priority = binding.priority,
+                features = binding.features,
+                isDefault = false,
+                available = true,
+                experimental = isPluginExperimental(id)
+            )
+        }.sortedWith(providerComparator(order))
+        return refs.mapIndexed { index, ref -> ref.copy(isDefault = index == 0) }
+    }
+
+    /**
+     * ALL implementors of [interfaceId] for the Dashboard — including dynamically unavailable ones
+     * and unsupported ones (which are not in the interface index, so they are scanned from
+     * [unsupportedPlugins] descriptors). Sorted in effective order; [ProviderRef.isDefault] marks the
+     * one routing would pick for a caller with this [callerHasExperimental] access (first available
+     * and enabled that also clears the experimental gate). Carries
+     * `available`/`supported`/`enabled`/`experimental` flags.
+     */
+    fun getAllInterfaceImplementors(interfaceId: String, callerHasExperimental: Boolean = false): List<ProviderRef> {
+        val config = interfacePreferenceConfig
+        val order = config?.getOrder(interfaceId) ?: emptyList()
+        val result = LinkedHashMap<String, ProviderRef>()
+        interfaceProviders[interfaceId]?.forEach { id ->
+            val plugin = plugins[id] ?: return@forEach
+            val binding = interfaceBindings[id]?.firstOrNull { it.interfaceId == interfaceId } ?: return@forEach
+            result[id] = ProviderRef(
+                pluginId = id,
+                source = pluginInfo[id]?.source,
+                version = plugin.version,
+                priority = binding.priority,
+                features = binding.features,
+                isDefault = false,
+                available = isAvailable(id),
+                supported = true,
+                enabled = config?.isEnabled(interfaceId, id) != false,
+                experimental = isPluginExperimental(id)
+            )
+        }
+        // Unsupported plugins are never indexed — scan their descriptors for a binding.
+        unsupportedPlugins.values.forEach { plugin ->
+            if (result.containsKey(plugin.pluginId)) return@forEach
+            val binding = try {
+                plugin.getDescriptor().interfaces.firstOrNull { it.interfaceId == interfaceId }
+            } catch (_: Exception) {
+                null
+            } ?: return@forEach
+            result[plugin.pluginId] = ProviderRef(
+                pluginId = plugin.pluginId,
+                source = pluginInfo[plugin.pluginId]?.source,
+                version = plugin.version,
+                priority = binding.priority,
+                features = binding.features,
+                isDefault = false,
+                available = false,
+                supported = false,
+                enabled = config?.isEnabled(interfaceId, plugin.pluginId) != false,
+                experimental = try { plugin.getDescriptor().experimental } catch (_: Exception) { false }
+            )
+        }
+        val sorted = result.values.sortedWith(providerComparator(order))
+        // `isDefault` must name the provider a call would actually reach, so it is computed with the
+        // same experimental gate routing applies — otherwise an experimental provider sitting first
+        // either takes the flag with it when the caller's listing filters it out, or is advertised as
+        // the default for a call that would never go there.
+        val defaultId = sorted.firstOrNull {
+            it.available && it.enabled && passesExperimentalGate(it.pluginId, callerHasExperimental)
+        }?.pluginId
+        return sorted.map { it.copy(isDefault = it.pluginId == defaultId) }
+    }
+
+    /** User order first (by index), then priority desc, external over built-in, version desc. */
+    private fun providerComparator(order: List<String>): Comparator<ProviderRef> {
+        fun rank(id: String): Int = order.indexOf(id).let { if (it >= 0) it else Int.MAX_VALUE }
+        return compareBy<ProviderRef> { rank(it.pluginId) }
+            .thenByDescending { it.priority }
+            .thenByDescending { it.source == PluginSource.EXTERNAL }
+            .thenByDescending { it.version }
+    }
+
+    /** Sets the user provider order for an interface and notifies clients. */
+    fun setInterfaceOrder(interfaceId: String, order: List<String>) {
+        interfacePreferenceConfig?.setOrder(interfaceId, order)
+        emitInterfacesChanged(interfaceId)
+    }
+
+    /** Enables/disables a provider for an interface and notifies clients. */
+    fun setInterfaceEnabled(interfaceId: String, pluginId: String, enabled: Boolean) {
+        interfacePreferenceConfig?.setEnabled(interfaceId, pluginId, enabled)
+        emitInterfacesChanged(interfaceId)
+    }
+
+    private fun emitInterfacesChanged(interfaceId: String) {
+        // Built, not concatenated: `interfaceId` arrives in `system.interface.setOrder`/`setEnabled`
+        // params from any client holding a token, and a value containing a quote would otherwise
+        // break the frame for every subscriber.
+        pendingInit?.second?.emit(
+            EVENT_INTERFACES_CHANGED,
+            buildJsonObject { put("interfaceId", interfaceId) }.toString(),
+            sourcePluginId = "system"
+        )
+    }
+
+    /**
+     * Executes an interface method. When [providerPluginId] is null the default provider is used.
+     * Fails if the interface is not registered, the method is not part of the contract, or no
+     * (matching, available) provider exists.
+     */
+    suspend fun executeInterface(
+        interfaceId: String,
+        providerPluginId: String?,
+        method: String,
+        params: String,
+        callerHasExperimental: Boolean = false
+    ): CommandResult {
+        val contract = registeredInterfaces[interfaceId]
+            ?: return CommandResult.notFound("Interface not registered: $interfaceId")
+        if (contract.methods.none { it.name == method }) {
+            return CommandResult.unsupportedMethod(method)
+        }
+        // Needed before the provider is chosen, so a feature-gated call can pick one that has it.
+        val gatedFeature = contract.features.firstOrNull { method in it.methods }?.key
+        val plugin = if (providerPluginId != null) {
+            val bound = interfaceBindings[providerPluginId]?.any { it.interfaceId == interfaceId } == true
+            val enabled = interfacePreferenceConfig?.isEnabled(interfaceId, providerPluginId) != false
+            // An experimental provider the user has not enabled is not part of the interface, so
+            // naming it explicitly is as unavailable as naming a plugin that never bound to it.
+            val experimentalOk = passesExperimentalGate(providerPluginId, callerHasExperimental)
+            val p = plugins[providerPluginId]
+            if (p == null || !isAvailable(providerPluginId) || !bound || !enabled || !experimentalOk) {
+                return CommandResult.unavailable("Provider '$providerPluginId' does not provide interface '$interfaceId'")
+            }
+            p
+        } else {
+            val candidates = getInterfaceProviders(interfaceId, callerHasExperimental)
+            // A feature-gated method resolves to the first provider that actually advertises the
+            // feature, not blindly to the default. Otherwise `light.multiFlash` without a selector
+            // fails on a device whose default is `sunmi.tms.led` (no multiFlash) even though the
+            // enabled `sunmi.statuslight` right behind it supports exactly that.
+            val chosen = if (gatedFeature != null) {
+                candidates.firstOrNull { gatedFeature in it.features } ?: candidates.firstOrNull()
+            } else {
+                candidates.firstOrNull()
+            }
+            val defaultId = chosen?.pluginId
+                ?: return CommandResult.unavailable("No provider available for interface: $interfaceId")
+            plugins[defaultId] ?: return CommandResult.unavailable("No provider available for interface: $interfaceId")
+        }
+        // Method-level feature gate: if the method is gated by an interface feature (feature.methods),
+        // the resolved provider must advertise it. Parameter-level features (features with no `methods`,
+        // e.g. a "timeout" option) are NOT enforced here — the core forwards params opaquely, so the
+        // provider validates its own parameters.
+        val requiredFeature = gatedFeature
+        if (requiredFeature != null) {
+            val providerFeatures = interfaceBindings[plugin.pluginId]
+                ?.firstOrNull { it.interfaceId == interfaceId }?.features ?: emptyList()
+            if (requiredFeature !in providerFeatures) {
+                return CommandResult.unavailable(
+                    "Provider '${plugin.pluginId}' does not support feature '$requiredFeature' required by '$method'"
+                )
+            }
+        }
+        // Report which provider actually handled the call (resolved default, or the pinned one),
+        // exposed in the response header so clients don't have to rely on the plugin echoing it.
+        val result = plugin.execute(method, params)
+        return if (result is CommandResult.Success) result.copy(provider = plugin.pluginId) else result
     }
 
     fun allCapabilities(): List<String> {
         return capabilityToPlugin.keys().toList()
     }
 
+    /**
+     * Descriptors of the plugins in effect, as callers should see them: `definesInterfaces` keeps only
+     * the contracts each plugin holds ([heldInterfaces]). A definer whose contract was refused would
+     * otherwise advertise, in `system.describe`, an interface it does not define — for an external
+     * plugin trying to redefine a built-in one, exactly the claim the registry rejected.
+     * [getAllDescriptors] stays raw, for the Dashboard to show what was claimed and ignored.
+     */
     fun getSupportedDescriptors(): List<PluginDescriptor> {
-        return plugins.filterKeys { isAvailable(it) }.values.map { it.getDescriptor() }
+        return plugins.filterKeys { isAvailable(it) }.map { (id, plugin) ->
+            val desc = plugin.getDescriptor()
+            if (desc.definesInterfaces.isEmpty()) return@map desc
+            val held = heldInterfaces(id)
+            if (desc.definesInterfaces.all { it.interfaceId in held }) desc
+            else desc.copy(definesInterfaces = desc.definesInterfaces.filter { it.interfaceId in held })
+        }
     }
 
     fun getAllDescriptors(): List<PluginDescriptor> {
@@ -301,6 +862,7 @@ class PluginRegistry {
             .toSet()
     }
 
+    @Synchronized
     fun disconnectAll(context: Context) {
         serviceConnections.forEach { connection ->
             try {
@@ -309,21 +871,32 @@ class PluginRegistry {
         }
         serviceConnections.clear()
         // Tear down initialized plugins (active + displaced) so they release resources.
-        plugins.values.forEach { safeDispose(it) }
-        displacedPlugins.values.forEach { (plugin, _) -> safeDispose(plugin) }
+        plugins.forEach { (id, plugin) -> safeDispose(plugin, id) }
+        displacedPlugins.forEach { (id, displaced) -> safeDispose(displaced.first, id) }
         plugins.clear()
         pluginInfo.clear()
         displacedPlugins.clear()
         capabilityToPlugin.clear()
         available.clear()
+        registeredInterfaces.clear()
+        interfaceProviders.clear()
+        interfaceBindings.clear()
+        interfaceDefinitionsByPlugin.clear()
+        interfaceDefinerOwner.clear()
+        builtInDefinedInterfaces.clear()
         pendingInit = null
     }
 
-    private fun safeDispose(plugin: HalPlugin) {
+    /**
+     * [pluginId] comes from the caller rather than from [plugin]: for an [AidlPluginAdapter] every
+     * member is a binder call, and when the remote side is already gone, reading the id for the log
+     * line would throw a second `DeadObjectException` out of the handler.
+     */
+    private fun safeDispose(plugin: HalPlugin, pluginId: String) {
         try {
             plugin.dispose()
         } catch (e: Exception) {
-            Log.w(TAG, "dispose() failed for ${plugin.pluginId}: ${e.message}")
+            Log.w(TAG, "dispose() failed for $pluginId: ${e.message}")
         }
     }
 }

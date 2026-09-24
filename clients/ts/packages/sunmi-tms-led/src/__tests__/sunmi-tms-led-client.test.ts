@@ -22,7 +22,6 @@ describe('SunmiTmsLedClient', () => {
 
   it('advertises capabilities (timeout yes, multiFlash no)', () => {
     expect(client.capabilities).toEqual({ multiFlash: false, timeout: true });
-    expect(client.multiFlash).toBeUndefined();
   });
 
   describe('on', () => {

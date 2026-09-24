@@ -3,7 +3,7 @@ import type {
   EventHandler,
   ILogger,
 } from '@kduma-autoid/hal-client-common';
-import { HalError, matchPattern } from '@kduma-autoid/hal-client-common';
+import { HalError, matchSubscription } from '@kduma-autoid/hal-client-common';
 import type { WsConnection } from './ws-connection.js';
 import type { WsServerMessage } from './types/message.js';
 
@@ -25,7 +25,7 @@ export class WsEventTransport implements IEventTransport {
 
     this.unsubscribeFromConnection = this.connection.onMessage((msg: WsServerMessage) => {
       if (msg.type === 'event') {
-        this.dispatchEvent(msg.event, msg.data);
+        this.dispatchEvent(msg.event, msg.data, msg.source);
       }
     });
   }
@@ -93,13 +93,13 @@ export class WsEventTransport implements IEventTransport {
     this.logger?.debug('WsEventTransport disposed');
   }
 
-  private dispatchEvent(eventName: string, data: unknown): void {
-    this.logger?.debug('Dispatching event', { event: eventName });
+  private dispatchEvent(eventName: string, data: unknown, source?: string): void {
+    this.logger?.debug('Dispatching event', { event: eventName, source });
 
     for (const entry of this.handlers) {
-      if (matchPattern(entry.pattern, eventName)) {
+      if (matchSubscription(entry.pattern, eventName, source)) {
         try {
-          entry.handler(eventName, data);
+          entry.handler(eventName, data, { source });
         } catch (e) {
           this.logger?.error('Event handler threw', e);
         }

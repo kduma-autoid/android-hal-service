@@ -105,6 +105,34 @@ describe('HttpCommandTransport', () => {
         code: 'unauthorized',
       });
     });
+
+    it('should report the X-Hal-Provider response header via onMeta', async () => {
+      transport.setToken('my-token');
+      adapter.nextResponse = {
+        status: 200,
+        statusText: 'OK',
+        headers: { 'x-hal-provider': 'sunmi.tms.led' },
+        body: JSON.stringify({ ok: true }),
+      };
+
+      let meta: { provider?: string } | undefined;
+      const result = await transport.execute('light.on', { color: 'green' }, {
+        onMeta: (m) => { meta = m; },
+      });
+
+      expect(result).toEqual({ ok: true });
+      expect(meta).toEqual({ provider: 'sunmi.tms.led' });
+    });
+
+    it('should report empty meta via onMeta when no provider header is present', async () => {
+      transport.setToken('my-token');
+      adapter.nextResponse = { status: 200, statusText: 'OK', headers: {}, body: '{}' };
+
+      let meta: { provider?: string } | undefined;
+      await transport.execute('system.ping', {}, { onMeta: (m) => { meta = m; } });
+
+      expect(meta).toEqual({});
+    });
   });
 
   describe('error handling', () => {

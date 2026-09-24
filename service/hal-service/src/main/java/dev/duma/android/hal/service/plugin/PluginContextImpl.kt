@@ -44,4 +44,17 @@ class PluginContextImpl(
     override fun setPluginAvailable(available: Boolean) {
         registry.setPluginAvailability(ownerPluginId, available)
     }
+
+    override suspend fun executeInterface(
+        interfaceId: String,
+        providerPluginId: String?,
+        method: String,
+        params: String
+    ): CommandResult {
+        return registry.executeInterface(interfaceId, providerPluginId, method, params)
+    }
+
+    override fun getInterfaceProviders(interfaceId: String): List<String> {
+        return registry.getInterfaceProviders(interfaceId).map { it.pluginId }
+    }
 }

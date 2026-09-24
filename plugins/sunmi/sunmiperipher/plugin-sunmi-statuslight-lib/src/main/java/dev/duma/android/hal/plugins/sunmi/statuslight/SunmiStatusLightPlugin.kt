@@ -13,6 +13,7 @@ import dev.duma.android.hal.contract.BaseHalPlugin
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
+import dev.duma.android.hal.contract.InterfaceBinding
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
@@ -112,7 +113,12 @@ class SunmiStatusLightPlugin(
                 exampleOutput = """{}"""
             )
         ),
-        events = emptyList()
+        events = emptyList(),
+        // Provides the unified `light` interface. Lower priority than the CPad built-in LED.
+        // Supports multiFlash but not the timeoutMs option.
+        interfaces = listOf(
+            InterfaceBinding(interfaceId = "light", priority = 50, features = listOf("multiFlash"))
+        )
     )
 
     override fun initialize(pluginContext: PluginContext) {
@@ -146,18 +152,20 @@ class SunmiStatusLightPlugin(
 
     override suspend fun onExecute(method: String, params: String): CommandResult = mutex.withLock {
         return@withLock try {
-            when (method) {
-                "sunmi.statuslight.on" -> {
+            // Operation is the last dotted segment, so native "sunmi.statuslight.*" and unified
+            // "light.*" interface methods share one dispatch.
+            when (method.substringAfterLast('.')) {
+                "on" -> {
                     val color = parseColor(JSONObject(params).getString("color"))
                         ?: return@withLock CommandResult.badRequest("Unknown color value")
                     StatusLightManager.setColor(color)
                     CommandResult.Success()
                 }
-                "sunmi.statuslight.off" -> {
+                "off" -> {
                     StatusLightManager.turnOff()
                     CommandResult.Success()
                 }
-                "sunmi.statuslight.flash" -> {
+                "flash" -> {
                     val json = JSONObject(params)
                     val color = parseColor(json.getString("color"))
                         ?: return@withLock CommandResult.badRequest("Unknown color value")
@@ -166,7 +174,7 @@ class SunmiStatusLightPlugin(
                     StatusLightManager.setFlashing(color, onMs, offMs)
                     CommandResult.Success()
                 }
-                "sunmi.statuslight.multiFlash" -> {
+                "multiFlash" -> {
                     val json = JSONObject(params)
                     val colors: Array<Color>
                     val onMsArr: IntArray

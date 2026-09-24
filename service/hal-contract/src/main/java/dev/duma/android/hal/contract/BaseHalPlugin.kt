@@ -14,7 +14,15 @@ package dev.duma.android.hal.contract
 abstract class BaseHalPlugin : HalPlugin {
 
     final override suspend fun execute(method: String, params: String): CommandResult {
-        if (getDescriptor().allMethods.none { it.name == method }) {
+        val descriptor = getDescriptor()
+        // Invocable = a method declared in the descriptor, OR a method in the namespace of an
+        // interface this plugin declares it provides (e.g. "light.*" for an InterfaceBinding("light")).
+        // Interface methods live in the registered InterfaceContract, not in the provider's own
+        // descriptor, so the guard admits the interface namespace and lets onExecute (and the service's
+        // interface routing, which validates against the contract) handle the specific method.
+        val declared = descriptor.allMethods.any { it.name == method } ||
+            descriptor.interfaces.any { method.startsWith("${it.interfaceId}.") }
+        if (!declared) {
             return CommandResult.unsupportedMethod(method)
         }
         return onExecute(method, params)

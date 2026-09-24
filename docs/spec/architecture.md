@@ -185,7 +185,7 @@ service/hal-service/src/main/java/.../
 3. PluginRegistry
 4. Rejestruj vendor-specific pluginy (refleksja per flavor)
 5. Odkryj external pluginy (PackageManager)
-6. Rejestruj generic pluginy (zawsze)
+6. Rejestruj definery interfejsów + pluginy współdzielone (zawsze)
 7. initializeAll na pluginach (PluginContext per plugin)
 8. Transporty (refleksja) → TransportRegistry
 9. Start transportów
