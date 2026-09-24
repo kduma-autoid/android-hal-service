@@ -1,6 +1,6 @@
 {
   "name": "@kduma-autoid/hal-client-plugin-sunmi-barcode-scanner-facade",
-  "version": "0.0.1",
+  "version": "0.0.12",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
