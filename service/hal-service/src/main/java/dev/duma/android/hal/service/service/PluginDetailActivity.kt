@@ -1,10 +1,13 @@
 package dev.duma.android.hal.service.service
 
 import dev.duma.android.hal.service.R
+import android.content.ComponentName
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -22,8 +25,17 @@ import dev.duma.android.hal.service.plugin.PluginRegistry
 
 class PluginDetailActivity : AppCompatActivity() {
 
+    private var ss2222AccessibilityStatus: TextView? = null
+
     companion object {
         const val EXTRA_PLUGIN_ID = "plugin_id"
+        private const val SS2222_PLUGIN_ID = "sunmi.scanner.ss2222"
+        private const val SS2222_FILTER_CLASS_NAME =
+            "dev.duma.android.hal.plugins.sunmi.scanner.ss2222.Ss2222KeyboardFilterService"
+        private val SS2222_FILTER_PACKAGES = setOf(
+            "dev.duma.android.hal.service",
+            "dev.duma.android.hal.plugins.sunmi",
+        )
     }
 
     private fun createToolbar(title: String): Toolbar {
@@ -132,6 +144,8 @@ class PluginDetailActivity : AppCompatActivity() {
         layout.addView(infoRow("Source", sourceText))
 
         layout.addView(infoRow("Capabilities", desc.capabilities.joinToString(", ")))
+
+        panelAndroid(pluginId)?.let(layout::addView)
 
         if (isUnsupported) {
             layout.addView(TextView(this).apply {
@@ -327,12 +341,75 @@ class PluginDetailActivity : AppCompatActivity() {
         setContentWithToolbar(toolbar, ScrollView(this).apply { addView(layout) })
     }
 
+    override fun onResume() {
+        super.onResume()
+        updateSs2222AccessibilityStatus()
+    }
+
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         if (item.itemId == android.R.id.home) {
             finish()
             return true
         }
         return super.onOptionsItemSelected(item)
+    }
+
+    /** Android-only controls for plugins which depend on an OS-level capability. */
+    private fun panelAndroid(pluginId: String): View? {
+        if (pluginId != SS2222_PLUGIN_ID) return null
+
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(sectionHeader("Android"))
+            addView(TextView(this@PluginDetailActivity).also {
+                ss2222AccessibilityStatus = it
+                it.setPadding(0, 4, 0, 8)
+                it.textSize = 14f
+            })
+            addView(TextView(this@PluginDetailActivity).apply {
+                text = "Enabled is an Android setting only; effective filtering must be verified with scanner hardware."
+                textSize = 12f
+                setTextColor(Color.GRAY)
+                setPadding(0, 0, 0, 8)
+            })
+            addView(Button(this@PluginDetailActivity).apply {
+                text = "Open Accessibility settings"
+                setOnClickListener {
+                    startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                }
+            })
+        }.also {
+            updateSs2222AccessibilityStatus()
+        }
+    }
+
+    private fun updateSs2222AccessibilityStatus() {
+        ss2222AccessibilityStatus?.text = if (isSs2222AccessibilityFilterEnabled()) {
+            "Keyboard filter: enabled"
+        } else {
+            "Keyboard filter: disabled"
+        }
+    }
+
+    /**
+     * Keep this check local to the generic HAL app: the generic flavor must not compile against a
+     * Sunmi plugin module.  Both the HAL APK and the standalone Sunmi bundle can host the same
+     * exact service class.
+     */
+    private fun isSs2222AccessibilityFilterEnabled(): Boolean {
+        if (Settings.Secure.getInt(contentResolver, Settings.Secure.ACCESSIBILITY_ENABLED, 0) != 1) {
+            return false
+        }
+        val enabled = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+        ) ?: return false
+        return enabled.split(':').asSequence()
+            .mapNotNull(ComponentName::unflattenFromString)
+            .any { component ->
+                component.className == SS2222_FILTER_CLASS_NAME &&
+                    component.packageName in SS2222_FILTER_PACKAGES
+            }
     }
 
     private fun buildMethodBlock(method: dev.duma.android.hal.contract.MethodDescriptor, isExperimental: Boolean): LinearLayout {

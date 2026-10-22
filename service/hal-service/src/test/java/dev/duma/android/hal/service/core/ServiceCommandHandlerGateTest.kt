@@ -86,6 +86,34 @@ class ServiceCommandHandlerGateTest {
         override fun setEventCallback(callback: HalPluginEventCallback?) {}
     }
 
+    /** Descriptor-only SS2222 fixture: keeps this gate test independent of Sunmi plugin modules. */
+    private class Ss2222DiagnosticFixture : HalPlugin {
+        override val pluginId = "sunmi.scanner.ss2222"
+        override val version = 1
+        private val method = MethodDescriptor(
+            name = "$pluginId.diagnostic",
+            description = "diagnostic",
+            requiredPermission = pluginId,
+            superRequired = true,
+            experimental = true,
+            exampleParameters = "{}",
+            exampleOutput = "{}"
+        )
+
+        override fun isSupported() = true
+        override fun getCapabilities() = listOf(pluginId)
+        override fun getDescriptor() = PluginDescriptor.withFlatLists(
+            pluginId = pluginId,
+            name = "SS2222 fixture",
+            version = version,
+            capabilities = listOf(pluginId),
+            methods = listOf(method)
+        )
+        override fun initialize(pluginContext: PluginContext) {}
+        override suspend fun execute(method: String, params: String) = CommandResult.Success("{}")
+        override fun setEventCallback(callback: HalPluginEventCallback?) {}
+    }
+
     private fun handlerFor(permissions: String, setup: (PluginRegistry) -> Unit = {}): ServiceCommandHandler {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val registry = PluginRegistry()
@@ -151,6 +179,32 @@ class ServiceCommandHandlerGateTest {
     fun `a wildcard token subscribes to anything`() = runTest {
         val result = handlerFor("*").subscribe("t", "barcodeScanner.onScan,light.changed", caller)
         assertTrue(result is CommandResult.Success)
+    }
+
+    @Test
+    fun `ss2222 diagnostic requires super and enabled experimental access independently`() = runTest {
+        val method = "sunmi.scanner.ss2222.diagnostic"
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        ExperimentalConfig(context).disablePlugin("sunmi.scanner.ss2222")
+
+        // The ordinary capability permission is present, but super access is not.
+        val withoutSuper = handlerFor("sunmi.scanner.ss2222") {
+            it.registerBuiltIn(Ss2222DiagnosticFixture())
+        }.execute("t", method, "{}", caller)
+        assertEquals("forbidden", (withoutSuper as CommandResult.Failure).code)
+        assertTrue(withoutSuper.message.contains("Super permission"))
+
+        // Super access alone must not silently enable an experimental diagnostic method.
+        val experimentalDisabled = handlerFor("sunmi.scanner.ss2222,super") {
+            it.registerBuiltIn(Ss2222DiagnosticFixture())
+        }.execute("t", method, "{}", caller)
+        assertEquals("forbidden", (experimentalDisabled as CommandResult.Failure).code)
+        assertTrue(experimentalDisabled.message.contains("Experimental method"))
+
+        val allowed = handlerFor("sunmi.scanner.ss2222,super,experimental") {
+            it.registerBuiltIn(Ss2222DiagnosticFixture())
+        }.execute("t", method, "{}", caller)
+        assertTrue(allowed is CommandResult.Success)
     }
 
     // --- interface configuration gate ---

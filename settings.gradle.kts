@@ -50,6 +50,7 @@ include(":plugins:generic:plugin-generic-demo-lib")
 include(":plugins:sunmi:plugin-sunmi-bundle")
 include(":plugins:sunmi:plugin-sunmi-printer-lib")
 include(":plugins:sunmi:plugin-sunmi-scanner-lib")
+include(":plugins:sunmi:plugin-sunmi-scanner-ss2222-lib")
 
 include(":plugins:sunmi:sunmiperipher:plugin-sunmi-sunmiperipher-sdk")
 include(":plugins:sunmi:sunmiperipher:plugin-sunmi-statuslight-lib")

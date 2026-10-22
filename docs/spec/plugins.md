@@ -136,7 +136,8 @@ subskrypcja `barcodeScanner.onScan@sunmi.scanner.inner` filtruje konkretny skane
 
 | plugin | priority | build |
 |--------|----------|-------|
-| `sunmi.scanner.inner` (`SunmiInnerScannerPlugin`) | 100 (default) | sunmi stable + development |
+| [`sunmi.scanner.ss2222`](sunmi-ss2222.md) (`SunmiSs2222ScannerPlugin`) | 110 (gdy USB jest gotowe) | sunmi stable + development, Sunmi bundle, AAR |
+| `sunmi.scanner.inner` (`SunmiInnerScannerPlugin`) | 100 | sunmi stable + development |
 | `sunmi.scanner.external` (`SunmiExternalScannerPlugin`) | 50 | sunmi development (experimental) |
 | `sunmi.scanner.camera` (`SunmiCameraScannerPlugin`) | 40 | sunmi development (experimental) |
 

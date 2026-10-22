@@ -128,6 +128,7 @@ dependencies {
     // `stability` variant to the app's (stable → experimental compiled out, development → kept).
     val sunmiCommonPlugins = listOf(
         ":plugins:sunmi:plugin-sunmi-scanner-lib",
+        ":plugins:sunmi:plugin-sunmi-scanner-ss2222-lib",
         ":plugins:sunmi:sunmiperipher:plugin-sunmi-statuslight-lib",
         ":plugins:sunmi:sunmiperipher:plugin-sunmi-nfc-lib",
         ":plugins:sunmi:sunmiperipher:plugin-sunmi-screen-lib",
