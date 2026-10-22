@@ -24,6 +24,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArraySet
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Registry of all hardware plugins (built-in and external). Manages plugin lifecycle:
@@ -93,6 +94,22 @@ class PluginRegistry {
     private val displacedPlugins = ConcurrentHashMap<String, Pair<HalPlugin, PluginInfo>>()
     private var pendingInit: Pair<Context, EventBus>? = null
 
+    /**
+     * A PluginContext is scoped to both the plugin object and one initialize call. The id alone is
+     * insufficient: a late USB/Binder callback from a displaced plugin could otherwise toggle the
+     * replacement registered under the same id. These maps contain no Binder calls and are therefore
+     * safe to consult from a Binder callback.
+     */
+    private class InitializationToken(
+        val plugin: HalPlugin,
+        val generation: Long
+    )
+
+    /** Process-lifetime monotonic generation; never reset on disconnect/re-register. */
+    private val nextInitializationGeneration = AtomicLong(0L)
+    private val activeInitialization = ConcurrentHashMap<String, InitializationToken>()
+    private val availabilityLock = Any()
+
     fun getPluginInfo(pluginId: String): PluginInfo? = pluginInfo[pluginId]
 
     /**
@@ -153,7 +170,7 @@ class PluginRegistry {
 
     private fun tryRegister(plugin: HalPlugin, info: PluginInfo): Boolean {
         val id = plugin.pluginId
-        val existing = plugins[id]
+        val existing = synchronized(availabilityLock) { plugins[id] }
 
         if (existing != null) {
             val existingInfo = pluginInfo[id]!!
@@ -174,22 +191,32 @@ class PluginRegistry {
                 return false
             }
 
+            // The old object may still have an event/USB callback in flight even when the new
+            // object has the same plugin id. Invalidate its context before any ownership maps move.
+            invalidateInitialization(id, existing)
             if (existingInfo.source == PluginSource.BUILT_IN) {
                 // Only an external plugin displaces a built-in into reserve: the built-in waits for it
                 // to disconnect. One superseded by a newer built-in has nothing to wait for; kept in
                 // reserve it would still lend its contracts to interfaces nobody defines any more.
                 if (info.source == PluginSource.EXTERNAL) displacedPlugins[id] = existing to existingInfo
-                // Release the displaced built-in's resources; it is re-initialized if restored.
-                safeDispose(existing, id)
             }
+            // Release any displaced instance, including an external adapter replaced by a newer
+            // external instance. AidlPluginAdapter.dispose unregisters its remote event callback.
+            // This call is outside availabilityLock; stale contexts were invalidated above.
+            safeDispose(existing, id)
             existing.getCapabilities().forEach { capabilityToPlugin.remove(it, existing) }
             unindexInterfaces(id)
             Log.i(TAG, "Plugin $id: replacing v${existing.version} (${existingInfo.source}) with v${plugin.version} (${info.source})")
         }
 
-        plugins[id] = plugin
+        // Ownership and the active-context token are observed together by availability callbacks.
+        // Do not hold this lock while calling plugin code: capability/descriptor calls above/below
+        // may be Binder calls and can synchronously re-enter the registry.
+        synchronized(availabilityLock) {
+            plugins[id] = plugin
+            available[id] = true
+        }
         pluginInfo[id] = info
-        available[id] = true
         plugin.getCapabilities().forEach { capabilityToPlugin[it] = plugin }
         indexInterfaces(plugin)
         return true
@@ -362,21 +389,97 @@ class PluginRegistry {
      * hide it); when available again they are restored. Emits [EVENT_PLUGINS_CHANGED] on change.
      */
     fun setPluginAvailability(pluginId: String, isAvailable: Boolean) {
-        val plugin = plugins[pluginId] ?: return
-        val previous = available[pluginId] ?: true
-        if (previous == isAvailable) return
-        available[pluginId] = isAvailable
-        if (isAvailable) {
-            plugin.getCapabilities().forEach { capabilityToPlugin[it] = plugin }
-        } else {
-            plugin.getCapabilities().forEach { capabilityToPlugin.remove(it, plugin) }
+        setPluginAvailability(pluginId, isAvailable, null, null)
+    }
+
+    /** Called by a context carrying its plugin-instance/initialize-generation token. */
+    internal fun setPluginAvailability(
+        pluginId: String,
+        isAvailable: Boolean,
+        ownerPlugin: HalPlugin?,
+        initializeGeneration: Long?
+    ) {
+        val plugin: HalPlugin
+        val previous: Boolean
+        synchronized(availabilityLock) {
+            plugin = plugins[pluginId] ?: return
+            if (!isContextCurrent(pluginId, ownerPlugin, initializeGeneration)) return
+            previous = available[pluginId] ?: true
+            if (previous == isAvailable) return
+            available[pluginId] = isAvailable
+
+            // Removing routing entries needs no plugin/Binder call. Adding them does, so it is
+            // deliberately performed below, after leaving this lock.
+            if (!isAvailable) {
+                capabilityToPlugin.entries.removeIf { it.value === plugin }
+            }
         }
+
+        if (isAvailable) {
+            // A remote plugin's getCapabilities() is Binder I/O. Never perform it while holding
+            // registry or availability locks; the remote side can synchronously call back here.
+            val capabilities = try {
+                plugin.getCapabilities()
+            } catch (e: Exception) {
+                Log.w(TAG, "getCapabilities() failed while restoring $pluginId availability: ${e.message}")
+                emptyList()
+            }
+            synchronized(availabilityLock) {
+                if (plugins[pluginId] === plugin && available[pluginId] == true &&
+                    isContextCurrent(pluginId, ownerPlugin, initializeGeneration)
+                ) {
+                    capabilities.forEach { capabilityToPlugin[it] = plugin }
+                } else {
+                    return
+                }
+            }
+        }
+
+        // The event is also scoped to the token. A displacement/reinitialize that happened during
+        // the Binder call above must not announce the old instance's state to clients.
+        if (plugins[pluginId] !== plugin ||
+            !isContextCurrent(pluginId, ownerPlugin, initializeGeneration)
+        ) return
         Log.i(TAG, "Plugin $pluginId availability -> $isAvailable")
         pendingInit?.second?.emit(
             EVENT_PLUGINS_CHANGED,
             """{"pluginId":"$pluginId","available":$isAvailable}""",
             sourcePluginId = "system"
         )
+    }
+
+    /** True only for the currently registered plugin and its current initialize generation. */
+    internal fun isContextCurrent(
+        pluginId: String,
+        ownerPlugin: HalPlugin?,
+        initializeGeneration: Long?
+    ): Boolean = synchronized(availabilityLock) {
+        isContextCurrentLocked(pluginId, ownerPlugin, initializeGeneration)
+    }
+
+    private fun isContextCurrentLocked(
+        pluginId: String,
+        ownerPlugin: HalPlugin?,
+        initializeGeneration: Long?
+    ): Boolean {
+        // Keep contexts constructed by older in-process callers source-compatible. All contexts
+        // created by initializePlugin carry a non-null token and take the strict path.
+        if (ownerPlugin == null && initializeGeneration == null) return true
+        if (ownerPlugin == null || initializeGeneration == null) return false
+        val token = activeInitialization[pluginId] ?: return false
+        return token.plugin === ownerPlugin && token.generation == initializeGeneration &&
+            plugins[pluginId] === ownerPlugin
+    }
+
+    private fun invalidateInitialization(pluginId: String, plugin: HalPlugin) {
+        synchronized(availabilityLock) {
+            invalidateInitializationLocked(pluginId, plugin)
+        }
+    }
+
+    private fun invalidateInitializationLocked(pluginId: String, plugin: HalPlugin) {
+        val token = activeInitialization[pluginId]
+        if (token?.plugin === plugin) activeInitialization.remove(pluginId, token)
     }
 
     private fun isAvailable(pluginId: String): Boolean = available[pluginId] ?: true
@@ -492,26 +595,36 @@ class PluginRegistry {
             return
         }
 
-        val pluginId = plugins.entries.firstOrNull { it.value === plugin }?.key
-        if (pluginId == null || !plugins.remove(pluginId, plugin)) {
+        var pluginId: String? = null
+        var removed = false
+        synchronized(availabilityLock) {
+            val candidate = plugins.entries.firstOrNull { it.value === plugin }?.key
+            if (candidate != null && plugins.remove(candidate, plugin)) {
+                pluginId = candidate
+                removed = true
+                available.remove(candidate)
+                invalidateInitializationLocked(candidate, plugin)
+                capabilityToPlugin.values.removeAll { it === plugin }
+            }
+        }
+        val id = pluginId
+        if (!removed || id == null) {
             // Never registered (lost tryRegister, or had an empty API): nothing of it to remove.
             return
         }
-        pluginInfo.remove(pluginId)
-        available.remove(pluginId)
-        capabilityToPlugin.values.removeAll { it === plugin }
-        unindexInterfaces(pluginId)
-        safeDispose(plugin, pluginId)
-        Log.i(TAG, "Removed external plugin: $pluginId")
+        pluginInfo.remove(id)
+        unindexInterfaces(id)
+        safeDispose(plugin, id)
+        Log.i(TAG, "Removed external plugin: $id")
 
-        val (builtInPlugin, builtInInfo) = displacedPlugins.remove(pluginId) ?: return
+        val (builtInPlugin, builtInInfo) = displacedPlugins.remove(id) ?: return
         // The slot is empty now, so this is a plain registration, not a replacement.
         tryRegister(builtInPlugin, builtInInfo)
         // Re-initialize so the restored built-in re-acquires resources released on displacement.
         pendingInit?.let { (appContext, eventBus) ->
             initializePlugin(builtInPlugin, eventBus, appContext)
         }
-        Log.i(TAG, "Restored built-in plugin: $pluginId v${builtInPlugin.version}")
+        Log.i(TAG, "Restored built-in plugin: $id v${builtInPlugin.version}")
     }
 
     fun initializeAll(appContext: Context, eventBus: EventBus) {
@@ -523,18 +636,31 @@ class PluginRegistry {
     }
 
     private fun initializePlugin(plugin: HalPlugin, eventBus: EventBus, appContext: Context) {
+        val pluginId = plugin.pluginId
+        val generation: Long
+        synchronized(availabilityLock) {
+            if (plugins[pluginId] !== plugin) return
+            generation = nextInitializationGeneration.incrementAndGet()
+            activeInitialization[pluginId] = InitializationToken(plugin, generation)
+        }
         val context = PluginContextImpl(
-            ownerPluginId = plugin.pluginId,
+            ownerPluginId = pluginId,
             registry = this,
             eventBus = eventBus,
-            applicationContext = appContext
+            applicationContext = appContext,
+            ownerPlugin = plugin,
+            initializeGeneration = generation
         )
         plugin.setEventCallback(object : HalPluginEventCallback {
             override fun onEvent(eventName: String, jsonData: String) {
-                eventBus.emit(eventName, jsonData, plugin.pluginId)
+                if (isContextCurrent(pluginId, plugin, generation)) {
+                    eventBus.emit(eventName, jsonData, pluginId)
+                }
             }
             override fun onError(deviceType: String, code: Int, message: String) {
-                Log.w(TAG, "Plugin ${plugin.pluginId} error [$deviceType]: $code $message")
+                if (isContextCurrent(pluginId, plugin, generation)) {
+                    Log.w(TAG, "Plugin $pluginId error [$deviceType]: $code $message")
+                }
             }
         })
         plugin.initialize(context)
@@ -870,14 +996,22 @@ class PluginRegistry {
             } catch (_: Exception) { }
         }
         serviceConnections.clear()
-        // Tear down initialized plugins (active + displaced) so they release resources.
-        plugins.forEach { (id, plugin) -> safeDispose(plugin, id) }
-        displacedPlugins.forEach { (id, displaced) -> safeDispose(displaced.first, id) }
+        // Atomically detach ownership before calling plugin code. A late availability callback
+        // therefore cannot observe a still-live owner while dispose is in progress; dispose itself
+        // is intentionally outside this lock.
+        val toDispose: List<Pair<String, HalPlugin>>
+        synchronized(availabilityLock) {
+            toDispose = plugins.entries.map { it.key to it.value } +
+                displacedPlugins.entries.map { it.key to it.value.first }
+            activeInitialization.clear()
+            plugins.clear()
+            capabilityToPlugin.clear()
+            available.clear()
+        }
+        toDispose.forEach { (id, plugin) -> safeDispose(plugin, id) }
         plugins.clear()
         pluginInfo.clear()
         displacedPlugins.clear()
-        capabilityToPlugin.clear()
-        available.clear()
         registeredInterfaces.clear()
         interfaceProviders.clear()
         interfaceBindings.clear()

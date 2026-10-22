@@ -243,16 +243,17 @@ class PluginRegistryInterfaceTest {
     fun `scanner resolves to inner scanner by priority`() = runTest {
         val registry = PluginRegistry()
         registry.registerBuiltIn(BarcodeScannerInterface())
+        registry.registerBuiltIn(FakeProvider("sunmi.scanner.ss2222", InterfaceBinding("barcodeScanner", priority = 110), body = """{"status":"scanning"}"""))
         registry.registerBuiltIn(FakeProvider("sunmi.scanner.inner", InterfaceBinding("barcodeScanner", priority = 100), body = """{"status":"scanning"}"""))
         registry.registerBuiltIn(FakeProvider("sunmi.scanner.camera", InterfaceBinding("barcodeScanner", priority = 40), body = """{"status":"scanning"}"""))
 
         val providers = registry.getInterfaceProviders("barcodeScanner")
-        assertEquals(listOf("sunmi.scanner.inner", "sunmi.scanner.camera"), providers.map { it.pluginId })
+        assertEquals(listOf("sunmi.scanner.ss2222", "sunmi.scanner.inner", "sunmi.scanner.camera"), providers.map { it.pluginId })
         assertTrue(providers.first().isDefault)
 
         val result = registry.executeInterface("barcodeScanner", null, "barcodeScanner.trigger", "{}")
         assertTrue(result is CommandResult.Success)
-        assertEquals("sunmi.scanner.inner", (result as CommandResult.Success).provider)
+        assertEquals("sunmi.scanner.ss2222", (result as CommandResult.Success).provider)
     }
 
     // --- Feature-gated methods without a selector ----------------------------------------------
@@ -509,6 +510,7 @@ class PluginRegistryInterfaceTest {
         private val binding: InterfaceBinding? = InterfaceBinding("light", priority = 50)
     ) : HalPlugin {
         private var dead = false
+        var disposeCalls = 0
         fun die() { dead = true }
         private fun <T> call(value: () -> T): T = if (dead) throw DeadObjectException() else value()
 
@@ -527,7 +529,22 @@ class PluginRegistryInterfaceTest {
         override suspend fun execute(method: String, params: String): CommandResult =
             call { CommandResult.Success("""{"who":"$tag"}""") }
         override fun setEventCallback(callback: HalPluginEventCallback?) = call {}
-        override fun dispose() = call {}
+        override fun dispose() {
+            disposeCalls++
+            call {}
+        }
+    }
+
+    @Test
+    fun `higher priority external replacement disposes old adapter and clears its callback`() {
+        val registry = PluginRegistry()
+        val old = FakeRemote("ext.same", ver = 1)
+        val replacement = FakeRemote("ext.same", ver = 2)
+
+        assertTrue(registry.registerExternal(old, "com.vendor.old"))
+        assertTrue(registry.registerExternal(replacement, "com.vendor.new"))
+        assertEquals(1, old.disposeCalls)
+        assertEquals(PluginRegistry.PluginInfo(PluginRegistry.PluginSource.EXTERNAL, "com.vendor.new"), registry.getPluginInfo("ext.same"))
     }
 
     @Test

@@ -155,6 +155,7 @@ class HalService : Service() {
         // 5. Register vendor-specific plugins (available only in sunmi flavor)
         tryRegisterPlugin("dev.duma.android.hal.plugins.sunmi.printer.SunmiPrinterPlugin")
         tryRegisterPlugin("dev.duma.android.hal.plugins.sunmi.scanner.SunmiScannerPlugin")
+        tryRegisterPlugin("dev.duma.android.hal.plugins.sunmi.scanner.ss2222.SunmiSs2222ScannerPlugin")
         tryRegisterPlugin("dev.duma.android.hal.plugins.sunmi.statuslight.SunmiStatusLightPlugin")
         tryRegisterPlugin("dev.duma.android.hal.plugins.sunmi.nfc.SunmiNfcPlugin")
         tryRegisterPlugin("dev.duma.android.hal.plugins.sunmi.card.SunmiCardPlugin")

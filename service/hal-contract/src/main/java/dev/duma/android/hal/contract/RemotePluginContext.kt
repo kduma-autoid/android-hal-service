@@ -1,7 +1,7 @@
 package dev.duma.android.hal.contract
 
 import android.content.Context
-import android.os.DeadObjectException
+import android.os.RemoteException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -20,7 +20,7 @@ class RemotePluginContext(
         return withContext(Dispatchers.IO) {
             try {
                 binder.execute(method, params)
-            } catch (e: DeadObjectException) {
+            } catch (e: RemoteException) {
                 CommandResult.unavailable("hal-service connection lost")
             }
         }
@@ -29,7 +29,7 @@ class RemotePluginContext(
     override fun getAvailableCapabilities(): List<String> {
         return try {
             binder.availableCapabilities
-        } catch (e: DeadObjectException) {
+        } catch (e: RemoteException) {
             emptyList()
         }
     }
@@ -37,8 +37,22 @@ class RemotePluginContext(
     override fun hasCapability(capability: String): Boolean {
         return try {
             binder.hasCapability(capability)
-        } catch (e: DeadObjectException) {
+        } catch (e: RemoteException) {
             false
+        }
+    }
+
+    override fun setPluginAvailable(available: Boolean) {
+        try {
+            // This method was appended to the AIDL interface. A host built against the
+            // previous interface may reject the transaction; availability is advisory, so
+            // that must degrade to a no-op rather than taking down the plugin process.
+            binder.setPluginAvailable(available)
+        } catch (_: RemoteException) {
+            // Dead or old hal-service host.
+        } catch (_: RuntimeException) {
+            // A few old Binder implementations surface an unsupported transaction as a
+            // runtime exception instead of RemoteException.
         }
     }
 
