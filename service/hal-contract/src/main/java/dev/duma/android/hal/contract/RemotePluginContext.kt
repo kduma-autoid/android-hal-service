@@ -1,7 +1,7 @@
 package dev.duma.android.hal.contract
 
 import android.content.Context
-import android.os.DeadObjectException
+import android.os.RemoteException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -20,7 +20,7 @@ class RemotePluginContext(
         return withContext(Dispatchers.IO) {
             try {
                 binder.execute(method, params)
-            } catch (e: DeadObjectException) {
+            } catch (e: RemoteException) {
                 CommandResult.unavailable("hal-service connection lost")
             }
         }
@@ -29,7 +29,7 @@ class RemotePluginContext(
     override fun getAvailableCapabilities(): List<String> {
         return try {
             binder.availableCapabilities
-        } catch (e: DeadObjectException) {
+        } catch (e: RemoteException) {
             emptyList()
         }
     }
@@ -37,16 +37,19 @@ class RemotePluginContext(
     override fun hasCapability(capability: String): Boolean {
         return try {
             binder.hasCapability(capability)
-        } catch (e: DeadObjectException) {
+        } catch (e: RemoteException) {
             false
         }
     }
 
     override fun setPluginAvailable(available: Boolean) {
         try {
+            // Appended to the AIDL interface: a host built against the previous interface may
+            // reject the transaction. Availability is advisory, so that degrades to a no-op.
             binder.setPluginAvailable(available)
         } catch (e: Exception) {
             // hal-service gone or too old to support availability — it then treats us as available.
+            // Some old Binder implementations surface an unsupported transaction as a runtime exception.
         }
     }
 

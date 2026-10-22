@@ -10,6 +10,8 @@ const { client, isConnected } = useHalClient();
 const toast = useToast();
 
 const MAX_SCANS = 50;
+const SS2222_BACKEND = 'sunmi.scanner.ss2222';
+const SS2222_STATE_EVENT = 'sunmi.scanner.ss2222.stateChanged@sunmi.scanner.ss2222';
 
 interface LoggedScan extends ScanResult {
   at: Date;
@@ -32,7 +34,9 @@ const bindError = ref('');
 const usable = computed(() => enabledBackends(backends.value));
 
 let unsubscribeScan: (() => Promise<void>) | null = null;
+let unsubscribeState: (() => Promise<void>) | null = null;
 let unsubscribeChanges: (() => Promise<void>) | null = null;
+let ss2222StateVersion = 0;
 
 async function stopScanSubscription() {
   if (unsubscribeScan) {
@@ -45,6 +49,17 @@ async function stopScanSubscription() {
   }
 }
 
+async function stopStateSubscription() {
+  if (unsubscribeState) {
+    try {
+      await unsubscribeState();
+    } catch {
+      /* ignore */
+    }
+    unsubscribeState = null;
+  }
+}
+
 async function subscribeScans() {
   await stopScanSubscription();
   if (!scanner.value) return;
@@ -54,13 +69,37 @@ async function subscribeScans() {
   });
 }
 
+async function subscribeSs2222State() {
+  await stopStateSubscription();
+  if (!scanner.value || scanner.value.backend !== SS2222_BACKEND || !client.value) return;
+  const boundScanner = scanner.value;
+
+  unsubscribeState = await client.value.on(SS2222_STATE_EVENT, (_name, data) => {
+    // An unsubscribe can race an already queued event during rebind. Do not let an old bound
+    // scanner mutate the state of the new one.
+    if (scanner.value !== boundScanner) return;
+    if (!data || typeof data !== 'object') return;
+    const state = (data as { state?: unknown }).state;
+    if (typeof state !== 'string') return;
+
+    ss2222StateVersion += 1;
+    // The SS2222 backend publishes uppercase lifecycle states. Unknown/future states are treated
+    // as non-scanning until a known active state arrives.
+    scanning.value = state === 'STARTING' || state === 'SCANNING';
+  });
+}
+
 // Two `system.interfaces.changed` in a row would otherwise run bind() concurrently and leave two
 // onScan subscriptions, one of which nothing ever unsubscribes.
 const bind = serialized((pluginId?: string) => bindOnce(pluginId));
 
 async function bindOnce(pluginId?: string) {
+  // Invalidate an optimistic operation from the previous binding, even when this bind ends up
+  // disconnected or without a provider.
+  ss2222StateVersion += 1;
   if (!client.value || !isConnected.value) {
     await stopScanSubscription();
+    await stopStateSubscription();
     scanner.value = null;
     backends.value = [];
     return;
@@ -82,6 +121,7 @@ async function bindOnce(pluginId?: string) {
     // Nothing bindable. The template tells "no provider at all" apart from "all disabled" and from
     // a failure while enabled providers exist — only the first is "no backend".
     await stopScanSubscription();
+    await stopStateSubscription();
     scanner.value = null;
     selectedBackend.value = '';
     bindError.value = e instanceof Error ? e.message : String(e);
@@ -101,10 +141,19 @@ async function bindOnce(pluginId?: string) {
     await stopScanSubscription();
     scanError.value = e instanceof Error ? e.message : String(e);
   }
+
+  // This is deliberately independent of the scan subscription: HTTP can resolve the backend but
+  // cannot carry events, while the SS2222 lifecycle event is useful on the WebSocket transport.
+  try {
+    await subscribeSs2222State();
+  } catch {
+    await stopStateSubscription();
+  }
 }
 
 async function teardown() {
   await stopScanSubscription();
+  await stopStateSubscription();
   if (unsubscribeChanges) {
     try {
       await unsubscribeChanges();
@@ -148,20 +197,66 @@ const subscription = computed(() =>
 );
 
 async function trigger() {
+  const boundScanner = scanner.value!;
+  const isSs2222 = boundScanner.backend === SS2222_BACKEND;
+  const optimisticStateVersion = ss2222StateVersion;
+  const previousScanning = scanning.value;
+  // The scanner may publish SCANNING before the trigger ACK resolves. Set this first and do not
+  // write it again after the ACK for this backend, otherwise the ACK can race and revert the UI.
+  if (isSs2222) scanning.value = true;
   try {
-    await scanner.value!.trigger();
-    scanning.value = true;
+    await boundScanner.trigger();
+    if (!isSs2222) scanning.value = true;
   } catch (e) {
+    if (isSs2222) {
+      await reconcileSs2222AfterError(boundScanner, optimisticStateVersion, previousScanning);
+    }
     toast.error(e instanceof Error ? e.message : String(e));
   }
 }
 
 async function stop() {
+  const boundScanner = scanner.value!;
+  const isSs2222 = boundScanner.backend === SS2222_BACKEND;
+  const optimisticStateVersion = ss2222StateVersion;
+  const previousScanning = scanning.value;
+  if (isSs2222) scanning.value = false;
   try {
-    await scanner.value!.stop();
-    scanning.value = false;
+    await boundScanner.stop();
+    if (!isSs2222) scanning.value = false;
   } catch (e) {
+    if (isSs2222) {
+      await reconcileSs2222AfterError(boundScanner, optimisticStateVersion, previousScanning);
+    }
     toast.error(e instanceof Error ? e.message : String(e));
+  }
+}
+
+async function reconcileSs2222AfterError(
+  boundScanner: SunmiBarcodeScannerClient,
+  optimisticStateVersion: number,
+  previousScanning: boolean,
+) {
+  // A state event is authoritative. Only query/rollback while this is still the same binding and
+  // no event has arrived since the optimistic write.
+  if (scanner.value !== boundScanner || ss2222StateVersion !== optimisticStateVersion) return;
+
+  try {
+    const status = await client.value?.execute<{ state?: unknown }>(
+      `${SS2222_BACKEND}.getStatus`,
+      {},
+    );
+    if (scanner.value !== boundScanner || ss2222StateVersion !== optimisticStateVersion) return;
+    const state = status && typeof status.state === 'string' ? status.state : undefined;
+    if (state) {
+      scanning.value = state === 'STARTING' || state === 'SCANNING';
+    } else {
+      scanning.value = previousScanning;
+    }
+  } catch {
+    if (scanner.value === boundScanner && ss2222StateVersion === optimisticStateVersion) {
+      scanning.value = previousScanning;
+    }
   }
 }
 

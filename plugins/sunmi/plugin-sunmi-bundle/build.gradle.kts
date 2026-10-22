@@ -49,6 +49,7 @@ dependencies {
     implementation(project(":service:hal-contract"))
     implementation(project(":plugins:sunmi:plugin-sunmi-printer-lib"))
     implementation(project(":plugins:sunmi:plugin-sunmi-scanner-lib"))
+    implementation(project(":plugins:sunmi:plugin-sunmi-scanner-ss2222-lib"))
     implementation(project(":plugins:sunmi:sunmiperipher:plugin-sunmi-statuslight-lib"))
     implementation(project(":plugins:sunmi:sunmiperipher:plugin-sunmi-nfc-lib"))
     implementation(project(":plugins:sunmi:sunmiperipher:plugin-sunmi-card-lib"))

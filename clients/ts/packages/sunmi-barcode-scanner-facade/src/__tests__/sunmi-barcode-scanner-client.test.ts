@@ -41,6 +41,7 @@ function clientWithScanner(providers: FakeProvider[]): IHalClient {
 
 const INNER: FakeProvider = { pluginId: 'sunmi.scanner.inner', isDefault: true };
 const CAMERA: FakeProvider = { pluginId: 'sunmi.scanner.camera' };
+const SS2222: FakeProvider = { pluginId: 'sunmi.scanner.ss2222' };
 
 describe('SunmiBarcodeScannerClient (barcodeScanner interface)', () => {
   describe('detect / create', () => {
@@ -81,6 +82,15 @@ describe('SunmiBarcodeScannerClient (barcodeScanner interface)', () => {
 
       await cam.trigger();
       expect(client.execute).toHaveBeenCalledWith('barcodeScanner.trigger@sunmi.scanner.camera', {});
+    });
+
+    it('binds the SS2222 backend through the generic forBackend path', async () => {
+      const client = clientWithScanner([INNER, SS2222]);
+      const scanner = await SunmiBarcodeScannerClient.forBackend(client, SS2222.pluginId);
+
+      expect(scanner.backend).toBe('sunmi.scanner.ss2222');
+      await scanner.trigger();
+      expect(client.execute).toHaveBeenCalledWith('barcodeScanner.trigger@sunmi.scanner.ss2222', {});
     });
   });
 

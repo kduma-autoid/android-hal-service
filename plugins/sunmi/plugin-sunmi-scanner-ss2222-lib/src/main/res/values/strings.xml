@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ss2222_accessibility_service_label">Sunmi SS2222 keyboard filter</string>
+    <string name="ss2222_accessibility_service_description">Filters keyboard events from the Sunmi SS2222 scanner.</string>
+</resources>
