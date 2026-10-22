@@ -9,9 +9,15 @@ import android.hardware.usb.UsbManager
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.runBlocking
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -119,10 +125,77 @@ class AndroidUsbMessageTransportTest {
         verify(exactly = 1) { fixture.connection.close() }
     }
 
+    @Test
+    fun `zero length reads preserve ACK and fragmented revision without framing errors`() {
+        val ack = hex("04 D0 00 00 FF 2C")
+        val revision = byteArrayOf(0x60, 0xA4.toByte(), 0x00, 0x00) +
+            "Product Name:SS2222 Product ID:2502D57G02104 Hardware version:V3.0.A Firmware version:2.4.94"
+                .encodeToByteArray() + hex("E2 43")
+        val revisionReports = HidReportCodec.encode(revision)
+        assertEquals(2, revisionReports.size)
+
+        val received = RecordingCallbacks(expectedMessages = 2)
+        val reads = queuedReads(
+            ReadStep.Zero,
+            ReadStep.Zero,
+            ReadStep.Zero,
+            ReadStep.Report(HidReportCodec.encode(ack).single()),
+            ReadStep.Zero,
+            ReadStep.Report(revisionReports[0]),
+            ReadStep.Zero,
+            ReadStep.Report(revisionReports[1]),
+        )
+        val fixture = fixture(readScript = reads)
+        every { fixture.manager.openDevice(fixture.device) } returns fixture.connection
+        every { fixture.connection.claimInterface(fixture.if1, true) } returns true
+
+        val transport = AndroidUsbMessageTransport.open(fixture.manager, fixture.device, received)
+        try {
+            assertTrue(received.awaitMessages(), "reader did not deliver ACK and revision")
+            assertEquals(0, received.framingErrors.size)
+            assertContentEquals(ack, received.messages[0])
+            assertContentEquals(revision, received.messages[1])
+        } finally {
+            runBlocking { transport.close() }
+        }
+    }
+
+    @Test
+    fun `positive short read rejects partial message and recovers at next complete report`() {
+        val staleMessageReports = HidReportCodec.encode(ByteArray(57) { (it + 1).toByte() })
+        val freshMessage = "fresh barcode\r".encodeToByteArray()
+        val received = RecordingCallbacks(expectedMessages = 1)
+        val reads = queuedReads(
+            ReadStep.Report(staleMessageReports[0]),
+            ReadStep.Short(ByteArray(7) { 0x7F.toByte() }),
+            ReadStep.Report(staleMessageReports[1]),
+            ReadStep.Report(HidReportCodec.encode(freshMessage).single()),
+        )
+        val fixture = fixture(readScript = reads)
+        every { fixture.manager.openDevice(fixture.device) } returns fixture.connection
+        every { fixture.connection.claimInterface(fixture.if1, true) } returns true
+
+        val transport = AndroidUsbMessageTransport.open(fixture.manager, fixture.device, received)
+        try {
+            assertTrue(received.awaitMessages(), "reader did not recover after short report")
+            assertEquals(1, received.framingErrors.size)
+            assertTrue(received.framingErrors.single().contains("got 7"))
+            assertEquals(1, received.messages.size)
+            assertContentEquals(freshMessage, received.messages.single())
+        } finally {
+            runBlocking { transport.close() }
+        }
+    }
+
     private fun callbacks() = object : AndroidUsbMessageTransport.Callbacks {
         override fun onMessage(transport: AndroidUsbMessageTransport, message: ByteArray) = Unit
         override fun onFramingError(transport: AndroidUsbMessageTransport, message: String) = Unit
     }
+
+    private fun queuedReads(vararg steps: ReadStep) = QueuedReads(steps.toList())
+
+    private fun hex(value: String): ByteArray = value.split(' ')
+        .map { it.toInt(16).toByte() }.toByteArray()
 
     private fun fixture(
         includeInterface1: Boolean = true,
@@ -136,6 +209,7 @@ class AndroidUsbMessageTransportTest {
         outputType: Int = UsbConstants.USB_ENDPOINT_XFER_INT,
         outputPacketSize: Int = HidReportCodec.REPORT_SIZE,
         endpointCount: Int = 2,
+        readScript: QueuedReads? = null,
     ): Fixture {
         val manager = mockk<UsbManager>()
         val device = mockk<UsbDevice>()
@@ -165,10 +239,11 @@ class AndroidUsbMessageTransportTest {
             every { device.getInterface(0) } returns if0
         }
 
-        // Keep the reader thread deterministic and short-lived when close() is tested.
         every {
             connection.bulkTransfer(any<UsbEndpoint>(), any<ByteArray>(), any(), any())
-        } returns -1
+        } answers {
+            readScript?.read(args[1] as ByteArray) ?: -1
+        }
 
         return Fixture(manager, device, connection, if0, if1)
     }
@@ -188,4 +263,44 @@ class AndroidUsbMessageTransportTest {
         val if0: UsbInterface,
         val if1: UsbInterface,
     )
+
+    private sealed interface ReadStep {
+        data object Zero : ReadStep
+        data class Report(val bytes: ByteArray) : ReadStep
+        data class Short(val bytes: ByteArray) : ReadStep
+    }
+
+    private class QueuedReads(steps: List<ReadStep>) {
+        private val steps = ConcurrentLinkedQueue<ReadStep>().apply { addAll(steps) }
+
+        fun read(buffer: ByteArray): Int = when (val step = steps.poll()) {
+            null -> -1
+            ReadStep.Zero -> 0
+            is ReadStep.Report -> copy(step.bytes, buffer)
+            is ReadStep.Short -> copy(step.bytes, buffer)
+        }
+
+        private fun copy(bytes: ByteArray, buffer: ByteArray): Int {
+            if (bytes.size > buffer.size) error("queued read is larger than USB buffer")
+            bytes.copyInto(buffer)
+            return bytes.size
+        }
+    }
+
+    private class RecordingCallbacks(expectedMessages: Int) : AndroidUsbMessageTransport.Callbacks {
+        val messages = CopyOnWriteArrayList<ByteArray>()
+        val framingErrors = CopyOnWriteArrayList<String>()
+        private val messageLatch = CountDownLatch(expectedMessages)
+
+        override fun onMessage(transport: AndroidUsbMessageTransport, message: ByteArray) {
+            messages += message.copyOf()
+            messageLatch.countDown()
+        }
+
+        override fun onFramingError(transport: AndroidUsbMessageTransport, message: String) {
+            framingErrors += message
+        }
+
+        fun awaitMessages(): Boolean = messageLatch.await(2, TimeUnit.SECONDS)
+    }
 }
