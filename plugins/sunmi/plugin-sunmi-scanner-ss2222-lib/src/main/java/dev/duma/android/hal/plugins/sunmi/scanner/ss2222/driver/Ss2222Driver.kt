@@ -10,6 +10,7 @@ import android.hardware.usb.UsbManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.ContextCompat
 import dev.duma.android.hal.plugins.sunmi.scanner.ss2222.BuildConfig
@@ -151,7 +152,12 @@ class Ss2222Driver(
             override fun onError(code: String, message: String) = publishError(code, message)
 
             override fun onDiagnostic(message: String) {
-                if (BuildConfig.WITH_EXPERIMENTAL) Log.d(TAG, message)
+                if (BuildConfig.WITH_EXPERIMENTAL) {
+                    // Keep logcat I/O off the barcode -> EA path. Capture event time now,
+                    // since the main looper may flush this diagnostic message later.
+                    val timestamp = SystemClock.elapsedRealtime()
+                    main.post { Log.d(TAG, "tMs=$timestamp $message") }
+                }
             }
 
             override fun onRevision(packet: SsiCodec.Packet) {
