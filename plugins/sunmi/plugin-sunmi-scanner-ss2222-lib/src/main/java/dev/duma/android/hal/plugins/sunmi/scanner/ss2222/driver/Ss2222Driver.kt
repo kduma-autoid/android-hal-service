@@ -10,6 +10,7 @@ import android.hardware.usb.UsbManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import androidx.core.content.ContextCompat
 import dev.duma.android.hal.plugins.sunmi.scanner.ss2222.Ss2222Parameters
 import java.util.concurrent.atomic.AtomicBoolean
@@ -423,6 +424,7 @@ class Ss2222Driver(
     private fun publishState(newState: State, generation: Long = lifecycleGeneration.get()) {
         if (generation != lifecycleGeneration.get() || closed) return
         if (stateValue == newState) return
+        Log.i(TAG, "State $stateValue -> $newState")
         stateValue = newState
         main.post {
             if (generation == lifecycleGeneration.get() && !closed) {
@@ -438,6 +440,7 @@ class Ss2222Driver(
     ) {
         main.post {
             if (generation == lifecycleGeneration.get() && !closed) {
+                Log.w(TAG, "$code: $message")
                 listener.onError(code, message)
             }
         }
@@ -453,6 +456,7 @@ class Ss2222Driver(
     private fun Intent.usbDevice(): UsbDevice? = getParcelableExtra(UsbManager.EXTRA_DEVICE)
 
     companion object {
+        private const val TAG = "SS2222"
         const val VENDOR_ID = 0x324F
         const val PRODUCT_ID = 0x0113
         private const val EXPECTED_MODEL = "SS2222"
