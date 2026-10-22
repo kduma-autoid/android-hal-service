@@ -12,6 +12,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import androidx.core.content.ContextCompat
+import dev.duma.android.hal.plugins.sunmi.scanner.ss2222.BuildConfig
 import dev.duma.android.hal.plugins.sunmi.scanner.ss2222.Ss2222Parameters
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -148,6 +149,10 @@ class Ss2222Driver(
             }
 
             override fun onError(code: String, message: String) = publishError(code, message)
+
+            override fun onDiagnostic(message: String) {
+                if (BuildConfig.WITH_EXPERIMENTAL) Log.d(TAG, message)
+            }
 
             override fun onRevision(packet: SsiCodec.Packet) {
                 val generation = lifecycleGeneration.get()

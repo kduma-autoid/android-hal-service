@@ -16,6 +16,7 @@ internal interface MessageTransport {
     suspend fun send(message: ByteArray)
     suspend fun close()
     fun beginScanSession() = Unit
+    fun diagnosticState(): String = "unavailable"
 }
 
 internal interface ControllerEvents {
@@ -24,6 +25,7 @@ internal interface ControllerEvents {
     fun onError(code: String, message: String)
     fun onRevision(packet: SsiCodec.Packet)
     fun onTransportInvalidated(transport: MessageTransport)
+    fun onDiagnostic(message: String) = Unit
 }
 
 internal class Ss2222Controller(
@@ -33,6 +35,7 @@ internal class Ss2222Controller(
     private val closeTimeoutMs: Long = 2_500,
 ) {
     private data class Pending(
+        val opcode: Int,
         val source: MessageTransport,
         val generation: Long,
         val accepts: (SsiCodec.Packet) -> Boolean,
@@ -262,26 +265,43 @@ internal class Ss2222Controller(
         if (bytes.isEmpty()) return
         val packet = SsiCodec.decodeOrNull(bytes)
         if (packet != null) {
-            if (packet.source != SsiCodec.SOURCE_SCANNER) return
+            var disposition = "stale_transport"
+            var waitingOpcode: Int? = null
             val completed = synchronized(sessionLock) {
-                if (source !== transport) return
+                if (source !== transport) return@synchronized null
                 val request = pending.get()
-                if (
-                    request != null && request.source === source &&
-                    request.generation == generation && request.accepts(packet) &&
-                    pending.compareAndSet(request, null)
-                ) request else null
+                waitingOpcode = request?.opcode
+                disposition = when {
+                    packet.source != SsiCodec.SOURCE_SCANNER -> "wrong_source"
+                    request == null -> "unsolicited"
+                    request.source !== source || request.generation != generation -> "stale_request"
+                    !request.accepts(packet) -> "unexpected_reply"
+                    else -> "matched"
+                }
+                if (disposition == "matched" && request != null) {
+                    if (pending.compareAndSet(request, null)) request else {
+                        disposition = "pending_changed"
+                        null
+                    }
+                } else null
             }
             completed?.result?.complete(packet)
+            events.onDiagnostic(
+                "SSI rx opcode=0x${packet.opcode.toString(16)} source=${packet.source} " +
+                    "status=${packet.status} dataBytes=${packet.data.size} " +
+                    "pending=${waitingOpcode?.toString(16)} result=$disposition",
+            )
             return
         }
         if (SsiCodec.looksLikeScannerPacket(bytes)) {
             synchronized(sessionLock) {
                 if (source !== transport) return
             }
+            events.onDiagnostic("SSI malformed bytes=${bytes.size} state=$state")
             events.onError("invalid_response", "Discarded malformed SSI response")
             return
         }
+        events.onDiagnostic("HID data bytes=${bytes.size} state=$state")
         acceptBarcode(source, bytes)
     }
 
@@ -449,17 +469,26 @@ internal class Ss2222Controller(
         if (desynchronized) throw DriverException("desynchronized", "SSI transport requires a physical hotplug")
         val request = synchronized(sessionLock) {
             if (transport !== active) throw DriverException("device_disconnected", "Scanner connection changed")
-            Pending(active, generation, accepts, CompletableDeferred()).also {
+            Pending(opcode, active, generation, accepts, CompletableDeferred()).also {
                 check(pending.compareAndSet(null, it)) { "Only one SSI request may be outstanding" }
             }
         }
+        val startedAtNs = System.nanoTime()
+        fun elapsedMs() = (System.nanoTime() - startedAtNs) / 1_000_000
+        events.onDiagnostic("SSI tx opcode=0x${opcode.toString(16)} state=$state ${active.diagnosticState()}")
         try {
             withTimeout(commandTimeoutMs) {
                 active.send(SsiCodec.encode(opcode, data))
-                request.result.await()
+                events.onDiagnostic("SSI sent opcode=0x${opcode.toString(16)} elapsedMs=${elapsedMs()}")
+                request.result.await().also {
+                    events.onDiagnostic("SSI complete opcode=0x${opcode.toString(16)} elapsedMs=${elapsedMs()}")
+                }
             }
         } catch (e: TimeoutCancellationException) {
             pending.compareAndSet(request, null)
+            events.onDiagnostic(
+                "SSI timeout opcode=0x${opcode.toString(16)} elapsedMs=${elapsedMs()} ${active.diagnosticState()}",
+            )
             val failure = DriverException(
                 "command_timeout",
                 "No matching reply to SSI command 0x${opcode.toString(16)} within ${commandTimeoutMs}ms",
@@ -528,6 +557,7 @@ internal class Ss2222Controller(
     }
 
     private suspend fun stopAfterSingleRead() {
+        events.onDiagnostic("Auto-stop after single barcode")
         try {
             stop()
         } catch (_: Throwable) {

@@ -154,6 +154,12 @@ Wyparcie wersji wbudowanej przez bundle nie daje starym callbackom kontroli nad 
 Przy statusie `UNAVAILABLE` logcat z tagiem `SS2222` pokazuje przejścia stanów oraz kod i opis
 błędu inicjalizacji, bez treści skanowanych kodów. `permission_denied` oznacza brak zgody Androida
 na USB; ponowne uruchomienie usługi HAL lub odłączenie i podłączenie skanera ponawia żądanie zgody.
+Wariant `development` dodatkowo loguje czas wysłania i zakończenia komend, metadane odpowiedzi SSI
+oraz powód ich przyjęcia lub odrzucenia. Przy rozpoczęciu komendy i jej timeoutcie zapisuje stan
+wątku USB, liczniki odczytów i wiek ostatniego raportu; porównanie pozwala odróżnić brak odbioru od
+odrzucenia odpowiedzi. Logi nie zawierają treści kodów ani wartości parametrów.
+`command_timeout` unieważnia połączenie i wymaga odłączenia oraz ponownego podłączenia skanera,
+nawet jeśli urządzenie nadal figuruje na liście USB Androida.
 
 Testy jednostkowe nie zastępują odbioru na Flex 3 z SS2222. Przeprowadzić osobno dla wersji
 wbudowanej i bundle, w obu wariantach stabilności:
