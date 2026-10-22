@@ -84,7 +84,10 @@ internal class AndroidUsbMessageTransport private constructor(
                 val read = connection.bulkTransfer(input, report, report.size, READ_TIMEOUT_MS)
                 if (!running.get()) break
                 if (read != report.size) {
-                    if (read >= 0) {
+                    // Flex 3 reports zero-byte USB transfers between valid HID reports. No
+                    // fragment was consumed, so keep the current message and its boundary.
+                    // Only a positive short read has consumed a malformed/partial report.
+                    if (read > 0) {
                         try {
                             assembler.rejectShortReport(read)
                         } catch (e: FramingException) {
@@ -94,7 +97,7 @@ internal class AndroidUsbMessageTransport private constructor(
                             )
                         }
                     }
-                    if (read < 0 && ++consecutiveErrors >= ERROR_BACKOFF_THRESHOLD) {
+                    if (read <= 0 && ++consecutiveErrors >= ERROR_BACKOFF_THRESHOLD) {
                         try {
                             sleep(ERROR_BACKOFF_MS)
                         } catch (_: InterruptedException) {

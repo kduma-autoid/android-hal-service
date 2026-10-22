@@ -27,6 +27,8 @@ Komendy SSI są serializowane. Termin odpowiedzi wynosi 2 s. Timeout unieważnia
 wysyła best-effort `EA` i wymaga fizycznego odłączenia oraz ponownego podłączenia skanera.
 Spóźniony ACK nie jest odpowiedzią na następną komendę. Fragmentacja HID ma limit 16 KiB
 oraz 1 s na wiadomość; niepełne i błędne wiadomości są odrzucane.
+Puste transfery USB (0 B), obserwowane na Flex 3 pomiędzy poprawnymi raportami, nie są fragmentami
+HID: są pomijane bez przerywania składania wiadomości.
 Reconnect wraca do bezczynności, bez automatycznego wznowienia skanowania.
 
 ## Metody
@@ -148,6 +150,10 @@ Zdarzenia i dostępność w nowym hostcie są powiązane z instancją i generacj
 Wyparcie wersji wbudowanej przez bundle nie daje starym callbackom kontroli nad następcą.
 
 ## Odbiór na sprzęcie
+
+Przy statusie `UNAVAILABLE` logcat z tagiem `SS2222` pokazuje przejścia stanów oraz kod i opis
+błędu inicjalizacji, bez treści skanowanych kodów. `permission_denied` oznacza brak zgody Androida
+na USB; ponowne uruchomienie usługi HAL lub odłączenie i podłączenie skanera ponawia żądanie zgody.
 
 Testy jednostkowe nie zastępują odbioru na Flex 3 z SS2222. Przeprowadzić osobno dla wersji
 wbudowanej i bundle, w obu wariantach stabilności:
