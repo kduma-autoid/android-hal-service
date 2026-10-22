@@ -30,6 +30,15 @@ internal class AndroidUsbMessageTransport private constructor(
     private val closed = AtomicBoolean(false)
     private val scanEpoch = AtomicLong(0)
     private val writeLock = Any()
+    private val fullReports = AtomicLong(0)
+    private val emptyReads = AtomicLong(0)
+    private val negativeReads = AtomicLong(0)
+    private val shortReads = AtomicLong(0)
+    private val messages = AtomicLong(0)
+    private val staleMessages = AtomicLong(0)
+    @Volatile private var lastReadAtMs = 0L
+    @Volatile private var lastReportAtMs = 0L
+    @Volatile private var lastReadResult: Int? = null
     private val reader = Reader().also { it.start() }
 
     override suspend fun send(message: ByteArray) = withContext(Dispatchers.IO) {
@@ -52,6 +61,15 @@ internal class AndroidUsbMessageTransport private constructor(
 
     override fun beginScanSession() {
         scanEpoch.incrementAndGet()
+    }
+
+    override fun diagnosticState(): String {
+        val now = SystemClock.elapsedRealtime()
+        fun age(timestamp: Long) = if (timestamp == 0L) -1L else now - timestamp
+        return "USB reader=${reader.state} running=${running.get()} closed=${closed.get()} " +
+            "reports=${fullReports.get()} empty=${emptyReads.get()} negative=${negativeReads.get()} " +
+            "short=${shortReads.get()} messages=${messages.get()} stale=${staleMessages.get()} " +
+            "lastRead=$lastReadResult lastReadAgeMs=${age(lastReadAtMs)} lastReportAgeMs=${age(lastReportAtMs)}"
     }
 
     override suspend fun close() = withContext(Dispatchers.IO) {
@@ -82,8 +100,15 @@ internal class AndroidUsbMessageTransport private constructor(
             var consecutiveErrors = 0
             while (running.get()) {
                 val read = connection.bulkTransfer(input, report, report.size, READ_TIMEOUT_MS)
+                lastReadResult = read
+                lastReadAtMs = SystemClock.elapsedRealtime()
                 if (!running.get()) break
                 if (read != report.size) {
+                    when {
+                        read == 0 -> emptyReads.incrementAndGet()
+                        read < 0 -> negativeReads.incrementAndGet()
+                        else -> shortReads.incrementAndGet()
+                    }
                     // Flex 3 reports zero-byte USB transfers between valid HID reports. No
                     // fragment was consumed, so keep the current message and its boundary.
                     // Only a positive short read has consumed a malformed/partial report.
@@ -107,6 +132,8 @@ internal class AndroidUsbMessageTransport private constructor(
                     }
                     continue
                 }
+                fullReports.incrementAndGet()
+                lastReportAtMs = lastReadAtMs
                 consecutiveErrors = 0
                 try {
                     assembler.acceptTagged(
@@ -114,8 +141,11 @@ internal class AndroidUsbMessageTransport private constructor(
                         SystemClock.elapsedRealtime(),
                         scanEpoch.get(),
                     )?.let { completed ->
+                        messages.incrementAndGet()
                         if (completed.epoch == scanEpoch.get()) {
                             callbacks.onMessage(this@AndroidUsbMessageTransport, completed.bytes)
+                        } else {
+                            staleMessages.incrementAndGet()
                         }
                     }
                 } catch (e: FramingException) {
