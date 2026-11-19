@@ -158,8 +158,19 @@ class WsTransport : CommandTransport, EventTransport {
             }
 
             is WsMessage.Authenticate -> {
-                session.token = msg.token
-                WsProtocol.serializeResponse(msg.id, """{"authenticated":true}""")
+                // Validated up front, so a client re-authenticating after a reconnect learns at once
+                // that its token expired or was revoked — not only on its next command. A rejected
+                // token also drops the session's previous one rather than leaving it in use.
+                when (val result = handler.validateToken(msg.token, callerContext)) {
+                    is CommandResult.Success -> {
+                        session.token = msg.token
+                        WsProtocol.serializeResponse(msg.id, result.body ?: """{"authenticated":true}""")
+                    }
+                    is CommandResult.Failure -> {
+                        session.token = null
+                        WsProtocol.serializeError(msg.id, result.code, result.message)
+                    }
+                }
             }
 
             is WsMessage.Command -> {
