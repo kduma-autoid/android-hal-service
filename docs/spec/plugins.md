@@ -165,7 +165,7 @@ przy błędzie odczytu.
 
 | plugin | priority | features | build |
 |--------|----------|----------|-------|
-| `msr605x` (`Msr605xPlugin`) | 100 (default) | `read`, `write` | wszystkie flavory, development (experimental) |
+| `msr605x` (`Msr605xPlugin`) | 100 (default) | `read`, `write` | wbudowany w flavor `sunmi`; inne buildy — osobne APK `plugin-msr605x-bundle` |
 | `sunmi.card` (`SunmiCardPlugin`) | 50 | — (pasywny) | sunmi development (experimental) |
 
 `magneticCardReader.read` bez sufiksu trafia do providera z cechą `read` nawet gdy defaultem jest pasywny
@@ -175,8 +175,17 @@ czytnik; `magneticCardReader.read@sunmi.card` → `unavailable`.
 
 Czytnik/nagrywarka kart magnetycznych **MSR605X** (USB HID, VID `0x0801`, PID `0x0003`), sterowany bezpośrednio
 przez Android USB host API — bez SDK producenta. Port sterownika `msr605x.py` (Magnetic-Fox, 2026). Działa na
-każdym urządzeniu z USB-OTG, więc moduł jest podpięty pod wszystkie flavory; jako całość jest `experimental`
-(niezweryfikowany na sprzęcie), więc w buildach `stable` nie wystawia niczego.
+każdym urządzeniu z USB-OTG. Plugin **nie jest experimental** (zweryfikowany na sprzęcie, łącznie z
+zapisem i kasowaniem).
+
+**Dystrybucja:**
+- wbudowany w hal-service tylko we flavorze `sunmi` (stable i development);
+- osobne APK **`plugin-msr605x-bundle`** (`dev.duma.android.hal.plugins.msr605x`, flavory stable/development)
+  dla pozostałych buildów — Service `Msr605xService` z `PluginServiceWrapper`, wykrywany przez
+  `dev.duma.android.hal.HARDWARE_PLUGIN`. Zainstalowany nadpisuje wersję wbudowaną (zewnętrzny plugin wypiera
+  built-in). Plugin działa wtedy w procesie bundle'a: tam trzyma połączenie USB i nasłuchiwanie, a uprawnienie
+  USB należy do aplikacji bundle'a. Dostępność (`setPluginAvailable`) i ustawienia przechodzą przez AIDL
+  (patrz [`plugin-contract.md`](plugin-contract.md)), więc działa tak samo jak wbudowany.
 
 ```kotlin
 pluginId = "msr605x"
@@ -206,7 +215,7 @@ czytnik sam steruje diodami, więc stan ustawiony `setLed` nie utrzymuje się po
 
 Automatyczny start steruje ustawienie pluginu **„Listen for card swipes automatically”** (hal-service →
 szczegóły pluginu MSR605X → Settings, domyślnie włączone); `msr605x.setListening` przełącza je doraźnie
-do restartu usługi. W buildach `stable` (plugin wycięty) nasłuchiwanie nie startuje.
+do restartu usługi.
 
 **Metody** (uprawnienie `msr605x`):
 
@@ -214,9 +223,9 @@ do restartu usługi. W buildach `stable` (plugin wycięty) nasłuchiwanie nie st
 |--------|--------|------|
 | msr605x.read | `{timeoutMs?}` (domyślnie 15000, max 120000) | czeka na kartę → `{status, track1, track2, track3}` |
 | msr605x.readRaw | `{timeoutMs?}` | surowe ścieżki (hex) |
-| msr605x.write *(exp.)* | `{track1?, track2?, track3?, timeoutMs?}` | zapis ISO 7811 (walidacja alfabetu i długości) |
-| msr605x.writeRaw *(exp.)* | `{track1?, track2?, track3? (hex), timeoutMs?}` | zapis surowy (najpierw BPC 8,8,8) |
-| msr605x.erase *(exp.)* | `{tracks: [1,2,3], timeoutMs?}` | kasowanie ścieżek |
+| msr605x.write | `{track1?, track2?, track3?, timeoutMs?}` | zapis ISO 7811 (walidacja alfabetu i długości) |
+| msr605x.writeRaw | `{track1?, track2?, track3? (hex), timeoutMs?}` | zapis surowy (najpierw BPC 8,8,8) |
+| msr605x.erase | `{tracks: [1,2,3], timeoutMs?}` | kasowanie ścieżek |
 | msr605x.cancel | `{}` | przerywa oczekiwanie na kartę (omija mutex) |
 | msr605x.setCoercivity / getCoercivity | `{mode: "hi"\|"lo"}` | Hi-Co / Lo-Co |
 | msr605x.setBpi | `{track1?, track2?, track3?: 210\|75}` | bity na cal |

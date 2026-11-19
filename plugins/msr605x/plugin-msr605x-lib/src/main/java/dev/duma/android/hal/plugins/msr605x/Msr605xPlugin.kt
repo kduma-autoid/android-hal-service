@@ -21,7 +21,6 @@ import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
 import dev.duma.android.hal.contract.PluginSetting
-import dev.duma.android.hal.contract.stripExperimental
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -90,7 +89,7 @@ class Msr605xPlugin(
     private var listenJob: Job? = null
     /** Commands currently holding the reader; listening resumes when this drops to 0. Guarded by [listenLock]. */
     private var activeCommands = 0
-    @Volatile private var listeningEnabled = BuildConfig.WITH_EXPERIMENTAL
+    @Volatile private var listeningEnabled = true
     @Volatile private var disposed = false
 
     private val usbManager: UsbManager?
@@ -121,8 +120,7 @@ class Msr605xPlugin(
 
     override fun getCapabilities(): List<String> = listOf(CAPABILITY)
 
-    override fun getSettings(): List<PluginSetting> =
-        if (BuildConfig.WITH_EXPERIMENTAL) listOf(
+    override fun getSettings(): List<PluginSetting> = listOf(
             PluginSetting(
                 key = SETTING_AUTO_LISTEN,
                 title = "Listen for card swipes automatically",
@@ -131,18 +129,17 @@ class Msr605xPlugin(
                     "(or after msr605x.setListening).",
                 default = true
             )
-        ) else emptyList()
+        )
 
     override fun onSettingChanged(key: String, value: Boolean) {
-        if (key != SETTING_AUTO_LISTEN || !BuildConfig.WITH_EXPERIMENTAL) return
+        if (key != SETTING_AUTO_LISTEN) return
         listeningEnabled = value
         if (value) startListeningIfIdle() else stopListening()
     }
 
     override fun initialize(pluginContext: PluginContext) {
         this.pluginContext = pluginContext
-        listeningEnabled = BuildConfig.WITH_EXPERIMENTAL &&
-            pluginContext.getBooleanSetting(SETTING_AUTO_LISTEN, default = true)
+        listeningEnabled = pluginContext.getBooleanSetting(SETTING_AUTO_LISTEN, default = true)
         val ctx = appContext ?: return
         val filter = IntentFilter().apply {
             addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
@@ -303,27 +300,22 @@ class Msr605xPlugin(
 
     // --- Descriptor ---
 
-    override fun getDescriptor() = fullDescriptor().let {
-        if (BuildConfig.WITH_EXPERIMENTAL) it else it.stripExperimental()
-    }
+    override fun getDescriptor() = fullDescriptor()
 
     private fun method(
         name: String,
         description: String,
         params: String = "{}",
-        output: String = "{}",
-        experimental: Boolean = false
+        output: String = "{}"
     ) = MethodDescriptor(
         "$CAPABILITY.$name", description, CAPABILITY,
-        experimental = experimental, exampleParameters = params, exampleOutput = output
+        exampleParameters = params, exampleOutput = output
     )
 
     private fun fullDescriptor() = PluginDescriptor(
         pluginId = pluginId,
         name = "MSR605X: Magnetic Card Reader/Writer",
         version = version,
-        // Not yet verified on hardware — gated until enabled in settings, compiled out of stable builds.
-        experimental = true,
         capabilities = getCapabilities(),
         interfaces = listOf(
             InterfaceBinding("magneticCardReader", priority = 100, features = listOf("read", "write"))
@@ -349,22 +341,19 @@ class Msr605xPlugin(
                         "write",
                         "Wait for a card swipe and write ISO 7811 tracks (data without sentinels). Omitted tracks are left untouched.",
                         params = """{"track1":"B4111111111111111^DOE/JOHN^2512101123400001","track2":"4111111111111111=2512101","timeoutMs":15000}""",
-                        output = """{"status":"ok"}""",
-                        experimental = true
+                        output = """{"status":"ok"}"""
                     ),
                     method(
                         "writeRaw",
                         "Wait for a card swipe and write raw track data (hex). Switches the device to 8 bits per character first.",
                         params = """{"track1":"a2c4e6","timeoutMs":15000}""",
-                        output = """{"status":"ok"}""",
-                        experimental = true
+                        output = """{"status":"ok"}"""
                     ),
                     method(
                         "erase",
                         "Wait for a card swipe and erase the given tracks.",
                         params = """{"tracks":[1,2,3],"timeoutMs":15000}""",
-                        output = """{"status":"ok"}""",
-                        experimental = true
+                        output = """{"status":"ok"}"""
                     ),
                     method("cancel", "Abort a pending swipe wait (read/write/erase).", output = """{"cancelled":true}""")
                 ),
