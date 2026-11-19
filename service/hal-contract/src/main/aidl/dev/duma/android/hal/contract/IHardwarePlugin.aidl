@@ -20,4 +20,6 @@ interface IHardwarePlugin {
     /** JSON array of PluginSetting, or null/"[]" when the plugin declares none. */
     String getSettingsJson();
     void onSettingChanged(String key, boolean value);
+    // Appended last to keep the transaction codes above stable for older bundles and hosts.
+    String getKeyboardFilterDevicesJson();
 }
