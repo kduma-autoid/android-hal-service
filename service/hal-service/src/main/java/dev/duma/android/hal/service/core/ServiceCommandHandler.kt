@@ -248,6 +248,11 @@ class ServiceCommandHandler(
         return CommandResult.Success()
     }
 
+    override suspend fun validateToken(token: String, callerContext: CallerContext): CommandResult {
+        val entity = requireToken(token, callerContext) ?: return CommandResult.unauthorized("Invalid token")
+        return CommandResult.Success("""{"authenticated":true,"expires_at":${entity.expiresAt ?: "null"}}""")
+    }
+
     override fun getStatus(): String = handleStatus()
 
     /**
