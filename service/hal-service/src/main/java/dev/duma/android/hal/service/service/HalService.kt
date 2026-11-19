@@ -56,6 +56,8 @@ class HalService : Service() {
         private const val NOTIFICATION_ID = 1
         private const val GRANT_CHANNEL_ID = "hal_grant_requests"
         private const val GRANT_NOTIFICATION_ID = 2
+        /** How long a permission dialog waits for an answer. Clients wait a bit longer for the token. */
+        private const val GRANT_DIALOG_TIMEOUT_MS = 60_000L
         const val PORT = 8400
 
         var isServiceRunning: Boolean = false
@@ -116,11 +118,12 @@ class HalService : Service() {
             showGrantDialog = { callerContext, request ->
             Log.i(TAG, "Grant dialog requested for clientId=${request.clientId}")
             val deferred = CompletableDeferred<GrantDecision>()
+            var dismiss: () -> Unit = {}
 
             if (Settings.canDrawOverlays(serviceContext)) {
                 // Primary: overlay dialog over any app
                 Log.i(TAG, "Showing overlay dialog")
-                kotlinx.coroutines.withContext(Dispatchers.Main) {
+                dismiss = kotlinx.coroutines.withContext(Dispatchers.Main) {
                     GrantOverlayDialog.show(
                         serviceContext, request.clientId,
                         callerContext.packageName, callerContext.origin,
@@ -139,9 +142,23 @@ class HalService : Service() {
                     putExtra(GrantPermissionActivity.EXTRA_REQUESTED_PERMISSIONS, request.requestedPermissions?.toTypedArray())
                 }
                 showGrantNotification(activityIntent, request.clientId)
+                dismiss = {
+                    GrantPermissionActivity.dismissPending()
+                    getSystemService(NotificationManager::class.java).cancel(GRANT_NOTIFICATION_ID)
+                }
             }
 
-            kotlinx.coroutines.withTimeout(60_000) { deferred.await() }
+            try {
+                kotlinx.coroutines.withTimeoutOrNull(GRANT_DIALOG_TIMEOUT_MS) { deferred.await() }
+                    ?: GrantDecision.Timeout.also { Log.i(TAG, "Grant dialog timed out") }
+            } finally {
+                // Unanswered — timed out, or the requesting client went away (its request was
+                // cancelled): don't leave a dialog behind that no longer leads anywhere.
+                if (!deferred.isCompleted) {
+                    deferred.cancel()
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable + Dispatchers.Main) { dismiss() }
+                }
+            }
         },
             isSuperViaDialogAllowed = { superPrefs.getBoolean("allow_super_via_dialog", false) }
         )

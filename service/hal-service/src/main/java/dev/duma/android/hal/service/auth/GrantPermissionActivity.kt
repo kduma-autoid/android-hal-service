@@ -17,6 +17,7 @@ class GrantPermissionActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        current = this
 
         val clientId = intent.getStringExtra(EXTRA_CLIENT_ID) ?: "Unknown"
         val packageName = intent.getStringExtra(EXTRA_PACKAGE_NAME)
@@ -72,6 +73,7 @@ class GrantPermissionActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        if (current === this) current = null
         if (!decided) {
             pendingResult?.complete(GrantDecision.Deny)
             pendingResult = null
@@ -85,5 +87,17 @@ class GrantPermissionActivity : AppCompatActivity() {
         const val EXTRA_REQUESTED_PERMISSIONS = "requested_permissions"
 
         var pendingResult: CompletableDeferred<GrantDecision>? = null
+
+        /** The dialog activity on screen, so an unanswered request can close it. Main thread only. */
+        private var current: GrantPermissionActivity? = null
+
+        /** Closes the dialog of a request that timed out or whose client went away. */
+        fun dismissPending() {
+            pendingResult = null
+            current?.let {
+                it.decided = true // not a user's Deny
+                it.finish()
+            }
+        }
     }
 }

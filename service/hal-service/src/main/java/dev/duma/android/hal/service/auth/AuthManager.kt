@@ -164,6 +164,9 @@ class AuthManager(
             GrantDecision.Deny -> {
                 TokenResponse.Error("user_denied", "User denied permission")
             }
+            GrantDecision.Timeout -> {
+                TokenResponse.Error("timeout", "Nobody answered the permission dialog in time")
+            }
         }
     }
 

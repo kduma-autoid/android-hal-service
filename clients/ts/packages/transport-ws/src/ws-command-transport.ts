@@ -9,16 +9,29 @@ import type {
 import { HalError, isHalErrorResponse } from '@kduma-autoid/hal-client-common';
 import type { WsConnection } from './ws-connection.js';
 
+export interface WsCommandTransportOptions {
+  /**
+   * Timeout for token requests, in ms. Without a service key the service shows a permission dialog
+   * and waits up to 60 s for an answer, so this is longer than the normal request timeout. Default 75000.
+   */
+  tokenRequestTimeout?: number;
+}
+
+/** Longer than the service's 60 s permission dialog, so the client hears the answer (or `timeout`). */
+const DEFAULT_TOKEN_REQUEST_TIMEOUT = 75_000;
+
 export class WsCommandTransport implements ICommandTransport, IAuthTransport {
   private readonly connection: WsConnection;
   private readonly logger?: ILogger;
   private token: string | null = null;
   private rejectedHandlers: Array<(token: string) => void> = [];
   private readonly removeSessionHook: () => void;
+  private readonly tokenRequestTimeout: number;
 
-  constructor(connection: WsConnection, logger?: ILogger) {
+  constructor(connection: WsConnection, logger?: ILogger, options?: WsCommandTransportOptions) {
     this.connection = connection;
     this.logger = logger;
+    this.tokenRequestTimeout = options?.tokenRequestTimeout ?? DEFAULT_TOKEN_REQUEST_TIMEOUT;
 
     // The server keeps the token per socket: every new socket (and every new token) is authenticated
     // first, before anything else may use the connection. Order 0 — event re-subscription runs after.
@@ -78,7 +91,7 @@ export class WsCommandTransport implements ICommandTransport, IAuthTransport {
       msg.requestedPermissions = request.requestedPermissions;
     }
 
-    const response = await this.connection.send(msg);
+    const response = await this.connection.send(msg, { timeout: this.tokenRequestTimeout });
 
     if (response.type === 'error') {
       throw new HalError(response.error.code, response.error.message);

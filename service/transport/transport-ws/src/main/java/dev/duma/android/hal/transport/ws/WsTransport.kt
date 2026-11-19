@@ -106,12 +106,14 @@ class WsTransport : CommandTransport, EventTransport {
             ws.incoming.consumeEach { frame ->
                 if (frame !is Frame.Text) return@consumeEach
                 val msg = WsProtocol.parse(frame.readText())
-                if (msg is WsMessage.Command) {
+                if (msg is WsMessage.Command || msg is WsMessage.RequestToken) {
                     // Commands run concurrently: a long one (e.g. a read waiting for a card swipe) must
                     // not hold up the rest of the session, least of all the `cancel` meant to abort it.
-                    // Responses carry the request id, so they may go out in any order. The command is a
-                    // child of the session, so closing the socket cancels it.
-                    ws.launch { respond(ws, executeCommand(handler, session, msg)) }
+                    // So does requestToken, which can wait up to a minute for the permission dialog —
+                    // meanwhile the session must keep answering (e.g. the client's heartbeat probe).
+                    // Responses carry the request id, so they may go out in any order. Each is a child
+                    // of the session, so closing the socket cancels it.
+                    ws.launch { respond(ws, executeConcurrently(handler, session, msg)) }
                 } else {
                     // Auth and subscription changes stay in order: a command sent right after
                     // `authenticate` must already see the token.
@@ -127,7 +129,7 @@ class WsTransport : CommandTransport, EventTransport {
         if (response != null) ws.send(Frame.Text(response))
     }
 
-    private suspend fun executeCommand(handler: CommandHandler, session: WsSession, msg: WsMessage.Command): String =
+    private suspend fun executeConcurrently(handler: CommandHandler, session: WsSession, msg: WsMessage): String =
         try {
             handleMessage(handler, session, msg)!!
         } catch (e: CancellationException) {

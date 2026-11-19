@@ -215,6 +215,11 @@ reconnect:
 - odmowa przy żądaniu tokenu (`user_denied`, `invalid_key`, `key_expired`, `restriction_mismatch`) →
   `authState` = `denied`.
 
+Dialog czeka na odpowiedź **60 s**. Bez odpowiedzi znika sam i żądanie kończy się błędem `timeout` (bez
+tokenu); znika też, gdy klient zrezygnuje (zamknięte gniazdo WS). Klient TS czeka na token dłużej niż na
+zwykłe żądanie — `tokenRequestTimeout`, domyślnie 75 s — żeby usłyszeć decyzję albo `timeout` serwera.
+Przez WS `requestToken` nie blokuje sesji: w tym czasie serwer odpowiada na inne ramki (m.in. heartbeat).
+
 `authState`: `unauthenticated | authenticated | refreshing | expired | denied`, zmiany przez
 `client.onAuthStateChange()`; stan łącza (WS) przez `client.onConnectionStateChange()`.
 
