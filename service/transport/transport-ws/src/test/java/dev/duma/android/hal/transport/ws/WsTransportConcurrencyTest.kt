@@ -48,8 +48,12 @@ class WsTransportConcurrencyTest {
             // Before the fix the session handled frames one by one: "slow" never finished because
             // "cancel" waited behind it, and this timed out.
             assertTrue(replies[0].contains("\"authenticated\":true"), replies.toString())
-            assertTrue(replies[1].contains("\"cancelled\":true"), "cancel must answer first: $replies")
-            assertTrue(replies[2].contains("\"slow\":\"done\""), replies.toString())
+            // Both commands answered — that "slow" finished at all proves "cancel" ran while it was
+            // pending. Their order is not fixed: "cancel" releases "slow" before its own reply goes
+            // out, so either reply may be sent first.
+            val commandReplies = replies.drop(1)
+            assertTrue(commandReplies.any { it.contains("\"cancelled\":true") }, replies.toString())
+            assertTrue(commandReplies.any { it.contains("\"slow\":\"done\"") }, replies.toString())
         }
     }
 }
