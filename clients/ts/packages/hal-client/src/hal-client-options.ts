@@ -39,6 +39,11 @@ export interface HalClientOptions {
   /** WebSocket: how long a probe may wait for a reply before the connection counts as lost. Default 5000. */
   heartbeatTimeout?: number;
   timeout?: number;
+  /**
+   * Timeout for token requests, in ms. Without a service key the service shows a permission dialog and
+   * waits up to 60 s for an answer, so this is longer than `timeout`. Default 75000.
+   */
+  tokenRequestTimeout?: number;
 }
 
 /** Default service host/port used when neither `baseUrl` nor `host`/`port` is provided. */

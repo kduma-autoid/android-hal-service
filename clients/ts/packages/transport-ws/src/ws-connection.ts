@@ -59,6 +59,7 @@ export type SessionHook = (send: SessionSend) => Promise<void>;
 interface PendingRequest {
   deferred: Deferred<WsServerMessage>;
   timer: ReturnType<typeof setTimeout>;
+  type: unknown;
 }
 
 interface ReadyWaiter {
@@ -177,10 +178,15 @@ export class WsConnection implements IConnectable {
 
     this.stopped = false;
     this.attachBrowserListeners();
+    // An explicit connect() replaces any pending automatic reconnect.
+    this.cancelReconnect();
 
     const attempt = this.openSocket('connecting').catch((error: unknown) => {
       const err = error instanceof Error ? error : new HalConnectionError('WebSocket connection failed', error);
       if (!this.stopped) {
+        // A first connection that failed (even one dropped while restoring the session) is not retried
+        // automatically: the caller gets the error.
+        this.cancelReconnect();
         this.setConnectionState('disconnected', 'error', err);
         this.rejectWaiters(err);
       }
@@ -197,10 +203,7 @@ export class WsConnection implements IConnectable {
     this.stopped = true;
     this.generation++;
 
-    if (this.reconnectTimer !== null) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
+    this.cancelReconnect();
     this.stopHeartbeat();
 
     const ws = this.ws;
@@ -231,7 +234,7 @@ export class WsConnection implements IConnectable {
    * the connection is (re)connecting or restoring its session, the request waits for it — up to the
    * request timeout — instead of failing at once.
    */
-  async send(msg: Record<string, unknown>): Promise<WsServerMessage> {
+  async send(msg: Record<string, unknown>, options?: { timeout?: number }): Promise<WsServerMessage> {
     if (this._connectionState === 'connecting' || this._connectionState === 'reconnecting') {
       await this.waitUntilConnected();
     }
@@ -242,7 +245,7 @@ export class WsConnection implements IConnectable {
     if (this.restoring !== null) {
       await this.restoring.catch(() => undefined);
     }
-    return this.sendRaw(msg, this.generation);
+    return this.sendRaw(msg, this.generation, options?.timeout ?? this.requestTimeout);
   }
 
   async authenticate(token: string): Promise<void> {
@@ -261,6 +264,9 @@ export class WsConnection implements IConnectable {
   checkConnection(): Promise<boolean> {
     if (this._connectionState !== 'connected' || this.ws === null) return Promise.resolve(false);
     if (this.probe !== null) return this.probe;
+    // A token request may wait up to a minute for the permission dialog, and older servers read no
+    // other frame meanwhile — a probe would go unanswered and wrongly drop the connection.
+    if (this.tokenRequestPending()) return Promise.resolve(true);
 
     const gen = this.generation;
     const probe = this.sendRaw({ ...HEARTBEAT_PROBE }, gen, this.heartbeatTimeout)
@@ -295,6 +301,15 @@ export class WsConnection implements IConnectable {
   private openSocket(state: 'connecting' | 'reconnecting'): Promise<void> {
     const gen = ++this.generation;
     if (this._connectionState !== state) this.setConnectionState(state);
+    // Never leave an older socket (e.g. an attempt superseded by connect()) open behind us.
+    if (this.ws !== null) {
+      try {
+        this.ws.close(1000, 'Superseded');
+      } catch {
+        /* ignore */
+      }
+      this.ws = null;
+    }
 
     return new Promise<void>((resolve, reject) => {
       let opened = false;
@@ -409,7 +424,7 @@ export class WsConnection implements IConnectable {
   }
 
   private doReconnect(): void {
-    if (this.stopped) return;
+    if (this.stopped || this._connectionState === 'connected' || this.connectPromise !== null) return;
 
     this.openSocket('reconnecting').catch((error: unknown) => {
       if (this.stopped) return;
@@ -457,7 +472,7 @@ export class WsConnection implements IConnectable {
       deferred.reject(new HalTimeoutError(`Request ${id} timed out after ${timeout}ms`));
     }, timeout);
 
-    this.pendingRequests.set(id, { deferred, timer });
+    this.pendingRequests.set(id, { deferred, timer, type: msg.type });
 
     try {
       ws.send(JSON.stringify(msg));
@@ -469,6 +484,20 @@ export class WsConnection implements IConnectable {
     }
 
     return deferred.promise;
+  }
+
+  private tokenRequestPending(): boolean {
+    for (const pending of this.pendingRequests.values()) {
+      if (pending.type === 'requestToken') return true;
+    }
+    return false;
+  }
+
+  private cancelReconnect(): void {
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
   }
 
   private rejectPending(error: Error): void {

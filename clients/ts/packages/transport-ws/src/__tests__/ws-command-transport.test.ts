@@ -58,3 +58,11 @@ describe('WsCommandTransport.execute', () => {
     expect(result).toEqual({ value: 42 });
   });
 });
+
+describe('WsCommandTransport.requestToken', () => {
+  it('waits longer than a command, as the permission dialog may take up to 60 s', async () => {
+    const conn = mockConnection({ id: '1', type: 'response', result: { token: 't', permissions: [] } });
+    await new WsCommandTransport(conn).requestToken({ clientId: 'app' });
+    expect(conn.send).toHaveBeenCalledWith(expect.objectContaining({ type: 'requestToken' }), { timeout: 75_000 });
+  });
+});

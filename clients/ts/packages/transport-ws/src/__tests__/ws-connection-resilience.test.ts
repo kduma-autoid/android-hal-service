@@ -59,6 +59,19 @@ describe('WsConnection resilience', () => {
       expect(factory.adapters).toHaveLength(1);
     });
 
+    it('does not probe while a token request waits for the permission dialog', async () => {
+      const connection = await connected({ heartbeatInterval: 3000, heartbeatTimeout: 1000, requestTimeout: 60_000 });
+      const token = connection.send({ type: 'requestToken', clientId: 'app' });
+
+      await vi.advanceTimersByTimeAsync(30_000); // the user takes their time with the dialog
+      expect(sentMessages(factory.latest).some((m) => m.method === 'system.ping')).toBe(false);
+      expect(connection.connectionState).toBe('connected');
+      expect(factory.adapters).toHaveLength(1);
+
+      replyTo(factory.latest, 'requestToken', { result: { token: 't', permissions: [] } });
+      await expect(token).resolves.toMatchObject({ type: 'response' });
+    });
+
     it('does not probe while messages keep arriving', async () => {
       await connected({ heartbeatInterval: 3000, heartbeatTimeout: 1000 });
       for (let i = 0; i < 6; i++) {
@@ -101,6 +114,37 @@ describe('WsConnection resilience', () => {
       await flush();
       await vi.advanceTimersByTimeAsync(2400); // second delay: 2000 ms ± 20 %
       expect(factory.adapters).toHaveLength(3);
+    });
+
+    it('connect() while reconnecting replaces the pending retry instead of adding a second socket', async () => {
+      const connection = await connected({ heartbeatInterval: 0 });
+      factory.latest.simulateClose(1006, '');
+      expect(connection.connectionState).toBe('reconnecting');
+
+      const p = connection.connect();
+      factory.latest.simulateOpen();
+      await flush();
+      await p;
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(factory.adapters).toHaveLength(2);
+      expect(connection.connectionState).toBe('connected');
+    });
+
+    it('a first connection dropped while restoring the session is not retried behind the caller', async () => {
+      const connection = new WsConnection({ url: 'ws://x', wsAdapterFactory: factory, watchBrowserEvents: false, heartbeatInterval: 0 });
+      connection.addSessionHook(async (send) => {
+        await send({ type: 'authenticate', token: 't' });
+      });
+      const p = connection.connect();
+      factory.latest.simulateOpen();
+      await flush();
+      factory.latest.simulateClose(1006, '');
+
+      await expect(p).rejects.toThrow();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(connection.connectionState).toBe('disconnected');
+      expect(factory.adapters).toHaveLength(1);
     });
 
     it('disconnect() does not start a reconnect', async () => {

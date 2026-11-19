@@ -19,15 +19,23 @@ export interface HttpCommandTransportOptions {
   baseUrl: string;
   httpAdapter?: IHttpAdapter;
   timeout?: number;
+  /**
+   * Timeout for token requests, in ms. Without a service key the service shows a permission dialog
+   * and waits up to 60 s for an answer, so this is longer than the normal request timeout. Default 75000.
+   */
+  tokenRequestTimeout?: number;
   logger?: ILogger;
 }
 
 const DEFAULT_TIMEOUT = 30000;
+/** Longer than the service's 60 s permission dialog, so the client hears the answer (or `timeout`). */
+const DEFAULT_TOKEN_REQUEST_TIMEOUT = 75_000;
 
 export class HttpCommandTransport implements ICommandTransport, IAuthTransport {
   private readonly baseUrl: string;
   private readonly httpAdapter: IHttpAdapter;
   private readonly timeout: number;
+  private readonly tokenRequestTimeout: number;
   private readonly logger?: ILogger;
   private token: string | null = null;
 
@@ -35,6 +43,7 @@ export class HttpCommandTransport implements ICommandTransport, IAuthTransport {
     this.baseUrl = options.baseUrl.replace(/\/+$/, '');
     this.httpAdapter = options.httpAdapter ?? new DefaultHttpAdapter();
     this.timeout = options.timeout ?? DEFAULT_TIMEOUT;
+    this.tokenRequestTimeout = options.tokenRequestTimeout ?? DEFAULT_TOKEN_REQUEST_TIMEOUT;
     this.logger = options.logger;
   }
 
@@ -60,7 +69,7 @@ export class HttpCommandTransport implements ICommandTransport, IAuthTransport {
       body.requestedPermissions = request.requestedPermissions;
     }
 
-    const response = await this.doRequest('POST', '/api/token', body);
+    const response = await this.doRequest('POST', '/api/token', body, undefined, this.tokenRequestTimeout);
 
     const result = this.parseJson(response.body);
 
@@ -122,6 +131,7 @@ export class HttpCommandTransport implements ICommandTransport, IAuthTransport {
     path: string,
     body?: unknown,
     extraHeaders?: Record<string, string>,
+    timeout: number = this.timeout,
   ) {
     const url = `${this.baseUrl}${path}`;
     const headers: Record<string, string> = {
@@ -135,7 +145,7 @@ export class HttpCommandTransport implements ICommandTransport, IAuthTransport {
         method,
         headers,
         body: body !== undefined ? JSON.stringify(body) : undefined,
-        timeout: this.timeout,
+        timeout,
       });
     } catch (error: unknown) {
       if (error instanceof HalError || error instanceof HalTransportError) {
@@ -143,7 +153,7 @@ export class HttpCommandTransport implements ICommandTransport, IAuthTransport {
       }
 
       if (error instanceof DOMException && error.name === 'AbortError') {
-        throw new HalTimeoutError(`Request to ${path} timed out after ${this.timeout}ms`);
+        throw new HalTimeoutError(`Request to ${path} timed out after ${timeout}ms`);
       }
 
       if (error instanceof TypeError) {

@@ -14,6 +14,7 @@ import kotlinx.coroutines.CompletableDeferred
  */
 object GrantOverlayDialog {
 
+    /** Shows the dialog; returns a function dismissing it (no-op once it was answered). */
     fun show(
         context: Context,
         clientId: String,
@@ -21,7 +22,7 @@ object GrantOverlayDialog {
         origin: String?,
         requestedPermissions: List<String>?,
         deferred: CompletableDeferred<GrantDecision>
-    ) {
+    ): () -> Unit {
         val callerInfo = when {
             origin != null -> "Origin: $origin"
             packageName != null -> {
@@ -68,5 +69,6 @@ object GrantOverlayDialog {
         )
 
         dialog.show()
+        return { if (dialog.isShowing) dialog.dismiss() }
     }
 }
