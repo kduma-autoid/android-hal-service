@@ -64,3 +64,16 @@ listę VID:PID, status i przycisk do ustawień dostępności. Włączenie usług
 Plugin mający własną usługę dostępności (np. `Ss2222KeyboardFilterService` z PR #9) powinien ją usunąć
 (klasa, wpis w manifeście, XML, stringi), nadpisać `getKeyboardFilterDevices()` swoim VID/PID,
 a pole statusu (np. `keyboardFilterEnabled`) liczyć przez `KeyboardFilter.isEnabled`.
+
+## Zarejestrowane urządzenia
+
+### `sunmi.card` — czytnik kart magnetycznych (FLEX 3)
+
+- Zgłasza `1A86:7523` — ten sam VID/PID, po którym plugin wykrywa czytnik (mostek WCH). **Do potwierdzenia
+  na sprzęcie**: naciśnięcia mogą pochodzić z osobnego interfejsu HID o innym VID/PID.
+- `sunmi.card.getInfo` zwraca `keyboardFilterEnabled` (stan ustawień, patrz [Status](#status)).
+- `sunmi.card.listInputDevices` (tylko `development`) — wynik `KeyboardFilter.describeInputDevices`
+  z polem `filtered`. Procedura: podłączyć czytnik, wywołać metodę, znaleźć urządzenie z `keyboard: true`
+  odpowiadające czytnikowi; jeżeli `filtered` jest `false`, poprawić `KEYBOARD_DEVICES` w `SunmiCardPlugin`.
+- Dane karty nadal przychodzą zdarzeniem `sunmi.card.swipe` z `CardManager`; filtr nie składa
+  naciśnięć w dane.

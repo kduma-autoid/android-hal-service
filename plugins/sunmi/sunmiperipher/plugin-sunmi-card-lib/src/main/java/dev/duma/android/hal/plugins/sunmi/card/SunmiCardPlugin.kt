@@ -14,6 +14,8 @@ import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
+import dev.duma.android.hal.contract.KeyboardDeviceId
+import dev.duma.android.hal.contract.KeyboardFilter
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
@@ -44,6 +46,13 @@ class SunmiCardPlugin(
         // The FLEX magnetic card reader is a USB device (WCH bridge).
         private const val CARD_READER_VID = 0x1A86 // 6790  – WCH
         private const val CARD_READER_PID = 0x7523 // 29987 – MSR
+
+        /**
+         * Input devices whose key presses HAL's keyboard filter swallows for this reader. Assumed to
+         * be the reader's own USB id until confirmed on a FLEX 3: the keystrokes may come from a
+         * separate HID interface — `sunmi.card.listInputDevices` shows which device types them.
+         */
+        internal val KEYBOARD_DEVICES = listOf(KeyboardDeviceId(CARD_READER_VID, CARD_READER_PID))
     }
 
     private val usbReceiver = object : BroadcastReceiver() {
@@ -77,6 +86,8 @@ class SunmiCardPlugin(
 
     override fun getCapabilities(): List<String> = listOf("sunmi.card")
 
+    override fun getKeyboardFilterDevices(): List<KeyboardDeviceId> = KEYBOARD_DEVICES
+
     override fun getDescriptor() = fullDescriptor().let {
         if (BuildConfig.WITH_EXPERIMENTAL) it else it.stripExperimental()
     }
@@ -94,7 +105,15 @@ class SunmiCardPlugin(
                 "sunmi.card",
                 experimental = true,
                 exampleParameters = "{}",
-                exampleOutput = """{"name": "MSR Reader", "version": "1.0", "sn": "MSR-001", "connected": true}"""
+                exampleOutput = """{"name": "MSR Reader", "version": "1.0", "sn": "MSR-001", "connected": true, "keyboardFilterEnabled": false}"""
+            ),
+            MethodDescriptor(
+                "sunmi.card.listInputDevices",
+                "Diagnostics: list the input devices Android knows (metadata only, no key events), marking those HAL's keyboard filter swallows for this reader. Use it to find which device types the swiped data.",
+                "sunmi.card",
+                experimental = true,
+                exampleParameters = "{}",
+                exampleOutput = """{"devices": [{"id": 7, "name": "MSR Keyboard", "vendorId": 6790, "productId": 29987, "usbId": "1A86:7523", "descriptor": "…", "sources": 257, "keyboard": true, "virtual": false, "filtered": true}]}"""
             )
         ),
         events = listOf(
@@ -155,6 +174,13 @@ class SunmiCardPlugin(
                         put("version", CardManager.getVersion() ?: "")
                         put("sn", CardManager.getSn() ?: "")
                         put("connected", CardManager.isConnected())
+                        // Android setting only; delivery must be verified on the hardware.
+                        put("keyboardFilterEnabled", context?.let(KeyboardFilter::isEnabled) ?: false)
+                    }.toString())
+                }
+                "sunmi.card.listInputDevices" -> {
+                    CommandResult.Success(JSONObject().apply {
+                        put("devices", KeyboardFilter.describeInputDevices(KEYBOARD_DEVICES))
                     }.toString())
                 }
                 else -> CommandResult.unsupportedMethod(method)

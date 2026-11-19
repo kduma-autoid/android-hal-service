@@ -34,6 +34,8 @@ android {
         buildConfig = true
     }
 
+    testOptions { unitTests.isIncludeAndroidResources = true }
+
     // Experimental methods are compiled in only for the `development` variant.
     flavorDimensions += "stability"
     productFlavors {
@@ -53,4 +55,12 @@ dependencies {
     implementation(project(":plugins:sunmi:sunmiperipher:plugin-sunmi-sunmiperipher-sdk"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.core)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.junit.jupiter)
+    testImplementation(libs.junit.vintage.engine)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
 }
+
+tasks.withType<Test> { useJUnitPlatform() }
