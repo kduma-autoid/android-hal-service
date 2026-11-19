@@ -1,5 +1,6 @@
 package dev.duma.android.hal.contract
 
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -14,6 +15,21 @@ class AidlPluginAdapter(
     private val binder: IHardwarePlugin
 ) : HalPlugin {
 
+    internal companion object {
+        private const val TAG = "AidlPluginAdapter"
+
+        /** Decodes the bundle's keyboard device list; missing or malformed input means none. */
+        fun decodeKeyboardDevices(json: String?): List<KeyboardDeviceId> {
+            if (json.isNullOrBlank()) return emptyList()
+            return try {
+                Json.decodeFromString<List<KeyboardDeviceId>>(json)
+            } catch (e: Exception) {
+                Log.w(TAG, "Malformed keyboard device list: ${e.message}")
+                emptyList()
+            }
+        }
+    }
+
     override val pluginId: String
         get() = binder.pluginId
 
@@ -27,6 +43,21 @@ class AidlPluginAdapter(
     override fun getDescriptor(): PluginDescriptor {
         val json = binder.descriptorJson
         return Json.decodeFromString(json)
+    }
+
+    /**
+     * A bundle built before this transaction existed does not handle it: depending on the AIDL
+     * generator the call returns no reply (read as `null`) or throws. Either way it simply has no
+     * keyboard devices, and must not fail registration.
+     */
+    override fun getKeyboardFilterDevices(): List<KeyboardDeviceId> {
+        val json = try {
+            binder.keyboardFilterDevicesJson
+        } catch (e: Exception) {
+            Log.w(TAG, "getKeyboardFilterDevicesJson() unavailable: ${e.message}")
+            return emptyList()
+        }
+        return decodeKeyboardDevices(json)
     }
 
     override fun initialize(pluginContext: PluginContext) {

@@ -54,6 +54,10 @@ class PluginServiceWrapper(
         Handler(Looper.getMainLooper()).post { plugin.onSettingChanged(key, value) }
     }
 
+    override fun getKeyboardFilterDevicesJson(): String {
+        return Json.encodeToString(plugin.getKeyboardFilterDevices())
+    }
+
     override fun registerEventCallback(callback: IPluginEventCallback) {
         callbackList.register(callback)
     }
