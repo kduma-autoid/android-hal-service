@@ -8,6 +8,7 @@ export function createHttpHalClient(options: HalClientOptions): HalClient {
   const transport = new HttpCommandTransport({
     baseUrl,
     timeout: options.timeout,
+    tokenRequestTimeout: options.tokenRequestTimeout,
     logger: options.logger,
   });
   return new HalClient(options)

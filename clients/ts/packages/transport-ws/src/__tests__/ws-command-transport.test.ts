@@ -8,6 +8,8 @@ function mockConnection(response: WsServerMessage) {
   return {
     send: vi.fn().mockResolvedValue(response),
     authenticate: vi.fn().mockResolvedValue(undefined),
+    addSessionHook: vi.fn(() => () => undefined),
+    restoreSession: vi.fn().mockResolvedValue(undefined),
   } as unknown as WsConnection;
 }
 
@@ -54,5 +56,13 @@ describe('WsCommandTransport.execute', () => {
     const result = await t.execute('light.on', { color: 'green' });
 
     expect(result).toEqual({ value: 42 });
+  });
+});
+
+describe('WsCommandTransport.requestToken', () => {
+  it('waits longer than a command, as the permission dialog may take up to 60 s', async () => {
+    const conn = mockConnection({ id: '1', type: 'response', result: { token: 't', permissions: [] } });
+    await new WsCommandTransport(conn).requestToken({ clientId: 'app' });
+    expect(conn.send).toHaveBeenCalledWith(expect.objectContaining({ type: 'requestToken' }), { timeout: 75_000 });
   });
 });

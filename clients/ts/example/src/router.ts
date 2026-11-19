@@ -5,6 +5,8 @@ import PluginDetailView from './views/PluginDetailView.vue';
 import StatusLightView from './views/StatusLightView.vue';
 import PrinterView from './views/PrinterView.vue';
 import BarcodeScannerView from './views/BarcodeScannerView.vue';
+import MagneticCardView from './views/MagneticCardView.vue';
+import ScaleView from './views/ScaleView.vue';
 import InterfacesView from './views/InterfacesView.vue';
 import InterfaceDetailView from './views/InterfaceDetailView.vue';
 import ScreensNfcView from './views/ScreensNfcView.vue';
@@ -20,6 +22,8 @@ export const router = createRouter({
     { path: '/statuslight', name: 'statuslight', component: StatusLightView },
     { path: '/printer', name: 'printer', component: PrinterView },
     { path: '/barcode-scanner', name: 'barcodeScanner', component: BarcodeScannerView },
+    { path: '/magnetic-card', name: 'magneticCard', component: MagneticCardView },
+    { path: '/scale', name: 'scale', component: ScaleView },
     { path: '/interfaces', name: 'interfaces', component: InterfacesView },
     { path: '/interfaces/:interfaceId', name: 'interface-detail', component: InterfaceDetailView },
     { path: '/screens', name: 'screens', component: ScreensNfcView },

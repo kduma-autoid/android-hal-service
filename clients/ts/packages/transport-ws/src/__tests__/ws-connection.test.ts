@@ -260,8 +260,8 @@ describe('WsConnection', () => {
 
       expect(states).toContain('reconnecting');
 
-      // Advance past the first reconnect delay (1000ms)
-      vi.advanceTimersByTime(1001);
+      // Advance past the first reconnect delay (1000ms ±20% jitter)
+      vi.advanceTimersByTime(1201);
 
       // A new adapter should have been created
       expect(factory.adapters.length).toBe(2);

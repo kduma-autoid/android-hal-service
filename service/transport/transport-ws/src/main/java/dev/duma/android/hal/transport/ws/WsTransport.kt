@@ -13,6 +13,8 @@ import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.channels.consumeEach
+import kotlinx.coroutines.launch
+import kotlin.coroutines.cancellation.CancellationException
 
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -49,18 +51,21 @@ class WsTransport : CommandTransport, EventTransport {
         val manager = config.ktorServerManager as? KtorServerManager
             ?: throw IllegalStateException("WsTransport requires KtorServerManager in TransportConfig")
 
-        manager.addModule {
-            install(WebSockets) {
-                pingPeriodMillis = 15_000
-                timeoutMillis = 30_000
-            }
-            routing {
-                webSocket("/ws") {
-                    handleSession(handler, this)
-                }
+        manager.addModule { installWs(handler) }
+        running = true
+    }
+
+    /** The `/ws` endpoint; separate from [start] so tests can mount it on a test application. */
+    internal fun Application.installWs(handler: CommandHandler) {
+        install(WebSockets) {
+            pingPeriodMillis = 15_000
+            timeoutMillis = 30_000
+        }
+        routing {
+            webSocket("/ws") {
+                handleSession(handler, this)
             }
         }
-        running = true
     }
 
     override fun start(config: TransportConfig) {
@@ -99,12 +104,20 @@ class WsTransport : CommandTransport, EventTransport {
 
         try {
             ws.incoming.consumeEach { frame ->
-                if (frame is Frame.Text) {
-                    val text = frame.readText()
-                    val response = handleMessage(handler, session, text)
-                    if (response != null) {
-                        ws.send(Frame.Text(response))
-                    }
+                if (frame !is Frame.Text) return@consumeEach
+                val msg = WsProtocol.parse(frame.readText())
+                if (msg is WsMessage.Command || msg is WsMessage.RequestToken) {
+                    // Commands run concurrently: a long one (e.g. a read waiting for a card swipe) must
+                    // not hold up the rest of the session, least of all the `cancel` meant to abort it.
+                    // So does requestToken, which can wait up to a minute for the permission dialog —
+                    // meanwhile the session must keep answering (e.g. the client's heartbeat probe).
+                    // Responses carry the request id, so they may go out in any order. Each is a child
+                    // of the session, so closing the socket cancels it.
+                    ws.launch { respond(ws, executeConcurrently(handler, session, msg)) }
+                } else {
+                    // Auth and subscription changes stay in order: a command sent right after
+                    // `authenticate` must already see the token.
+                    respond(ws, handleMessage(handler, session, msg))
                 }
             }
         } finally {
@@ -112,9 +125,21 @@ class WsTransport : CommandTransport, EventTransport {
         }
     }
 
-    private suspend fun handleMessage(handler: CommandHandler, session: WsSession, text: String): String? {
-        val msg = WsProtocol.parse(text)
+    private suspend fun respond(ws: WebSocketServerSession, response: String?) {
+        if (response != null) ws.send(Frame.Text(response))
+    }
 
+    private suspend fun executeConcurrently(handler: CommandHandler, session: WsSession, msg: WsMessage): String =
+        try {
+            handleMessage(handler, session, msg)!!
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // A failing command must not take the whole session (its parent scope) down with it.
+            WsProtocol.serializeError(msg.id, "internal_error", e.message ?: "Command failed")
+        }
+
+    private suspend fun handleMessage(handler: CommandHandler, session: WsSession, msg: WsMessage): String? {
         val callerContext = CallerContext(
             transport = "ws",
             origin = session.origin,
@@ -135,8 +160,19 @@ class WsTransport : CommandTransport, EventTransport {
             }
 
             is WsMessage.Authenticate -> {
-                session.token = msg.token
-                WsProtocol.serializeResponse(msg.id, """{"authenticated":true}""")
+                // Validated up front, so a client re-authenticating after a reconnect learns at once
+                // that its token expired or was revoked — not only on its next command. A rejected
+                // token also drops the session's previous one rather than leaving it in use.
+                when (val result = handler.validateToken(msg.token, callerContext)) {
+                    is CommandResult.Success -> {
+                        session.token = msg.token
+                        WsProtocol.serializeResponse(msg.id, result.body ?: """{"authenticated":true}""")
+                    }
+                    is CommandResult.Failure -> {
+                        session.token = null
+                        WsProtocol.serializeError(msg.id, result.code, result.message)
+                    }
+                }
             }
 
             is WsMessage.Command -> {

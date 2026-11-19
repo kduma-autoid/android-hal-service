@@ -41,6 +41,12 @@ interface PluginContext {
         params: String
     ): CommandResult = execute(method, params)
 
+    /**
+     * Stored value of one of the owning plugin's [HalPlugin.getSettings], or [default] when the user
+     * never changed it (or the context doesn't persist settings).
+     */
+    fun getBooleanSetting(key: String, default: Boolean): Boolean = default
+
     /** Plugin ids currently providing [interfaceId], preferred first. Empty when unsupported. */
     fun getInterfaceProviders(interfaceId: String): List<String> = emptyList()
 }

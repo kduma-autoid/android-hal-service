@@ -1,4 +1,4 @@
-export type { TokenRequest, TokenResult } from './token.js';
+export type { TokenRequest, TokenResult, AuthState, AuthStateHandler } from './token.js';
 export type { HalErrorCode, HalErrorResponse } from './error.js';
 export {
   HalError,
@@ -7,6 +7,8 @@ export {
   HalConnectionError,
   isHalErrorResponse,
   createHalError,
+  isAuthError,
+  TOKEN_DENIAL_CODES,
 } from './error.js';
 export type { HalEvent, EventMeta, EventHandler, EventSubscription } from './event.js';
 export type { ExecuteRequest, ExecuteResponse, CommandMeta, ExecuteOptions } from './command.js';
@@ -21,7 +23,7 @@ export type {
   InterfaceFeature,
   InterfaceProvider,
 } from './describe.js';
-export { allMethods, allEvents, PROVIDER_SELECTOR, methodForProvider } from './describe.js';
+export { allMethods, allEvents, isInterfaceDefinerOnly, PROVIDER_SELECTOR, methodForProvider } from './describe.js';
 export type { StatusResponse, PluginStatus, TransportStatus } from './status.js';
 export type { HealthResponse } from './health.js';
 export type {
@@ -35,3 +37,13 @@ export { LIGHT_COLORS } from './light.js';
 export type { PrinterFeature, PrinterImageStyle, PrinterCapabilities } from './printer.js';
 export { PRINTER_FEATURES } from './printer.js';
 export type { ScanResult } from './barcode-scanner.js';
+export type {
+  MagneticCardReaderFeature,
+  MagneticCardReaderCapabilities,
+  MagneticCardTracks,
+  MagneticCardWrite,
+  MagneticCardSwipeOptions,
+  MagneticCardReaderInfo,
+} from './magnetic-card.js';
+export { MAGNETIC_CARD_READER_FEATURES } from './magnetic-card.js';
+export type { ScaleUnit, ScaleStatus, ScaleReading, ScaleStatusChange, ScaleInfo } from './scale.js';

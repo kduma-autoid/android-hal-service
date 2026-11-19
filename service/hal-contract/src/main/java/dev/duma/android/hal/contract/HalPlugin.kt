@@ -23,6 +23,12 @@ interface HalPlugin {
      */
     fun dispose() {}
 
+    /** User-facing settings shown on the plugin's detail screen in hal-service. Default: none. */
+    fun getSettings(): List<PluginSetting> = emptyList()
+
+    /** Called when the user changes one of [getSettings] (on the thread that made the change). */
+    fun onSettingChanged(key: String, value: Boolean) {}
+
     /**
      * Keyboard-emulating input devices owned by this plugin. While the user has enabled HAL's
      * keyboard filter (one Android accessibility service in the HAL app, shared by all plugins),

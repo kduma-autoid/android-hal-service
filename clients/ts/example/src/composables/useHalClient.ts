@@ -1,4 +1,5 @@
-import { ref, reactive } from 'vue';
+import { ref, reactive, computed } from 'vue';
+import type { AuthState, ConnectionState } from '@kduma-autoid/hal-client-common';
 import type { HalClient } from '@kduma-autoid/hal-client';
 import { LocalStorageTokenStore } from '@kduma-autoid/hal-client-token-store-browser';
 import { useToast } from './useToast';
@@ -72,8 +73,39 @@ const defaultSettings: AppSettings = {
 
 const settings = reactive<AppSettings>({ ...defaultSettings });
 const client = ref<HalClient | null>(null);
-const isConnected = ref(false);
+/** The transport link as the library reports it (HTTP has no link to lose: `connected` once set up). */
+const linkState = ref<ConnectionState>('disconnected');
+const authState = ref<AuthState>('unauthenticated');
+/**
+ * Usable right now: linked and authorized. Drops while reconnecting or once the token is rejected,
+ * and comes back by itself after the library restored the session — views watching it refetch.
+ */
+const isConnected = computed(
+  // `refreshing` counts as usable: requests wait for the renewal, and views shouldn't tear down for it.
+  () => linkState.value === 'connected' && (authState.value === 'authenticated' || authState.value === 'refreshing'),
+);
+/** What the navbar shows. */
+const status = computed<{ text: string; tone: 'ok' | 'busy' | 'bad' | 'off' }>(() => {
+  if (!client.value) return { text: 'Disconnected', tone: 'off' };
+  if (linkState.value === 'reconnecting' || linkState.value === 'connecting') return { text: 'Reconnecting…', tone: 'busy' };
+  if (linkState.value === 'disconnected') return { text: 'Connection lost', tone: 'bad' };
+  switch (authState.value) {
+    case 'authenticated':
+      return { text: 'Connected', tone: 'ok' };
+    case 'refreshing':
+      return { text: 'Renewing token…', tone: 'busy' };
+    case 'expired':
+      return { text: 'Session expired', tone: 'bad' };
+    case 'denied':
+      return { text: 'Access denied', tone: 'bad' };
+    default:
+      return { text: 'Not authorized', tone: 'bad' };
+  }
+});
+/** The token was rejected and can only be renewed by asking again (permission dialog / new key). */
+const needsToken = computed(() => !!client.value && (authState.value === 'expired' || authState.value === 'denied'));
 const error = ref<string | null>(null);
+let unwatch: Array<() => void> = [];
 
 function loadSettings(): void {
   try {
@@ -108,19 +140,55 @@ function saveSettings(newSettings: AppSettings): void {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(toSave));
 }
 
-async function resolveServiceKey(): Promise<string | undefined> {
+/**
+ * The service key for the client: a fixed JWT, or — for the device secret — a function signing a
+ * fresh short-lived JWT on every token request, so the library can renew tokens long after connecting.
+ */
+function serviceKeyOption(): string | (() => Promise<string>) | undefined {
   switch (settings.authMode) {
     case 'builtin':
       return BUILTIN_SERVICE_KEY || undefined;
     case 'service-key':
       return settings.serviceKey || undefined;
-    case 'device-secret':
-      if (settings.deviceSecret) {
-        return generateDeviceKeyJwt(settings.deviceSecret, settings.clientId);
-      }
-      return undefined;
+    case 'device-secret': {
+      const { deviceSecret, clientId } = settings;
+      return deviceSecret ? () => generateDeviceKeyJwt(deviceSecret, clientId) : undefined;
+    }
     case 'none':
       return undefined;
+  }
+}
+
+function stopWatching(): void {
+  for (const off of unwatch) off();
+  unwatch = [];
+}
+
+function watchClient(c: HalClient, transport: 'http' | 'ws'): void {
+  stopWatching();
+  const toast = useToast();
+  authState.value = c.authState;
+  unwatch.push(
+    c.onAuthStateChange((state) => {
+      authState.value = state;
+      if (state === 'expired') toast.error('Session expired — request a new token');
+    }),
+  );
+  if (transport === 'ws') {
+    linkState.value = c.connectionState;
+    unwatch.push(
+      c.onConnectionStateChange((event) => {
+        const was = linkState.value;
+        linkState.value = event.state;
+        if (event.state === 'reconnecting' && was === 'connected') {
+          toast.info(event.reason === 'timeout' ? 'Connection silent — reconnecting…' : 'Connection lost — reconnecting…');
+        } else if (event.state === 'connected' && was === 'reconnecting') {
+          toast.success('Reconnected');
+        }
+      }),
+    );
+  } else {
+    linkState.value = 'connected';
   }
 }
 
@@ -129,14 +197,16 @@ async function connect(): Promise<void> {
   error.value = null;
 
   if (client.value) {
+    stopWatching();
     client.value.dispose();
     client.value = null;
-    isConnected.value = false;
   }
+  linkState.value = 'disconnected';
+  authState.value = 'unauthenticated';
 
   try {
     const tokenStore = new LocalStorageTokenStore('hal_example_token');
-    const serviceKey = await resolveServiceKey();
+    const serviceKey = serviceKeyOption();
     const options = {
       clientId: settings.authMode === 'builtin' ? 'hal-example' : settings.clientId,
       host: settings.host,
@@ -157,17 +227,33 @@ async function connect(): Promise<void> {
       newClient = createHttpHalClient(options);
     }
 
+    watchClient(newClient, settings.transport);
+    client.value = newClient;
     await newClient.requestToken();
     const { startLogging } = useActivityLog();
     startLogging(newClient);
-    client.value = newClient;
-    isConnected.value = true;
     toast.success(`Connected via ${settings.transport.toUpperCase()}`);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     error.value = msg;
-    isConnected.value = false;
+    stopWatching();
+    client.value?.dispose();
+    client.value = null;
+    linkState.value = 'disconnected';
+    authState.value = 'unauthenticated';
     toast.error(`Connection failed: ${msg}`);
+  }
+}
+
+/** After `expired` / `denied`: ask for a new token (with no service key this shows the permission dialog). */
+async function requestNewToken(): Promise<void> {
+  const toast = useToast();
+  if (!client.value) return;
+  try {
+    await client.value.requestToken();
+    toast.success('Token renewed');
+  } catch (e) {
+    toast.error(`Token request failed: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 
@@ -175,11 +261,13 @@ function disconnect(): void {
   const toast = useToast();
   const { stopLogging } = useActivityLog();
   stopLogging();
+  stopWatching();
   if (client.value) {
     client.value.dispose();
     client.value = null;
   }
-  isConnected.value = false;
+  linkState.value = 'disconnected';
+  authState.value = 'unauthenticated';
   error.value = null;
   toast.info('Disconnected');
 }
@@ -192,6 +280,11 @@ export function useHalClient() {
     settings,
     client,
     isConnected,
+    linkState,
+    authState,
+    status,
+    needsToken,
+    requestNewToken,
     error,
     loadSettings,
     saveSettings,

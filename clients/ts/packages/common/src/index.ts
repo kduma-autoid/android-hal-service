@@ -2,6 +2,8 @@
 export type {
   TokenRequest,
   TokenResult,
+  AuthState,
+  AuthStateHandler,
   HalErrorCode,
   HalErrorResponse,
   HalEvent,
@@ -34,6 +36,17 @@ export type {
   PrinterImageStyle,
   PrinterCapabilities,
   ScanResult,
+  MagneticCardReaderFeature,
+  MagneticCardReaderCapabilities,
+  MagneticCardTracks,
+  MagneticCardWrite,
+  MagneticCardSwipeOptions,
+  MagneticCardReaderInfo,
+  ScaleUnit,
+  ScaleStatus,
+  ScaleReading,
+  ScaleStatusChange,
+  ScaleInfo,
 } from './types/index.js';
 
 export {
@@ -43,14 +56,18 @@ export {
   HalConnectionError,
   isHalErrorResponse,
   createHalError,
+  isAuthError,
+  TOKEN_DENIAL_CODES,
   allMethods,
   allEvents,
+  isInterfaceDefinerOnly,
   PROVIDER_SELECTOR,
   methodForProvider,
 } from './types/index.js';
 
 export { LIGHT_COLORS } from './types/index.js';
 export { PRINTER_FEATURES } from './types/index.js';
+export { MAGNETIC_CARD_READER_FEATURES } from './types/index.js';
 
 // Interfaces
 export type {

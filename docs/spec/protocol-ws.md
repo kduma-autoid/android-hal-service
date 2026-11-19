@@ -19,6 +19,10 @@ Bez klucza (triggeruje dialog):
 ```json
 {"id":"2","type":"authenticate","token":"abc123..."}
 ```
+Serwer **weryfikuje token** (istnieje, nie wygasł, binding pasuje) i odpowiada
+`{"authenticated":true,"expires_at":<epoch ms | null>}` albo błędem `unauthorized`. Odrzucony token nie
+zostaje w sesji — także poprzedni, wcześniej zaakceptowany, jest z niej usuwany. Dzięki temu klient po
+ponownym połączeniu od razu wie, że jego token wygasł lub został odwołany.
 
 **Command:**
 ```json
@@ -112,9 +116,28 @@ Dwie konsekwencje warte zapamiętania:
 Przed authenticate: tylko requestToken dozwolone.
 Po authenticate: command, subscribe, unsubscribe.
 
+Token i subskrypcje żyją **w sesji gniazda**: nowe połączenie (reconnect, restart usługi) zaczyna bez
+nich. Serwer nie zamyka gniazda, gdy token wygaśnie lub zostanie odwołany — kolejne command/subscribe
+dostają `unauthorized`.
+
 ## Ping/pong
 
-Ktor WebSocket ping/pong co 15s, timeout 30s.
+Ktor WebSocket ping/pong co 15s, timeout 30s. Ramki protokołu nie są widoczne dla JS w przeglądarce,
+więc klient TS ma własny heartbeat (niżej).
+
+## Klient TS: odporność połączenia (`@kduma-autoid/hal-client-transport-ws`, `hal-client`)
+
+- **Heartbeat:** gdy przez `heartbeatInterval` (domyślnie 10 s) nic nie przyszło, klient wysyła
+  `command system.ping`. **Każda** odpowiedź (także błąd) potwierdza łącze; brak odpowiedzi w
+  `heartbeatTimeout` (5 s) = połączenie utracone (`reason: "timeout"`). W przeglądarce sprawdzenie
+  odpala też powrót karty (`visibilitychange`) i `online`.
+- **Reconnect:** bez limitu prób (domyślnie), backoff 1 s → `maxReconnectDelay` (30 s) z ±20 % jitterem.
+  Oczekujące żądania są odrzucane od razu (`HalConnectionError: Connection lost`), a wysłane w trakcie
+  ponownego łączenia czekają na połączenie.
+- **Odtworzenie sesji:** po każdym połączeniu, zanim stan zmieni się na `connected`, klient wysyła
+  `authenticate` z bieżącym tokenem, a potem jeden `subscribe` ze wszystkimi aktywnymi wzorcami.
+  Odrzucony token przy `authenticate` przechodzi do warstwy auth (odnowienie albo stan `expired`, patrz
+  [auth.md](auth.md)).
 
 ## Kody błędów
 

@@ -9,10 +9,15 @@ export function createWsHalClient(options: HalClientOptions): HalClient {
     url: wsUrl,
     autoReconnect: options.autoReconnect,
     maxReconnectAttempts: options.maxReconnectAttempts,
+    maxReconnectDelay: options.maxReconnectDelay,
+    heartbeatInterval: options.heartbeatInterval,
+    heartbeatTimeout: options.heartbeatTimeout,
     requestTimeout: options.timeout,
     logger: options.logger,
   });
-  const cmdTransport = new WsCommandTransport(connection, options.logger);
+  const cmdTransport = new WsCommandTransport(connection, options.logger, {
+    tokenRequestTimeout: options.tokenRequestTimeout,
+  });
   const evtTransport = new WsEventTransport(connection, options.logger);
   return new HalClient(options)
     .useConnection(connection)

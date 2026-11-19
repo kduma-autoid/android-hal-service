@@ -21,7 +21,12 @@
     "@kduma-autoid/hal-client-plugin-sunmi-printer-facade": "workspace:*",
     "@kduma-autoid/hal-client-plugin-sunmi-barcode-scanner-facade": "workspace:*",
     "@kduma-autoid/hal-client-plugin-sunmi-nfc": "workspace:*",
-    "@kduma-autoid/hal-client-plugin-sunmi-screen": "workspace:*"
+    "@kduma-autoid/hal-client-plugin-sunmi-screen": "workspace:*",
+    "@kduma-autoid/hal-client-plugin-magnetic-card-reader-facade": "workspace:*",
+    "@kduma-autoid/hal-client-plugin-msr605x": "workspace:*",
+    "@kduma-autoid/hal-client-plugin-sunmi-card": "workspace:*",
+    "@kduma-autoid/hal-client-plugin-scale-facade": "workspace:*",
+    "@kduma-autoid/hal-client-plugin-dymo-m10": "workspace:*"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.0",

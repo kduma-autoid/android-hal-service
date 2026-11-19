@@ -14,6 +14,7 @@ import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
+import dev.duma.android.hal.contract.InterfaceBinding
 import dev.duma.android.hal.contract.KeyboardDeviceId
 import dev.duma.android.hal.contract.KeyboardFilter
 import dev.duma.android.hal.contract.MethodDescriptor
@@ -27,6 +28,9 @@ import org.json.JSONObject
 /**
  * HAL plugin wrapping the Sunmi CardManager SDK for magnetic stripe card reading.
  * Passive reader — listens continuously and emits swipe events with parsed track data.
+ *
+ * Provides the `magneticCardReader` interface as a passive provider: only `getInfo` and the
+ * `magneticCardReader.onSwipe` event (no `read`/`write` features).
  *
  * @param context Android Context needed to bind CardManager service.
  */
@@ -75,6 +79,8 @@ class SunmiCardPlugin(
             if (data == null) return
             val parsed = parseTrackData(data)
             callback?.onEvent("sunmi.card.swipe", parsed)
+            // Unified interface event: tracks without sentinels; source set automatically.
+            callback?.onEvent("magneticCardReader.onSwipe", toUnifiedTracks(parsed))
         }
     }
 
@@ -98,6 +104,8 @@ class SunmiCardPlugin(
         version = version,
         experimental = true,
         capabilities = getCapabilities(),
+        // Passive provider of the unified `magneticCardReader` interface (below an active reader).
+        interfaces = listOf(InterfaceBinding(interfaceId = "magneticCardReader", priority = 50)),
         methods = listOf(
             MethodDescriptor(
                 "sunmi.card.getInfo",
@@ -183,6 +191,12 @@ class SunmiCardPlugin(
                         put("devices", KeyboardFilter.describeInputDevices(KEYBOARD_DEVICES))
                     }.toString())
                 }
+                "magneticCardReader.getInfo" -> {
+                    CommandResult.Success(JSONObject().apply {
+                        put("name", CardManager.getName() ?: "Sunmi MSR")
+                        put("connected", CardManager.isConnected())
+                    }.toString())
+                }
                 else -> CommandResult.unsupportedMethod(method)
             }
         } catch (e: Exception) {
@@ -216,6 +230,20 @@ class SunmiCardPlugin(
         json.put("track3", semicolonTracks.getOrNull(1)?.value ?: JSONObject.NULL)
 
         return json.toString()
+    }
+
+    /**
+     * Maps [parseTrackData] output to the `magneticCardReader` event shape: tracks without their
+     * `%`/`;` start and `?` end sentinels, `""` for a track that is not present.
+     */
+    private fun toUnifiedTracks(parsedJson: String): String {
+        val parsed = JSONObject(parsedJson)
+        val out = JSONObject()
+        for (key in listOf("track1", "track2", "track3")) {
+            val track = if (parsed.isNull(key)) "" else parsed.getString(key)
+            out.put(key, track.removePrefix("%").removePrefix(";").removeSuffix("?"))
+        }
+        return out.toString()
     }
 
 }

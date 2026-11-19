@@ -7,5 +7,8 @@ package dev.duma.android.hal.service.auth
 enum class GrantDecision {
     AllowPermanent,
     AllowDay,
-    Deny
+    Deny,
+
+    /** Nobody answered the dialog in time; it was dismissed. */
+    Timeout
 }

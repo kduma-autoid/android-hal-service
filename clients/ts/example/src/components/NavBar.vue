@@ -4,11 +4,11 @@ import { useRoute } from 'vue-router';
 import { useHalClient } from '../composables/useHalClient';
 
 const route = useRoute();
-const { isConnected, error, connect, disconnect } = useHalClient();
+const { client, status, needsToken, requestNewToken, error, connect, disconnect } = useHalClient();
 const menuOpen = ref(false);
 const demosOpen = ref(false);
 const isDescribeActive = computed(() => route.path.startsWith('/describe'));
-const DEMO_PATHS = ['/statuslight', '/printer', '/barcode-scanner', '/screens'];
+const DEMO_PATHS = ['/statuslight', '/printer', '/barcode-scanner', '/magnetic-card', '/scale', '/screens'];
 const isDemosActive = computed(() => DEMO_PATHS.includes(route.path));
 
 function closeMenu() {
@@ -43,10 +43,10 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick));
         <div class="navbar-brand-right">
           <div class="navbar-right-mobile">
             <span class="status">
-              <span class="status-dot" :class="isConnected ? 'connected' : 'disconnected'" />
-              <span class="status-text">{{ isConnected ? 'Connected' : 'Disconnected' }}</span>
+              <span class="status-dot" :class="status.tone" />
+              <span class="status-text">{{ status.text }}</span>
             </span>
-            <button v-if="isConnected" class="btn btn-sm mobile-disconnect" @click="disconnect">Disconnect</button>
+            <button v-if="client" class="btn btn-sm mobile-disconnect" @click="disconnect">Disconnect</button>
             <button v-else class="btn btn-sm btn-primary connect-btn" @click="connect" aria-label="Connect">
               <svg class="connect-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
@@ -73,6 +73,8 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick));
               <router-link to="/statuslight" class="nav-link dropdown-link" @click="closeMenu">Status Light</router-link>
               <router-link to="/printer" class="nav-link dropdown-link" @click="closeMenu">Printer</router-link>
               <router-link to="/barcode-scanner" class="nav-link dropdown-link" @click="closeMenu">Barcode Scanner</router-link>
+              <router-link to="/magnetic-card" class="nav-link dropdown-link" @click="closeMenu">Magnetic Card</router-link>
+              <router-link to="/scale" class="nav-link dropdown-link" @click="closeMenu">Scale</router-link>
               <router-link to="/screens" class="nav-link dropdown-link" @click="closeMenu">Screens &amp; NFC</router-link>
             </div>
           </div>
@@ -81,21 +83,25 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick));
         </div>
         <div class="collapse-connection">
           <span class="status">
-            <span class="status-dot" :class="isConnected ? 'connected' : 'disconnected'" />
-            {{ isConnected ? 'Connected' : 'Disconnected' }}
+            <span class="status-dot" :class="status.tone" />
+            {{ status.text }}
           </span>
-          <button v-if="isConnected" class="btn btn-sm" @click="disconnect">Disconnect</button>
+          <button v-if="client" class="btn btn-sm" @click="disconnect">Disconnect</button>
           <button v-else class="btn btn-sm btn-primary" @click="connect">Connect</button>
         </div>
         <div class="navbar-right-desktop">
           <span class="status">
-            <span class="status-dot" :class="isConnected ? 'connected' : 'disconnected'" />
-            {{ isConnected ? 'Connected' : 'Disconnected' }}
+            <span class="status-dot" :class="status.tone" />
+            {{ status.text }}
           </span>
-          <button v-if="isConnected" class="btn btn-sm" @click="disconnect">Disconnect</button>
+          <button v-if="client" class="btn btn-sm" @click="disconnect">Disconnect</button>
           <button v-else class="btn btn-sm btn-primary" @click="connect">Connect</button>
         </div>
       </div>
+    </div>
+    <div v-if="needsToken" class="navbar-alert">
+      <span>{{ status.text }} — the service no longer accepts this app's token.</span>
+      <button class="btn btn-sm btn-primary" @click="requestNewToken">Request token</button>
     </div>
     <div v-if="error" class="navbar-error">{{ error }}</div>
   </nav>
@@ -271,8 +277,11 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick));
   display: inline-block;
   flex-shrink: 0;
 }
-.status-dot.connected { background: #22c55e; }
-.status-dot.disconnected { background: #ef4444; }
+.status-dot.ok { background: #22c55e; }
+.status-dot.busy { background: #f59e0b; animation: status-pulse 1s ease-in-out infinite; }
+.status-dot.bad { background: #ef4444; }
+.status-dot.off { background: #9ca3af; }
+@keyframes status-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 .btn {
   padding: 6px 14px;
   border: 1px solid #ccc;
@@ -368,6 +377,25 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick));
   .connect-label {
     display: none;
   }
+}
+
+/* Full-width bar under the navigation: room for the action on any screen size. */
+.navbar-alert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  box-sizing: border-box;
+  width: calc(100% - 32px);
+  max-width: 928px;
+  margin: 0 auto 10px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  font-size: 13px;
 }
 
 /* Keep the connection controls in the top bar down to mid-size phones. */

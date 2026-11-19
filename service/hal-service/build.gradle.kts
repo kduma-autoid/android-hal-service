@@ -123,6 +123,13 @@ dependencies {
     // advertise `demo.echo`/`ping`/`emit` in describe or list the interface in the Dashboard. The
     // real definers stay in plugin-generic-lib, which every build needs.
     "developmentImplementation"(project(":plugins:generic:plugin-generic-demo-lib"))
+    // MSR605X USB magnetic card reader/writer: built in only in the sunmi flavour. Every other build
+    // gets it from the standalone bundle APK (:plugins:msr605x:plugin-msr605x-bundle), which also
+    // overrides the built-in copy when installed.
+    add("sunmiImplementation", project(":plugins:msr605x:plugin-msr605x-lib"))
+    // Dymo M10 USB postal scale: same arrangement — built in only in the sunmi flavour, elsewhere from
+    // the standalone bundle APK (:plugins:dymo:plugin-dymo-bundle).
+    add("sunmiImplementation", project(":plugins:dymo:plugin-dymo-m10-lib"))
     // Sunmi plugins shared by both sunmi builds (production subset). Added to the `sunmi` device
     // flavour, so they land in both sunmiStable and sunmiDevelopment; AGP matches each plugin's
     // `stability` variant to the app's (stable → experimental compiled out, development → kept).

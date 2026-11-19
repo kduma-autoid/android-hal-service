@@ -192,4 +192,15 @@ describe('HttpCommandTransport', () => {
       expect(transport.getToken()).toBeNull();
     });
   });
+
+  it('gives token requests a longer timeout than commands (the permission dialog waits up to 60 s)', async () => {
+    adapter.nextResponse = { status: 200, statusText: 'OK', headers: {}, body: '{"token":"t","permissions":[]}' };
+    await transport.requestToken({ clientId: 'app' });
+    expect(adapter.lastRequest?.timeout).toBe(75_000);
+
+    transport.setToken('t');
+    adapter.nextResponse = { status: 200, statusText: 'OK', headers: {}, body: '{}' };
+    await transport.execute('system.ping');
+    expect(adapter.lastRequest?.timeout).toBe(30_000);
+  });
 });

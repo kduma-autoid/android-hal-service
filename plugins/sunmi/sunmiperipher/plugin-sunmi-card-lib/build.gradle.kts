@@ -58,6 +58,8 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.junit.jupiter)
+    // kotlin-test-junit5 brings the JUnit Platform launcher Gradle 9 needs on the test runtime classpath.
+    testImplementation(libs.kotlin.test)
     testImplementation(libs.junit.vintage.engine)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
