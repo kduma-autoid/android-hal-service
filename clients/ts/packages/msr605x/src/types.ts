@@ -57,6 +57,8 @@ export interface Msr605xInfo {
   permission: boolean;
   model?: string | null;
   firmware?: string | null;
+  /** Background listening is on: every swipe arrives as `msr605x.swipe` / `magneticCardReader.onSwipe`. */
+  listening?: boolean;
 }
 
 export interface Msr605xBpiSettings {

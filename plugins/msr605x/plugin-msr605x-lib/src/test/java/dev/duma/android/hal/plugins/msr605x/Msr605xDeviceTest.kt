@@ -70,6 +70,31 @@ class Msr605xDeviceTest {
     }
 
     @Test
+    fun `listen waits past any deadline for the swipe`() = runBlocking {
+        val t = FakeTransport()
+        val job = async(Dispatchers.IO) { Msr605xDevice(t).listen() }
+        delay(600) // several poll slices with nothing on the line
+        t.reply(
+            byteArrayOf(esc, 's'.code.toByte(), esc, 1, esc, '+'.code.toByte(), esc, 2) + ";42?".toByteArray() +
+                byteArrayOf(esc, 3, esc, '+'.code.toByte(), '?'.code.toByte(), 0x1C, esc, '0'.code.toByte())
+        )
+        val r = job.await()
+        assertEquals('r'.code.toByte(), t.written.single()[2])
+        assertEquals("42", r.track2)
+        assertTrue(t.features.isEmpty())
+    }
+
+    @Test
+    fun `cancelling listen hard-resets the device`() = runBlocking {
+        val t = FakeTransport()
+        val job = async(Dispatchers.IO) { Msr605xDevice(t).listen() }
+        delay(300)
+        job.cancel()
+        assertFailsWith<CancellationException> { job.await() }
+        assertEquals(1, t.features.size)
+    }
+
+    @Test
     fun `short commands parse their replies`() = runBlocking {
         val t = FakeTransport()
         val device = Msr605xDevice(t)

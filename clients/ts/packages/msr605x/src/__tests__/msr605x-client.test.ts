@@ -74,6 +74,13 @@ describe('Msr605xClient', () => {
     expect(mock.execute).toHaveBeenCalledWith('msr605x.commTest', {});
   });
 
+  it('setListening sends the flag and unwraps the state', async () => {
+    mock = createMockClient({ listening: false });
+    const c = new Msr605xClient(mock);
+    await expect(c.setListening(false)).resolves.toBe(false);
+    expect(mock.execute).toHaveBeenCalledWith('msr605x.setListening', { enabled: false });
+  });
+
   it('subscribes to native events', async () => {
     const handler = vi.fn();
     await msr.onSwipe(handler);

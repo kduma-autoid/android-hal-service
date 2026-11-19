@@ -195,6 +195,19 @@ aplikacja ma uprawnienie USB. O uprawnienie prosi sam, gdy wykryje czytnik (przy
 `ACTION_USB_DEVICE_ATTACHED`) — nie ma do tego metody API. Komenda bez uprawnienia ponawia prośbę i zwraca
 `unavailable`.
 
+**Nasłuchiwanie w tle (domyślnie włączone):** MSR605X czyta kartę tylko po uzbrojeniu komendą odczytu
+(jedna komenda = jedno przeciągnięcie) i dopóki czeka, nie odpowiada na nic poza hard resetem. Plugin
+trzyma go więc uzbrojonego w tle: każde przeciągnięcie emituje `msr605x.swipe` i
+`magneticCardReader.onSwipe`, po czym czytnik jest uzbrajany ponownie — zachowuje się jak czytnik
+pasywny (`sunmi.card`). Każda inna komenda (LED, ustawienia, `read`/`write`/`erase`) najpierw przerywa
+nasłuchiwanie (hard reset, ~100–350 ms), wykonuje się, a potem nasłuchiwanie wraca. W trybie odczytu
+czytnik sam steruje diodami, więc stan ustawiony `setLed` nie utrzymuje się podczas nasłuchiwania.
+`getInfo` odpowiada z cache (model/firmware) i nie przerywa nasłuchiwania.
+
+Automatyczny start steruje ustawienie pluginu **„Listen for card swipes automatically”** (hal-service →
+szczegóły pluginu MSR605X → Settings, domyślnie włączone); `msr605x.setListening` przełącza je doraźnie
+do restartu usługi. W buildach `stable` (plugin wycięty) nasłuchiwanie nie startuje.
+
 **Metody** (uprawnienie `msr605x`):
 
 | Metoda | Params | Opis |
@@ -210,7 +223,8 @@ aplikacja ma uprawnienie USB. O uprawnienie prosi sam, gdy wykryje czytnik (przy
 | msr605x.setBpc | `{track1, track2, track3: 5..8}` | bity na znak |
 | msr605x.setLeadingZeros / getLeadingZeros | `{track13, track2: 0..255}` | zera wiodące |
 | msr605x.setLed | `{led: off\|green\|yellow\|red\|all}` | diody |
-| msr605x.getInfo | `{}` | `{connected, permission, model, firmware}` |
+| msr605x.getInfo | `{}` | `{connected, permission, model, firmware, listening}` |
+| msr605x.setListening | `{enabled}` | nasłuchiwanie w tle wł./wył. do restartu → `{listening}` |
 | msr605x.commTest | `{}` | `{ok}` |
 | msr605x.reset | `{hard?}` | reset (hard przerywa trwającą operację) |
 
@@ -222,5 +236,6 @@ Status po odczycie/zapisie/kasowaniu to `'0'` + maska bitowa ścieżek, które n
 Sterownik referencyjny traktuje `'1'`/`'2'`/`'4'` jako „R/W error” / „command format error” /
 „invalid command” — na sprzęcie to awarie ścieżek 1/2/3. Zapis Lo-Co na karcie Hi-Co daje `'7'`.
 
-**Eventy:** `msr605x.swipe` (każdy odczyt, obok unified `magneticCardReader.onSwipe`), `msr605x.attached`,
+**Eventy:** `msr605x.swipe` (każde przeciągnięcie — z nasłuchiwania albo `read`; obok unified
+`magneticCardReader.onSwipe`), `msr605x.attached`,
 `msr605x.detached`.

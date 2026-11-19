@@ -25,6 +25,13 @@ class Msr605xDevice(private val transport: Msr605xTransport) {
     suspend fun read(timeoutMs: Long): Msr605xProtocol.ReadResult<String> =
         Msr605xProtocol.parseIsoRead(awaitSwipe(Msr605xProtocol.CMD_READ, timeoutMs))
 
+    /**
+     * Arms the reader for one swipe and waits for it with no deadline — the background-listening
+     * read. Cancel the coroutine to stop; the reader is then hard-reset out of its waiting state.
+     */
+    suspend fun listen(): Msr605xProtocol.ReadResult<String> =
+        Msr605xProtocol.parseIsoRead(awaitSwipe(Msr605xProtocol.CMD_READ, timeoutMs = null))
+
     suspend fun readRaw(timeoutMs: Long): Msr605xProtocol.ReadResult<ByteArray> =
         Msr605xProtocol.parseRawRead(awaitSwipe(Msr605xProtocol.CMD_READ_RAW, timeoutMs))
 
@@ -87,7 +94,8 @@ class Msr605xDevice(private val transport: Msr605xTransport) {
         return receive(waitMs)
     }
 
-    private suspend fun awaitSwipe(data: ByteArray, timeoutMs: Long): ByteArray {
+    /** Sends a swipe-waiting command and waits for the card; [timeoutMs] null = no deadline. */
+    private suspend fun awaitSwipe(data: ByteArray, timeoutMs: Long?): ByteArray {
         send(data)
         val response = try {
             receive(timeoutMs)
@@ -107,16 +115,16 @@ class Msr605xDevice(private val transport: Msr605xTransport) {
     }
 
     /**
-     * Waits up to [firstWaitMs] for the first packet (polling in short slices so cancellation is
-     * honoured), then keeps reading until a packet with the "last" header bit arrives or the line
-     * goes idle for [IDLE_MS]. Returns an empty array when nothing arrived.
+     * Waits up to [firstWaitMs] (null = indefinitely) for the first packet, polling in short slices
+     * so cancellation is honoured, then keeps reading until a packet with the "last" header bit
+     * arrives or the line goes idle for [IDLE_MS]. Returns an empty array when nothing arrived.
      */
-    private suspend fun receive(firstWaitMs: Long): ByteArray {
+    private suspend fun receive(firstWaitMs: Long?): ByteArray {
         val assembler = Msr605xProtocol.PacketAssembler()
-        val deadline = System.currentTimeMillis() + firstWaitMs
+        val deadline = firstWaitMs?.let { System.currentTimeMillis() + it }
         while (!assembler.hasData) {
             currentCoroutineContext().ensureActive()
-            val remaining = deadline - System.currentTimeMillis()
+            val remaining = deadline?.let { it - System.currentTimeMillis() } ?: POLL_SLICE_MS
             if (remaining <= 0) return ByteArray(0)
             transport.read(minOf(remaining, POLL_SLICE_MS).toInt().coerceAtLeast(1))?.let(assembler::add)
         }

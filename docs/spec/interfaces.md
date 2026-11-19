@@ -244,7 +244,8 @@ szyny.
   konkretny skaner. Zastępuje dawny `GenericScannerPlugin`.
 - **`magneticCardReader`** (definer `MagneticCardReaderInterface`): `magneticCardReader.getInfo/read/cancel/write`,
   event `magneticCardReader.onSwipe {track1, track2, track3}` (ścieżki bez sentineli). `read`/`cancel` bramkowane
-  cechą `read`, `write` cechą `write`. Provider aktywny `msr605x` (USB MSR605X, `read`+`write`, default) i pasywny
+  cechą `read`, `write` cechą `write`. Provider aktywny `msr605x` (USB MSR605X, `read`+`write`, default; domyślnie
+  nasłuchuje w tle, więc `onSwipe` przychodzi też bez `read`) i pasywny
   `sunmi.card` (FLEX, bez cech — tylko `getInfo` i event). Gołe `magneticCardReader.read` zawsze trafia do
   czytnika z cechą `read`; `magneticCardReader.read@sunmi.card` → `unavailable`.
 - **`demo`** (definer `DemoInterface`): bezsprzętowy interfejs testowy — providerzy `demo.alpha`

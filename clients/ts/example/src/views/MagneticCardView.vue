@@ -286,6 +286,11 @@ async function setCoercivity(mode: Msr605xCoercivity) {
   msrCoercivity.value = (await msrCall((m) => m.getCoercivity())) ?? msrCoercivity.value;
 }
 
+async function setListening(enabled: boolean) {
+  await msrCall((m) => m.setListening(enabled), `Listening ${enabled ? 'on' : 'off'}`);
+  msrInfo.value = (await msrCall((m) => m.getInfo())) ?? msrInfo.value;
+}
+
 function setLed(led: Msr605xLed) {
   msrCall((m) => m.setLed(led));
 }
@@ -602,6 +607,12 @@ watch(
       <dt>Firmware</dt><dd class="mono">{{ msrInfo.firmware ?? '—' }}</dd>
     </dl>
 
+    <div class="row">
+      <span class="label">Listening</span>
+      <button class="btn btn-sm" :class="{ selected: msrInfo?.listening === true }" :disabled="msrBusy" @click="setListening(true)">On</button>
+      <button class="btn btn-sm" :class="{ selected: msrInfo?.listening === false }" :disabled="msrBusy" @click="setListening(false)">Off</button>
+      <span class="hint">every swipe arrives as an event; LEDs return to the reader's own state</span>
+    </div>
     <div class="row">
       <span class="label">Coercivity</span>
       <button class="btn btn-sm" :class="{ selected: msrCoercivity === 'hi' }" :disabled="msrBusy" @click="setCoercivity('hi')">Hi-Co</button>

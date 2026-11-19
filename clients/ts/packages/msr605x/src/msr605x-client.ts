@@ -97,6 +97,15 @@ export class Msr605xClient {
     return this.client.execute<Msr605xInfo>('msr605x.getInfo', {});
   }
 
+  /**
+   * Turns background listening on or off until the service restarts (the default comes from the
+   * plugin's "listen automatically" setting). Resolves to the new state.
+   */
+  async setListening(enabled: boolean): Promise<boolean> {
+    const res = await this.client.execute<{ listening?: boolean }>('msr605x.setListening', { enabled });
+    return res?.listening === true;
+  }
+
   async setLed(led: Msr605xLed): Promise<void> {
     await this.client.execute('msr605x.setLed', { led });
   }

@@ -20,13 +20,21 @@ import dev.duma.android.hal.contract.InterfaceBinding
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
+import dev.duma.android.hal.contract.PluginSetting
 import dev.duma.android.hal.contract.stripExperimental
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -44,10 +52,15 @@ import kotlin.coroutines.cancellation.CancellationException
  * attached *and* the app holds USB permission for it. Permission is requested automatically when
  * the reader is detected — there is no API method for it.
  *
- * Card operations (read/write/erase) wait for a swipe for up to `timeoutMs`; `msr605x.cancel`
- * aborts a pending wait. Every successful read is also emitted as the [EVENT_SWIPE] event and the
- * unified `magneticCardReader.onSwipe` event (this plugin provides the `magneticCardReader`
- * interface).
+ * The MSR605X only reads a card after it was armed with a read command, one swipe per command.
+ * By default the plugin keeps it armed in the background ("listening") and reports every swipe as
+ * the [EVENT_SWIPE] event and the unified `magneticCardReader.onSwipe` event — so the reader behaves
+ * like a passive one (cf. `sunmi.card`). The "listen automatically" plugin setting (hal-service →
+ * plugin details) decides whether it starts on its own; `msr605x.setListening` switches it at runtime.
+ *
+ * While armed the device answers nothing but a hard reset, so every other command pauses listening
+ * (hard reset), runs, and re-arms. Card operations (read/write/erase) wait for a swipe for up to
+ * `timeoutMs`; `msr605x.cancel` aborts such a wait. Reads also emit the swipe events.
  */
 class Msr605xPlugin(
     private val appContext: Context? = null
@@ -66,6 +79,20 @@ class Msr605xPlugin(
     @Volatile private var pendingSwipe: Deferred<*>? = null
     @Volatile private var permissionPending = false
 
+    /** Model / firmware of the opened device, so `getInfo` doesn't have to interrupt listening. */
+    @Volatile private var cachedModel: String? = null
+    @Volatile private var cachedFirmware: String? = null
+
+    // --- Background listening ---
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val listenLock = Any()
+    /** Guarded by [listenLock]. */
+    private var listenJob: Job? = null
+    /** Commands currently holding the reader; listening resumes when this drops to 0. Guarded by [listenLock]. */
+    private var activeCommands = 0
+    @Volatile private var listeningEnabled = BuildConfig.WITH_EXPERIMENTAL
+    @Volatile private var disposed = false
+
     private val usbManager: UsbManager?
         get() = appContext?.getSystemService(Context.USB_SERVICE) as? UsbManager
 
@@ -81,6 +108,7 @@ class Msr605xPlugin(
                 ACTION_USB_PERMISSION -> {
                     val granted = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)
                     pluginContext?.setPluginAvailable(granted)
+                    if (granted) startListeningIfIdle()
                 }
             }
         }
@@ -93,8 +121,28 @@ class Msr605xPlugin(
 
     override fun getCapabilities(): List<String> = listOf(CAPABILITY)
 
+    override fun getSettings(): List<PluginSetting> =
+        if (BuildConfig.WITH_EXPERIMENTAL) listOf(
+            PluginSetting(
+                key = SETTING_AUTO_LISTEN,
+                title = "Listen for card swipes automatically",
+                description = "Keep the reader armed in the background and report every swipe as an event. " +
+                    "When off, cards are read only by msr605x.read / magneticCardReader.read " +
+                    "(or after msr605x.setListening).",
+                default = true
+            )
+        ) else emptyList()
+
+    override fun onSettingChanged(key: String, value: Boolean) {
+        if (key != SETTING_AUTO_LISTEN || !BuildConfig.WITH_EXPERIMENTAL) return
+        listeningEnabled = value
+        if (value) startListeningIfIdle() else stopListening()
+    }
+
     override fun initialize(pluginContext: PluginContext) {
         this.pluginContext = pluginContext
+        listeningEnabled = BuildConfig.WITH_EXPERIMENTAL &&
+            pluginContext.getBooleanSetting(SETTING_AUTO_LISTEN, default = true)
         val ctx = appContext ?: return
         val filter = IntentFilter().apply {
             addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
@@ -109,7 +157,10 @@ class Msr605xPlugin(
     }
 
     override fun dispose() {
+        disposed = true
+        stopListening()
         pendingSwipe?.cancel()
+        scope.cancel()
         closeDevice()
         if (receiversRegistered) {
             try {
@@ -130,9 +181,11 @@ class Msr605xPlugin(
         if (!granted) requestPermission(dev)
         pluginContext?.setPluginAvailable(granted)
         if (emit) emitEvent(EVENT_ATTACHED, "{}")
+        if (granted) startListeningIfIdle()
     }
 
     private fun onDetached() {
+        stopListening() // before closing: the loop must not keep polling a closed connection
         pendingSwipe?.cancel()
         closeDevice()
         permissionPending = false
@@ -172,11 +225,81 @@ class Msr605xPlugin(
 
     private fun closeDevice() {
         device = null
+        cachedModel = null
+        cachedFirmware = null
         transport?.let { runCatching { it.close() } }
         transport = null
     }
 
     private class DeviceUnavailableException(message: String) : Exception(message)
+
+    /**
+     * Starts the background listening loop unless it is off, already running, a command holds the
+     * reader, or the reader isn't attached with permission.
+     */
+    private fun startListeningIfIdle() {
+        synchronized(listenLock) {
+            if (disposed || !listeningEnabled || activeCommands > 0 || listenJob?.isActive == true) return
+            val dev = findDevice() ?: return
+            if (usbManager?.hasPermission(dev) != true) return
+            listenJob = scope.launch { listenLoop() }
+        }
+    }
+
+    /** Stops listening without waiting; the loop hard-resets the reader as it unwinds. */
+    private fun stopListening() {
+        synchronized(listenLock) {
+            listenJob?.cancel()
+            listenJob = null
+        }
+    }
+
+    /** Arms the reader, reports the swipe, re-arms — until cancelled or the reader goes away. */
+    private suspend fun listenLoop() {
+        Log.d(TAG, "listening started")
+        try {
+            while (currentCoroutineContext().isActive) {
+                val result = try {
+                    mutex.withLock { openDevice().listen() }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: DeviceUnavailableException) {
+                    Log.i(TAG, "listening stopped: ${e.message}")
+                    return
+                } catch (e: Exception) {
+                    Log.w(TAG, "listening: reader error, retrying", e)
+                    if (e is IOException) closeDevice()
+                    delay(LISTEN_RETRY_MS)
+                    continue
+                }
+                if (result.status == null) {
+                    Log.w(TAG, "listening: unexpected response from MSR605X")
+                    continue
+                }
+                emitSwipe(result)
+            }
+        } finally {
+            Log.d(TAG, "listening paused/stopped")
+        }
+    }
+
+    /**
+     * Runs [block] with exclusive use of the reader: pauses listening first (cancel + wait, so the
+     * reader is hard-reset out of its armed state) and re-arms it once no command holds the reader.
+     */
+    private suspend fun <T> exclusive(block: suspend () -> T): T {
+        val job = synchronized(listenLock) {
+            activeCommands++
+            listenJob.also { listenJob = null }
+        }
+        try {
+            job?.cancelAndJoin()
+            return block()
+        } finally {
+            synchronized(listenLock) { activeCommands-- }
+            startListeningIfIdle()
+        }
+    }
 
     // --- Descriptor ---
 
@@ -248,7 +371,7 @@ class Msr605xPlugin(
                 events = listOf(
                     EventDescriptor(
                         EVENT_SWIPE,
-                        "A card was read (via msr605x.read or magneticCardReader.read).",
+                        "A card was swiped: while listening in the background (the default) or during msr605x.read / magneticCardReader.read.",
                         CAPABILITY,
                         exampleEvent = """{"status":"ok","track1":"B4111111111111111^DOE/JOHN^2512101123400001","track2":"4111111111111111=25121011234000010001","track3":""}"""
                     )
@@ -268,7 +391,14 @@ class Msr605xPlugin(
             DescriptorGroup(
                 name = "Device",
                 methods = listOf(
-                    method("getInfo", "Connection state, USB permission, model and firmware.", output = """{"connected":true,"permission":true,"model":"3","firmware":"REVH1.21"}"""),
+                    method("getInfo", "Connection state, USB permission, model, firmware and whether background listening is on.", output = """{"connected":true,"permission":true,"model":"3","firmware":"REVH2.39","listening":true}"""),
+                    method(
+                        "setListening",
+                        "Turn background listening on or off until restart (the default comes from the plugin's " +
+                            "\"listen automatically\" setting). While listening every swipe is " +
+                            "reported as msr605x.swipe / magneticCardReader.onSwipe; other commands pause it briefly.",
+                        """{"enabled":true}""", """{"listening":true}"""
+                    ),
                     method("setLed", "Set the LEDs: off, green, yellow (green+yellow), red or all.", """{"led":"green"}"""),
                     method("commTest", "Run the device communication test.", output = """{"ok":true}"""),
                     method("reset", "Reset the device; hard reset also aborts a pending operation.", """{"hard":false}""")
@@ -296,8 +426,13 @@ class Msr605xPlugin(
             swipe?.cancel(CancellationException("Cancelled by client"))
             return CommandResult.Success(JSONObject().put("cancelled", swipe != null).toString())
         }
+        if (method == "$CAPABILITY.setListening") return setListening(json)
+        // Answer from the cache when possible, so polling getInfo doesn't keep interrupting listening.
+        if (method == "$CAPABILITY.getInfo" || method == "magneticCardReader.getInfo") {
+            cachedInfo(unified = method != "$CAPABILITY.getInfo")?.let { return it }
+        }
 
-        return mutex.withLock {
+        return exclusive { mutex.withLock {
             withContext(Dispatchers.IO) {
                 try {
                     dispatch(method, json)
@@ -326,7 +461,7 @@ class Msr605xPlugin(
                     CommandResult.internalError(e.message ?: "MSR605X error")
                 }
             }
-        }
+        } }
     }
 
     private suspend fun dispatch(method: String, json: JSONObject): CommandResult {
@@ -361,24 +496,63 @@ class Msr605xPlugin(
     }
 
     private suspend fun getInfo(unified: Boolean): CommandResult {
-        val dev = findDevice()
-        val permission = dev != null && usbManager?.hasPermission(dev) == true
+        val permission = hasPermission()
+        if (permission && cachedModel == null) {
+            val d = openDevice()
+            cachedModel = d.getModel()
+            cachedFirmware = d.getFirmware()
+        }
+        return infoResult(unified, permission)
+    }
+
+    /** getInfo without touching the reader: when it isn't usable, or model/firmware are cached. */
+    private fun cachedInfo(unified: Boolean): CommandResult? {
+        val permission = hasPermission()
+        return if (!permission || cachedModel != null) infoResult(unified, permission) else null
+    }
+
+    private fun hasPermission(): Boolean = findDevice()?.let { usbManager?.hasPermission(it) } == true
+
+    private fun infoResult(unified: Boolean, permission: Boolean): CommandResult {
         val info = JSONObject()
         if (unified) info.put("name", "MSR605X")
-        info.put("connected", dev != null)
+        info.put("connected", findDevice() != null)
         if (!unified) info.put("permission", permission)
         if (permission) {
-            val d = openDevice()
-            info.put("model", d.getModel() ?: JSONObject.NULL)
-            info.put("firmware", d.getFirmware() ?: JSONObject.NULL)
+            info.put("model", cachedModel ?: JSONObject.NULL)
+            info.put("firmware", cachedFirmware ?: JSONObject.NULL)
         }
+        if (!unified) info.put("listening", listeningEnabled)
         return ok(info)
+    }
+
+    private suspend fun setListening(json: JSONObject): CommandResult {
+        if (!json.has("enabled")) return CommandResult.badRequest("enabled (boolean) is required")
+        val enabled = try {
+            json.getBoolean("enabled")
+        } catch (e: JSONException) {
+            return CommandResult.badRequest("enabled must be a boolean")
+        }
+        listeningEnabled = enabled
+        if (enabled) {
+            startListeningIfIdle()
+        } else {
+            val job = synchronized(listenLock) { listenJob.also { listenJob = null } }
+            job?.cancelAndJoin()
+        }
+        return ok(JSONObject().put("listening", enabled))
     }
 
     private suspend fun read(json: JSONObject, unified: Boolean): CommandResult {
         val dev = openDevice()
         val result = swipe { dev.read(timeoutOf(json)) }
         if (result.status == null) return CommandResult.internalError("Unexpected response from MSR605X")
+        val (tracks, native) = emitSwipe(result)
+        return ok(if (unified) tracks else native)
+    }
+
+    /** Emits the native and unified swipe events; returns their payloads (tracks, tracks + status). */
+    private fun emitSwipe(result: Msr605xProtocol.ReadResult<String>): Pair<JSONObject, JSONObject> {
         val tracks = JSONObject()
             .put("track1", result.track1 ?: JSONObject.NULL)
             .put("track2", result.track2 ?: JSONObject.NULL)
@@ -386,7 +560,7 @@ class Msr605xPlugin(
         val native = JSONObject(tracks.toString()).put("status", Msr605xProtocol.describeStatus(result.status))
         emitEvent(EVENT_SWIPE, native.toString())
         emitEvent(EVENT_ON_SWIPE, tracks.toString())
-        return ok(if (unified) tracks else native)
+        return tracks to native
     }
 
     private suspend fun readRaw(json: JSONObject): CommandResult {
@@ -541,5 +715,7 @@ class Msr605xPlugin(
         private const val ACTION_USB_PERMISSION = "dev.duma.android.hal.plugins.msr605x.USB_PERMISSION"
         private const val DEFAULT_TIMEOUT_MS = 15_000L
         private const val MAX_TIMEOUT_MS = 120_000L
+        private const val LISTEN_RETRY_MS = 1_000L
+        private const val SETTING_AUTO_LISTEN = "autoListen"
     }
 }
