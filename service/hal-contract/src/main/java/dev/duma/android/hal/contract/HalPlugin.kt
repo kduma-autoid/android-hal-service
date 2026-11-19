@@ -22,4 +22,10 @@ interface HalPlugin {
      * Default is a no-op; override only if the plugin holds releasable resources.
      */
     fun dispose() {}
+
+    /** User-facing settings shown on the plugin's detail screen in hal-service. Default: none. */
+    fun getSettings(): List<PluginSetting> = emptyList()
+
+    /** Called when the user changes one of [getSettings] (on the thread that made the change). */
+    fun onSettingChanged(key: String, value: Boolean) {}
 }

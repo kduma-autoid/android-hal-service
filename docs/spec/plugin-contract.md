@@ -11,7 +11,12 @@ interface HalPlugin {
     fun initialize(pluginContext: PluginContext)
     suspend fun execute(method: String, params: String): String
     fun setEventCallback(callback: HalPluginEventCallback?)
+    fun dispose() {}
+    fun getSettings(): List<PluginSetting> = emptyList()          // ustawienia użytkownika
+    fun onSettingChanged(key: String, value: Boolean) {}
 }
+
+data class PluginSetting(val key: String, val title: String, val description: String = "", val default: Boolean)
 
 interface HalPluginEventCallback {
     fun onEvent(eventName: String, jsonData: String)
@@ -21,6 +26,12 @@ interface HalPluginEventCallback {
 
 initialize() wywoływane PO rejestracji WSZYSTKICH pluginów — dopiero wtedy
 PluginContext widzi pełne capabilities.
+
+**Ustawienia pluginu:** plugin deklaruje przełączniki (`getSettings()` → `PluginSetting`), hal-service
+pokazuje je w sekcji „Settings” ekranu szczegółów pluginu i zapisuje w SharedPreferences
+`hal_plugin_settings` (klucz `<pluginId>/<key>`, tylko wartości zmienione przez użytkownika). Plugin
+czyta wartość przez `PluginContext.getBooleanSetting(key, default)` (np. w `initialize`), a o zmianie
+dowiaduje się z `onSettingChanged`. Na razie tylko wartości boolean; pluginy AIDL nie mają ustawień.
 
 ## PluginDescriptor — deklaracja metod i eventów
 
@@ -66,6 +77,7 @@ interface PluginContext {
     fun emitEvent(eventName: String, jsonData: String)
     fun onEvent(pattern: String, callback: (eventName: String, jsonData: String) -> Unit)
     val applicationContext: android.content.Context
+    fun getBooleanSetting(key: String, default: Boolean): Boolean   // wartość z HalPlugin.getSettings()
 }
 ```
 

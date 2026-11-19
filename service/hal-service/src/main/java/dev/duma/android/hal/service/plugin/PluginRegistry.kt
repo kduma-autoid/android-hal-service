@@ -95,6 +95,9 @@ class PluginRegistry {
 
     fun getPluginInfo(pluginId: String): PluginInfo? = pluginInfo[pluginId]
 
+    /** The registered plugin instance (in-process or AIDL adapter), e.g. to read its settings. */
+    fun getPlugin(pluginId: String): HalPlugin? = plugins[pluginId]
+
     /**
      * A plugin that offers nothing at all has no reason to be registered. That is what a `stable`
      * build leaves behind for a plugin which is experimental as a whole: `stripExperimental()` empties

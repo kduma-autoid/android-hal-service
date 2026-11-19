@@ -4,6 +4,7 @@ import android.content.Context
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventBus
 import dev.duma.android.hal.contract.PluginContext
+import dev.duma.android.hal.service.config.PluginSettingsConfig
 
 /**
  * Per-plugin implementation of [PluginContext]. Each plugin gets its own instance
@@ -40,6 +41,9 @@ class PluginContextImpl(
             callback = callback
         )
     }
+
+    override fun getBooleanSetting(key: String, default: Boolean): Boolean =
+        PluginSettingsConfig(applicationContext).getBoolean(ownerPluginId, key, default)
 
     override fun setPluginAvailable(available: Boolean) {
         registry.setPluginAvailability(ownerPluginId, available)
