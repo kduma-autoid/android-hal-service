@@ -17,7 +17,10 @@ export class WsEventTransport implements IEventTransport {
   private readonly logger?: ILogger;
   private token: string | null = null;
   private handlers: HandlerEntry[] = [];
+  /** Event patterns the server accepted for this client — re-subscribed on every new socket. */
+  private readonly serverSubscriptions = new Set<string>();
   private unsubscribeFromConnection: (() => void) | null = null;
+  private removeSessionHook: (() => void) | null = null;
 
   constructor(connection: WsConnection, logger?: ILogger) {
     this.connection = connection;
@@ -28,6 +31,19 @@ export class WsEventTransport implements IEventTransport {
         this.dispatchEvent(msg.event, msg.data, msg.source);
       }
     });
+
+    // Subscriptions live in the server's per-socket session: restore them after authenticating
+    // (order 10, after the command transport's authenticate at order 0).
+    this.removeSessionHook = this.connection.addSessionHook(async (send) => {
+      if (this.serverSubscriptions.size === 0) return;
+      const events = [...this.serverSubscriptions];
+      const response = await send({ type: 'subscribe', events });
+      if (response.type === 'error') {
+        this.logger?.warn('Re-subscribing events failed', { code: response.error.code, events });
+        throw new HalError(response.error.code, response.error.message);
+      }
+      this.logger?.debug('Re-subscribed events', { events });
+    }, 10);
   }
 
   setToken(token: string): void {
@@ -51,6 +67,7 @@ export class WsEventTransport implements IEventTransport {
       throw new HalError(response.error.code, response.error.message);
     }
 
+    for (const e of events) this.serverSubscriptions.add(e);
     this.logger?.debug('Subscribed to events', { events });
   }
 
@@ -61,6 +78,8 @@ export class WsEventTransport implements IEventTransport {
       type: 'unsubscribe',
       events,
     });
+
+    for (const e of events) this.serverSubscriptions.delete(e);
 
     if (response.type === 'error') {
       throw new HalError(response.error.code, response.error.message);
@@ -84,6 +103,9 @@ export class WsEventTransport implements IEventTransport {
 
   dispose(): void {
     this.handlers = [];
+    this.serverSubscriptions.clear();
+    this.removeSessionHook?.();
+    this.removeSessionHook = null;
 
     if (this.unsubscribeFromConnection !== null) {
       this.unsubscribeFromConnection();

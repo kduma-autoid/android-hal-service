@@ -28,4 +28,5 @@ export { WsConnection } from './ws-connection.js';
 
 // Transports
 export { WsCommandTransport } from './ws-command-transport.js';
+export type { WsCommandTransportOptions } from './ws-command-transport.js';
 export { WsEventTransport } from './ws-event-transport.js';

@@ -14,8 +14,10 @@ import type {
   DescribeResponse,
   EventMeta,
   ExecuteOptions,
+  AuthState,
+  AuthStateHandler,
 } from '@kduma-autoid/hal-client-common';
-import { InMemoryTokenStore, EventSubscriberAdapter } from '@kduma-autoid/hal-client-common';
+import { InMemoryTokenStore, EventSubscriberAdapter, isAuthError } from '@kduma-autoid/hal-client-common';
 import type { HalClientOptions } from './hal-client-options.js';
 import { TokenManager } from './token-manager.js';
 
@@ -25,6 +27,7 @@ export class HalClient implements IHalClient {
   private commandTransport: ICommandTransport | null = null;
   private eventTransport: IEventTransport | null = null;
   private eventSubscriber: EventSubscriberAdapter | null = null;
+  private removeTokenRejected: (() => void) | null = null;
 
   constructor(options: HalClientOptions) {
     const tokenStore = options.tokenStore ?? new InMemoryTokenStore();
@@ -38,6 +41,7 @@ export class HalClient implements IHalClient {
         clientId: options.clientId,
         requestedPermissions: options.requestedPermissions,
         onTokenExpired: options.onTokenExpired,
+        autoRequestToken: options.autoRequestToken,
       },
     );
   }
@@ -57,6 +61,13 @@ export class HalClient implements IHalClient {
   useCommandTransport(transport: ICommandTransport): this {
     this.commandTransport = transport;
     this.tokenManager.registerCommandTransport(transport);
+    // A token rejected outside a command (WebSocket re-authenticating after a reconnect) is handled
+    // like a rejected command: renewed if possible, otherwise the auth state turns `expired`.
+    this.removeTokenRejected?.();
+    this.removeTokenRejected =
+      transport.onTokenRejected?.((token) => {
+        void this.tokenManager.handleUnauthorized(token);
+      }) ?? null;
     return this;
   }
 
@@ -89,6 +100,16 @@ export class HalClient implements IHalClient {
     return this.tokenManager.getPermissions();
   }
 
+  /** Where authorization stands — see {@link AuthState}. */
+  get authState(): AuthState {
+    return this.tokenManager.authState;
+  }
+
+  /** Subscribes to auth state changes, e.g. to prompt for `requestToken()` once it turns `expired`. */
+  onAuthStateChange(handler: AuthStateHandler): () => void {
+    return this.tokenManager.onAuthStateChange(handler);
+  }
+
   // --- Commands ---
 
   async execute<T = unknown>(method: string, params?: unknown, options?: ExecuteOptions): Promise<T> {
@@ -96,8 +117,23 @@ export class HalClient implements IHalClient {
       throw new Error('No command transport configured. Call useCommandTransport() first.');
     }
 
+    const transport = this.commandTransport;
     await this.tokenManager.ensureValidToken();
-    return this.commandTransport.execute<T>(method, params, options);
+    return this.withAuthRetry(() => transport.execute<T>(method, params, options));
+  }
+
+  /**
+   * Runs `call`; if the service rejects the token (`unauthorized`: expired, revoked), renews it when
+   * possible and retries once. Otherwise the error propagates and the auth state turns `expired`.
+   */
+  private async withAuthRetry<T>(call: () => Promise<T>): Promise<T> {
+    const used = this.tokenManager.getToken();
+    try {
+      return await call();
+    } catch (error) {
+      if (!isAuthError(error) || !(await this.tokenManager.handleUnauthorized(used))) throw error;
+      return call();
+    }
   }
 
   // --- System convenience ---
@@ -153,13 +189,17 @@ export class HalClient implements IHalClient {
     if (this.eventSubscriber === null) {
       throw new Error('No event transport configured. Call useEventTransport() first.');
     }
-    return this.eventSubscriber.on<T>(event, handler);
+    const subscriber = this.eventSubscriber;
+    return this.withAuthRetry(() => subscriber.on<T>(event, handler));
   }
 
   // --- Lifecycle ---
 
   dispose(): void {
+    this.removeTokenRejected?.();
+    this.removeTokenRejected = null;
     this.tokenManager.clearToken();
+    this.tokenManager.dispose();
 
     if (this.eventTransport) {
       this.eventSubscriber = null;

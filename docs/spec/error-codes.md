@@ -26,7 +26,7 @@ W Intent: JSON string w extra "result"
 ### Autoryzacja
 | Kod | HTTP | Opis |
 |-----|------|------|
-| `unauthorized` | 401 | Brak tokenu / wygasł / binding mismatch / sesja nieautoryzowana |
+| `unauthorized` | 401 | Brak tokenu / wygasł / odwołany / binding mismatch / sesja nieautoryzowana. Klient TS odnawia token (z kluczem serwisowym) i ponawia raz, inaczej `authState` = `expired` — patrz [auth.md](auth.md) |
 | `forbidden` | 403 | Brak uprawnienia do operacji lub eventu |
 | `invalid_key` | 400 | Nieprawidłowy podpis JWT (service key lub device key) |
 | `key_expired` | 400 | JWT wygasł |

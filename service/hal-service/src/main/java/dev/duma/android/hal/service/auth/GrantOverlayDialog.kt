@@ -14,14 +14,17 @@ import kotlinx.coroutines.CompletableDeferred
  */
 object GrantOverlayDialog {
 
+    /** Shows the dialog; returns a function dismissing it (no-op once it was answered). */
     fun show(
         context: Context,
         clientId: String,
         packageName: String?,
         origin: String?,
         requestedPermissions: List<String>?,
-        deferred: CompletableDeferred<GrantDecision>
-    ) {
+        deferred: CompletableDeferred<GrantDecision>,
+        /** When the request times out (epoch ms); shown as a countdown on Deny. */
+        deadlineMs: Long
+    ): () -> Unit {
         val callerInfo = when {
             origin != null -> "Origin: $origin"
             packageName != null -> {
@@ -68,5 +71,12 @@ object GrantOverlayDialog {
         )
 
         dialog.show()
+
+        val deny = dialog.getButton(AlertDialog.BUTTON_NEGATIVE)
+        val countdown = DenyCountdown(deadlineMs, deny.text.toString()) { deny.text = it }
+        dialog.setOnDismissListener { countdown.stop() }
+        countdown.start()
+
+        return { if (dialog.isShowing) dialog.dismiss() }
     }
 }

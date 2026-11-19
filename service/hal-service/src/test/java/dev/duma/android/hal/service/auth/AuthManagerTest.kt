@@ -93,6 +93,23 @@ class AuthManagerTest {
     }
 
     @Test
+    fun `unanswered dialog returns timeout and creates no token`() = runTest {
+        dialogCalled = false
+        dialogDecision = GrantDecision.Timeout
+        coEvery { tokenManager.findExistingToken(any(), any(), any(), any(), any(), any()) } returns null
+
+        val result = authManager.requestToken(
+            TokenRequest(serviceKey = null, clientId = "app"),
+            CallerContext(transport = "ws")
+        )
+
+        assertIs<TokenResponse.Error>(result)
+        assertEquals("timeout", result.code)
+        assertEquals(true, dialogCalled)
+        coVerify(exactly = 0) { tokenManager.createToken(any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
     fun `existing token skips dialog for user grant`() = runTest {
         dialogCalled = false
         coEvery { tokenManager.findExistingToken(any(), any(), any(), any(), any(), any()) } returns testTokenEntity

@@ -14,7 +14,8 @@ export type HalErrorCode =
   | 'plugin_error'
   | 'rate_limited'
   | 'experimental_method_disabled'
-  | 'no_handler';
+  | 'no_handler'
+  | 'internal_error';
 
 export interface HalErrorResponse {
   error: string;
@@ -74,3 +75,11 @@ export function createHalError(
 ): HalError {
   return new HalError(response.error, response.message, httpStatus);
 }
+
+/** The service rejected the token: missing, expired, revoked or bound to another caller. */
+export function isAuthError(error: unknown): error is HalError {
+  return error instanceof HalError && error.code === 'unauthorized';
+}
+
+/** Codes of a refused token request — retrying with the same credentials won't help. */
+export const TOKEN_DENIAL_CODES: readonly string[] = ['user_denied', 'invalid_key', 'key_expired', 'restriction_mismatch'];

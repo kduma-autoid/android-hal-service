@@ -92,7 +92,7 @@ kluczem publicznym ED25519 lub RS256 wkompilowanym w APK (resources/raw/).
   "permissions": ["printer", "scanner"],
   "granted_by": "developer_key",
   "granted_at": 1700000000,
-  "expires_at": 1700086400,
+  "expires_at": 1700086400000,
   "grant_duration": "permanent"
 }
 ```
@@ -193,3 +193,33 @@ Wynik przez CompletableDeferred<GrantDecision> w companion object.
 - `restriction_mismatch` — JWT restrictions nie pasują (zły package/origin/cert)
 - `user_denied` — użytkownik odmówił w dialogu
 - `timeout` — timeout oczekiwania na dialog (60s)
+
+## Wygaśnięcie i odwołanie tokenu (klient TS)
+
+`expires_at` w odpowiedziach (`requestToken`, `authenticate`) to **epoch w milisekundach**, `null` dla
+tokenu permanentnego. Serwer odrzuca wygasły, odwołany (usunięty w dashboardzie) albo niepasujący
+bindingiem token kodem `unauthorized` — przez HTTP i WS tak samo.
+
+Ponowny `requestToken` z tym samym kluczem/klientem zwraca **ten sam** token, dopóki jest ważny; nowy
+powstaje dopiero po jego wygaśnięciu. Dla grantu z dialogu: „Zezwól na stałe” → token bez wygaśnięcia
+(dialog wraca tylko po odwołaniu); „Zezwól na dzień” → po 24 h dialog pojawia się ponownie.
+
+Klient (`HalClient`) reaguje na `unauthorized` z `execute`, `on()` (subscribe) i z `authenticate` po
+reconnect:
+- **z kluczem serwisowym** (`serviceKey`: string albo funkcja zwracająca świeży JWT przy każdym
+  żądaniu) — pobiera nowy token (jedno odnowienie dla równoległych wywołań) i **ponawia wywołanie raz**;
+  token z kluczem odnawia też sam tuż po jego `expires_at`;
+- **bez klucza** (dialog) — nie odnawia sam: `authState` = `expired`, wywołuje `onTokenExpired`, a
+  aplikacja decyduje, kiedy wywołać `requestToken()` (to może pokazać dialog). Opcja
+  `autoRequestToken: true` włącza automatyczne ponowne żądanie;
+- odmowa przy żądaniu tokenu (`user_denied`, `invalid_key`, `key_expired`, `restriction_mismatch`) →
+  `authState` = `denied`.
+
+Dialog czeka na odpowiedź **60 s**. Bez odpowiedzi znika sam i żądanie kończy się błędem `timeout` (bez
+tokenu); znika też, gdy klient zrezygnuje (zamknięte gniazdo WS). Klient TS czeka na token dłużej niż na
+zwykłe żądanie — `tokenRequestTimeout`, domyślnie 75 s — żeby usłyszeć decyzję albo `timeout` serwera.
+Przez WS `requestToken` nie blokuje sesji: w tym czasie serwer odpowiada na inne ramki (m.in. heartbeat).
+
+`authState`: `unauthenticated | authenticated | refreshing | expired | denied`, zmiany przez
+`client.onAuthStateChange()`; stan łącza (WS) przez `client.onConnectionStateChange()`.
+
