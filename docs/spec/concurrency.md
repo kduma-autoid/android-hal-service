@@ -4,7 +4,11 @@
 
 HAL Service obsługuje wielu klientów jednocześnie z różnych kanałów:
 - AIDL: każde wywołanie Binder przychodzi na losowym wątku Binder thread pool
-- WS: każda sesja ma coroutine, Ktor obsługuje N sesji równolegle
+- WS: każda sesja ma coroutine, Ktor obsługuje N sesji równolegle. W obrębie sesji każda komenda
+  (`type: "command"`) dostaje własną coroutine-dziecko sesji, więc długa komenda (np. odczyt czekający
+  na kartę) nie blokuje kolejnych — w tym `cancel`. Odpowiedzi wracają po `id`, w dowolnej kolejności.
+  `requestToken` / `authenticate` / `subscribe` / `unsubscribe` są obsługiwane po kolei, żeby komenda
+  wysłana tuż po `authenticate` widziała już token. Zamknięcie sesji anuluje jej trwające komendy.
 - HTTP: każdy request na osobnym coroutine (Ktor/Netty thread pool)
 - Intent: Activity na main thread
 - Plugin events: mogą być emitowane z dowolnego wątku (hardware callbacks)
