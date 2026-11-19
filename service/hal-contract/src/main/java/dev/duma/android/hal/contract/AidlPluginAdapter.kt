@@ -44,8 +44,35 @@ class AidlPluginAdapter(
             override fun hasCapability(capability: String): Boolean {
                 return pluginContext.hasCapability(capability)
             }
+
+            override fun setPluginAvailable(available: Boolean) {
+                pluginContext.setPluginAvailable(available)
+            }
+
+            override fun getSetting(key: String): String? {
+                // Both lookups miss only when the user never changed the setting.
+                val a = pluginContext.getBooleanSetting(key, default = true)
+                val b = pluginContext.getBooleanSetting(key, default = false)
+                return if (a == b) a.toString() else null
+            }
         }
         binder.initialize(pluginContextBinder)
+    }
+
+    /** Settings of the remote plugin; empty for bundles built before settings existed. */
+    override fun getSettings(): List<PluginSetting> = try {
+        binder.settingsJson?.takeIf { it.isNotBlank() }?.let { Json.decodeFromString<List<PluginSetting>>(it) }
+            ?: emptyList()
+    } catch (e: Exception) {
+        emptyList()
+    }
+
+    override fun onSettingChanged(key: String, value: Boolean) {
+        try {
+            binder.onSettingChanged(key, value)
+        } catch (_: Exception) {
+            // Remote plugin gone or too old to know settings.
+        }
     }
 
     override suspend fun execute(method: String, params: String): CommandResult {

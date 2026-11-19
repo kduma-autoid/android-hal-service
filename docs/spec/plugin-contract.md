@@ -11,7 +11,12 @@ interface HalPlugin {
     fun initialize(pluginContext: PluginContext)
     suspend fun execute(method: String, params: String): String
     fun setEventCallback(callback: HalPluginEventCallback?)
+    fun dispose() {}
+    fun getSettings(): List<PluginSetting> = emptyList()          // ustawienia użytkownika
+    fun onSettingChanged(key: String, value: Boolean) {}
 }
+
+data class PluginSetting(val key: String, val title: String, val description: String = "", val default: Boolean)
 
 interface HalPluginEventCallback {
     fun onEvent(eventName: String, jsonData: String)
@@ -21,6 +26,13 @@ interface HalPluginEventCallback {
 
 initialize() wywoływane PO rejestracji WSZYSTKICH pluginów — dopiero wtedy
 PluginContext widzi pełne capabilities.
+
+**Ustawienia pluginu:** plugin deklaruje przełączniki (`getSettings()` → `PluginSetting`), hal-service
+pokazuje je w sekcji „Settings” ekranu szczegółów pluginu i zapisuje w SharedPreferences
+`hal_plugin_settings` (klucz `<pluginId>/<key>`, tylko wartości zmienione przez użytkownika). Plugin
+czyta wartość przez `PluginContext.getBooleanSetting(key, default)` (np. w `initialize`), a o zmianie
+dowiaduje się z `onSettingChanged`. Na razie tylko wartości boolean. Działa też dla pluginów AIDL
+(`getSettingsJson` / `onSettingChanged` / `IPluginContext.getSetting`).
 
 ## PluginDescriptor — deklaracja metod i eventów
 
@@ -66,6 +78,7 @@ interface PluginContext {
     fun emitEvent(eventName: String, jsonData: String)
     fun onEvent(pattern: String, callback: (eventName: String, jsonData: String) -> Unit)
     val applicationContext: android.content.Context
+    fun getBooleanSetting(key: String, default: Boolean): Boolean   // wartość z HalPlugin.getSettings()
 }
 ```
 
@@ -88,8 +101,9 @@ Nasłuchuj eventy z INNYCH pluginów. Wspiera wildcardy:
 PluginContextImpl ma ownerPluginId — EventBus filtruje.
 
 ### Ograniczenia
-- PluginContext dostępny TYLKO dla in-process pluginów
-- Out-of-process (AIDL) pluginy NIE dostają PluginContext
+- Out-of-process (AIDL) pluginy dostają `RemotePluginContext`: `execute`, capabilities,
+  `setPluginAvailable` i `getBooleanSetting` idą przez `IPluginContext`; `emitEvent` / `onEvent` są no-op
+  (eventy pluginu idą przez `IPluginEventCallback`)
 
 ## Eventy interfejsu — flow
 
@@ -127,6 +141,22 @@ interface IHardwarePlugin {
     String getDescriptorJson();     // JSON serialized PluginDescriptor
     void registerEventCallback(IPluginEventCallback callback);
     void unregisterEventCallback(IPluginEventCallback callback);
+    void initialize(IPluginContext context);
+    // dopisane później (na końcu — zgodność ze starszymi bundle'ami / hal-service):
+    String getSettingsJson();       // JSON List<PluginSetting>; starszy bundle → null = brak ustawień
+    void onSettingChanged(String key, boolean value);
+}
+```
+
+IPluginContext.aidl (hal-service → plugin):
+```
+interface IPluginContext {
+    CommandResult execute(String method, String jsonParams);
+    List<String> getAvailableCapabilities();
+    boolean hasCapability(String capability);
+    // dopisane później; na starszym hal-service: no-op / null
+    void setPluginAvailable(boolean available);
+    String getSetting(String key);  // "true"/"false" albo null, gdy użytkownik nie zmieniał → default
 }
 ```
 
@@ -143,13 +173,13 @@ interface IPluginEventCallback {
 Opakowuje IHardwarePlugin (Binder) → HalPlugin:
 - execute() przenosi na Dispatchers.IO
 - getDescriptor() parsuje JSON z getDescriptorJson()
-- initialize() — rejestruje IPluginEventCallback
-- Out-of-process pluginy NIE dostają PluginContext
+- initialize() — przekazuje `IPluginContext` (execute, capabilities, dostępność, ustawienia)
+- getSettings() / onSettingChanged() — przez `getSettingsJson` / `onSettingChanged` (starszy bundle → brak ustawień)
 
 ## PluginServiceWrapper
 
 Opakowuje HalPlugin → IHardwarePlugin.Stub:
-Używany przez bundle APK (plugin-sunmi-bundle). Może żyć w hal-contract.
+Używany przez bundle APK (plugin-sunmi-*-bundle, plugin-msr605x-bundle). Żyje w hal-contract.
 
 ## EventBus
 

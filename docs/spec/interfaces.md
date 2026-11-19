@@ -242,6 +242,12 @@ szyny.
   `sunmi.scanner.external` i `sunmi.scanner.camera` (dev-only). Każdy emituje `barcodeScanner.onScan` obok
   swojego natywnego eventu — `source` = `pluginId`, więc `barcodeScanner.onScan@sunmi.scanner.inner` filtruje
   konkretny skaner. Zastępuje dawny `GenericScannerPlugin`.
+- **`magneticCardReader`** (definer `MagneticCardReaderInterface`): `magneticCardReader.getInfo/read/cancel/write`,
+  event `magneticCardReader.onSwipe {track1, track2, track3}` (ścieżki bez sentineli). `read`/`cancel` bramkowane
+  cechą `read`, `write` cechą `write`. Provider aktywny `msr605x` (USB MSR605X, `read`+`write`, default; domyślnie
+  nasłuchuje w tle, więc `onSwipe` przychodzi też bez `read`) i pasywny
+  `sunmi.card` (FLEX, bez cech — tylko `getInfo` i event). Gołe `magneticCardReader.read` zawsze trafia do
+  czytnika z cechą `read`; `magneticCardReader.read@sunmi.card` → `unavailable`.
 - **`demo`** (definer `DemoInterface`): bezsprzętowy interfejs testowy — providerzy `demo.alpha`
   (uppercase, default) i `demo.beta` (reverse), metody `demo.echo/ping/emit` i event `demo.notice`.
   Mieszka w osobnym module `plugin-generic-demo-lib`, podpiętym wyłącznie pod flavor
@@ -287,10 +293,25 @@ const backends = await SunmiBarcodeScannerClient.listBackends(client);   // Inte
 const cam = await SunmiBarcodeScannerClient.forBackend(client, 'sunmi.scanner.camera');
 ```
 
+```ts
+// magneticCardReader — fasada bez prefiksu Sunmi (MSR605X to nie Sunmi); read/cancel/write tylko z cechami:
+const reader = await MagneticCardReaderClient.create(client);   // np. msr605x
+const off = await reader.onSwipe(({ track1, track2 }) => console.log(track1, track2));   // @backend
+if (reader.read) console.log(await reader.read({ timeoutMs: 15000 }));   // undefined na sunmi.card
+if (reader.write) await reader.write({ track1: 'B4111111111111111^DOE/JOHN^3012201', track2: '4111111111111111=3012201' });
+```
+
+Natywne API pluginów: `Msr605xClient` (`@kduma-autoid/hal-client-plugin-msr605x`) i `SunmiCardClient`
+(`@kduma-autoid/hal-client-plugin-sunmi-card`). Biblioteki tylko przenoszą dane ścieżek — walidacja ISO 7811,
+interpretacja karty płatniczej (Luhn, marka, ważność, service code) i budowanie ścieżek są w demo
+(`example/src/utils/magneticCard.ts`), nie w adapterach.
+
 Demo (`clients/ts/example`) ma widoki oparte o te fasady: **Printer** (karta per wspierany format —
 nieobsługiwane są wypisane jako brakujące, bo interfejs po prostu nie ma tych metod) i **Scanner**
 (trigger/stop + żywa lista skanów z widocznym filtrem `barcodeScanner.onScan@<backend>`); oba z pickerem
-providera. Generyczny `InterfacesView` dalej pokazuje surowo każdy zarejestrowany interfejs.
+providera, oraz **Magnetic Card** (odczyt na żądanie i z eventów `onSwipe`, interpretacja karty płatniczej,
+zapis ścieżek surowych albo z pól karty płatniczej, panele natywne `msr605x` i `sunmi.card`). Generyczny
+`InterfacesView` dalej pokazuje surowo każdy zarejestrowany interfejs.
 
 ## Kluczowe pliki
 
@@ -301,10 +322,12 @@ providera. Generyczny `InterfacesView` dalej pokazuje surowo każdy zarejestrowa
   w describe),
   `config/InterfacePreferenceConfig.kt`.
 - Definery/providerzy: `plugin-generic-lib` (`LightInterface`, `PrinterInterface`, `BarcodeScannerInterface`,
+  `MagneticCardReaderInterface`,
   `plugin-generic-demo-lib` dla `DemoInterface`/`DemoProviders`), `SunmiTmsLedPlugin`,
   `SunmiStatusLightPlugin`,
   `SunmiPrinterXPrinterPlugin` (interfejs `printer`), `SunmiInnerScannerPlugin`/
-  `SunmiExternalScannerPlugin`/`SunmiCameraScannerPlugin` (interfejs `barcodeScanner`).
+  `SunmiExternalScannerPlugin`/`SunmiCameraScannerPlugin` (interfejs `barcodeScanner`), `Msr605xPlugin`/
+  `SunmiCardPlugin` (interfejs `magneticCardReader`).
 - Klient: `common` (`InterfaceDescriptor`, `PROVIDER_SELECTOR`/`methodForProvider`,
   `matchSubscription`), fasady `sunmi-light-facade` (`light`), `sunmi-printer-facade` (`printer`),
   `sunmi-barcode-scanner-facade` (`barcodeScanner`). Powierzchnię opisują same klasy fasad — nie ma

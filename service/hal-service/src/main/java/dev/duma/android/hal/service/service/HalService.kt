@@ -174,6 +174,8 @@ class HalService : Service() {
         tryRegisterPlugin("dev.duma.android.hal.plugins.sunmi.scanner.inner.SunmiInnerScannerPlugin")
         tryRegisterPlugin("dev.duma.android.hal.plugins.sunmi.scanner.camera.SunmiCameraScannerPlugin")
         tryRegisterPlugin("dev.duma.android.hal.plugins.sunmi.scanner.external.SunmiExternalScannerPlugin")
+        // USB peripherals usable on any device flavour.
+        tryRegisterPlugin("dev.duma.android.hal.plugins.msr605x.Msr605xPlugin")
 
         // 6. Discover external plugins (standalone bundle APKs)
         pluginRegistry.discoverExternal(this)
@@ -184,6 +186,7 @@ class HalService : Service() {
         tryRegisterPlugin("dev.duma.android.hal.plugins.generic.LightInterface")
         tryRegisterPlugin("dev.duma.android.hal.plugins.generic.PrinterInterface")
         tryRegisterPlugin("dev.duma.android.hal.plugins.generic.BarcodeScannerInterface")
+        tryRegisterPlugin("dev.duma.android.hal.plugins.generic.MagneticCardReaderInterface")
         // Hardware-free demo interface + two providers, for exercising the interface layer without
         // hardware. Development builds only — the module is not on a stable APK's classpath, so these
         // reflective lookups simply find nothing there.

@@ -141,3 +141,110 @@ subskrypcja `barcodeScanner.onScan@sunmi.scanner.inner` filtruje konkretny skane
 | `sunmi.scanner.camera` (`SunmiCameraScannerPlugin`) | 40 | sunmi development (experimental) |
 
 Flavor `generic` nie ma providera → `scanner.*` = `unavailable`.
+
+## plugin-generic-lib: MagneticCardReaderInterface (definer interfejsu `magneticCardReader`)
+
+Abstrakcja czytnika kart magnetycznych. `MagneticCardReaderInterface` (pluginId `interface.magneticCardReader`)
+rejestruje kontrakt `magneticCardReader`. Pasują pod niego dwa rodzaje providerów: **pasywne** czytniki,
+które tylko raportują przeciągnięcia kart (event), i **aktywne** czytniki/nagrywarki, którym można kazać czekać
+na kartę i ją zapisać.
+
+Dane ścieżek są zawsze **bez sentineli** (`%`/`;` … `?`). Ścieżka to string, `""` gdy jest pusta, albo `null`
+przy błędzie odczytu.
+
+| Metoda | Cecha | Params | Wynik |
+|--------|-------|--------|-------|
+| magneticCardReader.getInfo | — | `{}` | `{name, connected}` |
+| magneticCardReader.read | `read` | `{timeoutMs?}` | `{track1, track2, track3}` |
+| magneticCardReader.cancel | `read` | `{}` | `{cancelled}` |
+| magneticCardReader.write | `write` | `{track1?, track2?, track3?, timeoutMs?}` | `{status}` |
+
+**Event:** `magneticCardReader.onSwipe {track1, track2, track3}` — `source` = `pluginId` czytnika.
+
+**Providerzy:**
+
+| plugin | priority | features | build |
+|--------|----------|----------|-------|
+| `msr605x` (`Msr605xPlugin`) | 100 (default) | `read`, `write` | wbudowany w flavor `sunmi`; inne buildy — osobne APK `plugin-msr605x-bundle` |
+| `sunmi.card` (`SunmiCardPlugin`) | 50 | — (pasywny) | sunmi development (experimental) |
+
+`magneticCardReader.read` bez sufiksu trafia do providera z cechą `read` nawet gdy defaultem jest pasywny
+czytnik; `magneticCardReader.read@sunmi.card` → `unavailable`.
+
+## plugin-msr605x-lib: Msr605xPlugin
+
+Czytnik/nagrywarka kart magnetycznych **MSR605X** (USB HID, VID `0x0801`, PID `0x0003`), sterowany bezpośrednio
+przez Android USB host API — bez SDK producenta. Port sterownika `msr605x.py` (Magnetic-Fox, 2026). Działa na
+każdym urządzeniu z USB-OTG. Plugin **nie jest experimental** (zweryfikowany na sprzęcie, łącznie z
+zapisem i kasowaniem).
+
+**Dystrybucja:**
+- wbudowany w hal-service tylko we flavorze `sunmi` (stable i development);
+- osobne APK **`plugin-msr605x-bundle`** (`dev.duma.android.hal.plugins.msr605x`, flavory stable/development)
+  dla pozostałych buildów — Service `Msr605xService` z `PluginServiceWrapper`, wykrywany przez
+  `dev.duma.android.hal.HARDWARE_PLUGIN`. Zainstalowany nadpisuje wersję wbudowaną (zewnętrzny plugin wypiera
+  built-in). Plugin działa wtedy w procesie bundle'a: tam trzyma połączenie USB i nasłuchiwanie, a uprawnienie
+  USB należy do aplikacji bundle'a. Dostępność (`setPluginAvailable`) i ustawienia przechodzą przez AIDL
+  (patrz [`plugin-contract.md`](plugin-contract.md)), więc działa tak samo jak wbudowany.
+
+```kotlin
+pluginId = "msr605x"
+capabilities = ["msr605x"]
+interfaces = [InterfaceBinding("magneticCardReader", priority = 100, features = ["read", "write"])]
+```
+
+**Struktura:** `Msr605xProtocol` (czysty Kotlin: ramkowanie 64-bajtowych raportów HID — nagłówek
+`0x80` first | `0x40` last | długość — budowanie komend i parsowanie odpowiedzi), `Msr605xDevice` (komendy
+nad transportem; czekanie na kartę z timeoutem i anulowaniem, po timeoucie/anulowaniu hard reset przez
+feature report), `UsbHidTransport` (odpowiedzi z interrupt IN; komendy zawsze jako `SET_REPORT(Feature)` — czytnik nie ma
+endpointu OUT i ignoruje `SET_REPORT(Output)` z report id 0, tak jak sterownik referencyjny na macOS), `Msr605xPlugin`.
+
+**USB i uprawnienia:** plugin jest dostępny (`setPluginAvailable`) tylko gdy MSR605X jest podłączony **i**
+aplikacja ma uprawnienie USB. O uprawnienie prosi sam, gdy wykryje czytnik (przy starcie albo
+`ACTION_USB_DEVICE_ATTACHED`) — nie ma do tego metody API. Komenda bez uprawnienia ponawia prośbę i zwraca
+`unavailable`.
+
+**Nasłuchiwanie w tle (domyślnie włączone):** MSR605X czyta kartę tylko po uzbrojeniu komendą odczytu
+(jedna komenda = jedno przeciągnięcie) i dopóki czeka, nie odpowiada na nic poza hard resetem. Plugin
+trzyma go więc uzbrojonego w tle: każde przeciągnięcie emituje `msr605x.swipe` i
+`magneticCardReader.onSwipe`, po czym czytnik jest uzbrajany ponownie — zachowuje się jak czytnik
+pasywny (`sunmi.card`). Każda inna komenda (LED, ustawienia, `read`/`write`/`erase`) najpierw przerywa
+nasłuchiwanie (hard reset, ~100–350 ms), wykonuje się, a potem nasłuchiwanie wraca. W trybie odczytu
+czytnik sam steruje diodami, więc stan ustawiony `setLed` nie utrzymuje się podczas nasłuchiwania.
+`getInfo` odpowiada z cache (model/firmware) i nie przerywa nasłuchiwania.
+
+Automatyczny start steruje ustawienie pluginu **„Listen for card swipes automatically”** (hal-service →
+szczegóły pluginu MSR605X → Settings, domyślnie włączone); `msr605x.setListening` przełącza je doraźnie
+do restartu usługi.
+
+**Metody** (uprawnienie `msr605x`):
+
+| Metoda | Params | Opis |
+|--------|--------|------|
+| msr605x.read | `{timeoutMs?}` (domyślnie 15000, max 120000) | czeka na kartę → `{status, track1, track2, track3}` |
+| msr605x.readRaw | `{timeoutMs?}` | surowe ścieżki (hex) |
+| msr605x.write | `{track1?, track2?, track3?, timeoutMs?}` | zapis ISO 7811 (walidacja alfabetu i długości) |
+| msr605x.writeRaw | `{track1?, track2?, track3? (hex), timeoutMs?}` | zapis surowy (najpierw BPC 8,8,8) |
+| msr605x.erase | `{tracks: [1,2,3], timeoutMs?}` | kasowanie ścieżek |
+| msr605x.cancel | `{}` | przerywa oczekiwanie na kartę (omija mutex) |
+| msr605x.setCoercivity / getCoercivity | `{mode: "hi"\|"lo"}` | Hi-Co / Lo-Co |
+| msr605x.setBpi | `{track1?, track2?, track3?: 210\|75}` | bity na cal |
+| msr605x.setBpc | `{track1, track2, track3: 5..8}` | bity na znak |
+| msr605x.setLeadingZeros / getLeadingZeros | `{track13, track2: 0..255}` | zera wiodące |
+| msr605x.setLed | `{led: off\|green\|yellow\|red\|all}` | diody |
+| msr605x.getInfo | `{}` | `{connected, permission, model, firmware, listening}` |
+| msr605x.setListening | `{enabled}` | nasłuchiwanie w tle wł./wył. do restartu → `{listening}` |
+| msr605x.commTest | `{}` | `{ok}` |
+| msr605x.reset | `{hard?}` | reset (hard przerywa trwającą operację) |
+
+Błędy: `timeout` (brak karty w czasie), `cancelled`, `unavailable` (brak urządzenia/uprawnienia),
+`bad_request` (zła walidacja), `write_failed`/`erase_failed` (status urządzenia ≠ `0`).
+
+Status po odczycie/zapisie/kasowaniu to `'0'` + maska bitowa ścieżek, które nie przeszły weryfikacji
+(bit 0 = ścieżka 1, bit 1 = ścieżka 2, bit 2 = ścieżka 3), np. `'5'` → `"failed on track 1+3"`.
+Sterownik referencyjny traktuje `'1'`/`'2'`/`'4'` jako „R/W error” / „command format error” /
+„invalid command” — na sprzęcie to awarie ścieżek 1/2/3. Zapis Lo-Co na karcie Hi-Co daje `'7'`.
+
+**Eventy:** `msr605x.swipe` (każde przeciągnięcie — z nasłuchiwania albo `read`; obok unified
+`magneticCardReader.onSwipe`), `msr605x.attached`,
+`msr605x.detached`.

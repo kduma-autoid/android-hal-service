@@ -35,3 +35,12 @@ export { LIGHT_COLORS } from './light.js';
 export type { PrinterFeature, PrinterImageStyle, PrinterCapabilities } from './printer.js';
 export { PRINTER_FEATURES } from './printer.js';
 export type { ScanResult } from './barcode-scanner.js';
+export type {
+  MagneticCardReaderFeature,
+  MagneticCardReaderCapabilities,
+  MagneticCardTracks,
+  MagneticCardWrite,
+  MagneticCardSwipeOptions,
+  MagneticCardReaderInfo,
+} from './magnetic-card.js';
+export { MAGNETIC_CARD_READER_FEATURES } from './magnetic-card.js';

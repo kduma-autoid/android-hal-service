@@ -48,6 +48,12 @@ class PluginServiceWrapper(
         return Json.encodeToString(plugin.getDescriptor())
     }
 
+    override fun getSettingsJson(): String = Json.encodeToString(plugin.getSettings())
+
+    override fun onSettingChanged(key: String, value: Boolean) {
+        Handler(Looper.getMainLooper()).post { plugin.onSettingChanged(key, value) }
+    }
+
     override fun registerEventCallback(callback: IPluginEventCallback) {
         callbackList.register(callback)
     }

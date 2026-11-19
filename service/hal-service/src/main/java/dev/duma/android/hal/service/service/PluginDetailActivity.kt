@@ -18,6 +18,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import dev.duma.android.hal.contract.allEvents
 import dev.duma.android.hal.contract.allMethods
+import dev.duma.android.hal.service.config.PluginSettingsConfig
 import dev.duma.android.hal.service.plugin.PluginRegistry
 
 class PluginDetailActivity : AppCompatActivity() {
@@ -164,6 +165,33 @@ class PluginDetailActivity : AppCompatActivity() {
                         else expConfig.disablePlugin(pluginId)
                     }
                 })
+            }
+        }
+
+        // Plugin-declared settings
+        val plugin = pluginReg.getPlugin(pluginId)
+        val settings = plugin?.getSettings().orEmpty()
+        if (plugin != null && settings.isNotEmpty()) {
+            val settingsConfig = PluginSettingsConfig(applicationContext)
+            layout.addView(sectionHeader("Settings"))
+            for (setting in settings) {
+                layout.addView(CheckBox(this).apply {
+                    text = setting.title
+                    textSize = 14f
+                    isChecked = settingsConfig.getBoolean(pluginId, setting.key, setting.default)
+                    setOnCheckedChangeListener { _, isChecked ->
+                        settingsConfig.setBoolean(pluginId, setting.key, isChecked)
+                        plugin.onSettingChanged(setting.key, isChecked)
+                    }
+                })
+                if (setting.description.isNotEmpty()) {
+                    layout.addView(TextView(this).apply {
+                        text = setting.description
+                        textSize = 12f
+                        setTextColor(Color.GRAY)
+                        setPadding(48, 0, 0, 8)
+                    })
+                }
             }
         }
 
