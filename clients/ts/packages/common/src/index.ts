@@ -34,6 +34,12 @@ export type {
   PrinterImageStyle,
   PrinterCapabilities,
   ScanResult,
+  MagneticCardReaderFeature,
+  MagneticCardReaderCapabilities,
+  MagneticCardTracks,
+  MagneticCardWrite,
+  MagneticCardSwipeOptions,
+  MagneticCardReaderInfo,
 } from './types/index.js';
 
 export {
@@ -51,6 +57,7 @@ export {
 
 export { LIGHT_COLORS } from './types/index.js';
 export { PRINTER_FEATURES } from './types/index.js';
+export { MAGNETIC_CARD_READER_FEATURES } from './types/index.js';
 
 // Interfaces
 export type {

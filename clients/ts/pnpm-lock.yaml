@@ -29,9 +29,18 @@ importers:
       '@kduma-autoid/hal-client-common':
         specifier: workspace:*
         version: link:../packages/common
+      '@kduma-autoid/hal-client-plugin-magnetic-card-reader-facade':
+        specifier: workspace:*
+        version: link:../packages/magnetic-card-reader-facade
+      '@kduma-autoid/hal-client-plugin-msr605x':
+        specifier: workspace:*
+        version: link:../packages/msr605x
       '@kduma-autoid/hal-client-plugin-sunmi-barcode-scanner-facade':
         specifier: workspace:*
         version: link:../packages/sunmi-barcode-scanner-facade
+      '@kduma-autoid/hal-client-plugin-sunmi-card':
+        specifier: workspace:*
+        version: link:../packages/sunmi-card
       '@kduma-autoid/hal-client-plugin-sunmi-light-facade':
         specifier: workspace:*
         version: link:../packages/sunmi-light-facade
@@ -94,7 +103,25 @@ importers:
         specifier: workspace:*
         version: link:../transport-ws
 
+  packages/magnetic-card-reader-facade:
+    dependencies:
+      '@kduma-autoid/hal-client-common':
+        specifier: workspace:*
+        version: link:../common
+
+  packages/msr605x:
+    dependencies:
+      '@kduma-autoid/hal-client-common':
+        specifier: workspace:*
+        version: link:../common
+
   packages/sunmi-barcode-scanner-facade:
+    dependencies:
+      '@kduma-autoid/hal-client-common':
+        specifier: workspace:*
+        version: link:../common
+
+  packages/sunmi-card:
     dependencies:
       '@kduma-autoid/hal-client-common':
         specifier: workspace:*

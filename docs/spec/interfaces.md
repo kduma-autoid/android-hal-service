@@ -292,10 +292,25 @@ const backends = await SunmiBarcodeScannerClient.listBackends(client);   // Inte
 const cam = await SunmiBarcodeScannerClient.forBackend(client, 'sunmi.scanner.camera');
 ```
 
+```ts
+// magneticCardReader — fasada bez prefiksu Sunmi (MSR605X to nie Sunmi); read/cancel/write tylko z cechami:
+const reader = await MagneticCardReaderClient.create(client);   // np. msr605x
+const off = await reader.onSwipe(({ track1, track2 }) => console.log(track1, track2));   // @backend
+if (reader.read) console.log(await reader.read({ timeoutMs: 15000 }));   // undefined na sunmi.card
+if (reader.write) await reader.write({ track1: 'B4111111111111111^DOE/JOHN^3012201', track2: '4111111111111111=3012201' });
+```
+
+Natywne API pluginów: `Msr605xClient` (`@kduma-autoid/hal-client-plugin-msr605x`) i `SunmiCardClient`
+(`@kduma-autoid/hal-client-plugin-sunmi-card`). Biblioteki tylko przenoszą dane ścieżek — walidacja ISO 7811,
+interpretacja karty płatniczej (Luhn, marka, ważność, service code) i budowanie ścieżek są w demo
+(`example/src/utils/magneticCard.ts`), nie w adapterach.
+
 Demo (`clients/ts/example`) ma widoki oparte o te fasady: **Printer** (karta per wspierany format —
 nieobsługiwane są wypisane jako brakujące, bo interfejs po prostu nie ma tych metod) i **Scanner**
 (trigger/stop + żywa lista skanów z widocznym filtrem `barcodeScanner.onScan@<backend>`); oba z pickerem
-providera. Generyczny `InterfacesView` dalej pokazuje surowo każdy zarejestrowany interfejs.
+providera, oraz **Magnetic Card** (odczyt na żądanie i z eventów `onSwipe`, interpretacja karty płatniczej,
+zapis ścieżek surowych albo z pól karty płatniczej, panele natywne `msr605x` i `sunmi.card`). Generyczny
+`InterfacesView` dalej pokazuje surowo każdy zarejestrowany interfejs.
 
 ## Kluczowe pliki
 
