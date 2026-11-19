@@ -258,6 +258,7 @@ class DymoM10Plugin(
     }
 
     private fun emitEvent(event: String, data: String) {
+        if (Log.isLoggable(TAG, Log.DEBUG)) Log.d(TAG, "emit $event $data")
         callback?.onEvent(event, data)
     }
 
@@ -296,7 +297,8 @@ class DymoM10Plugin(
                     ),
                     EventDescriptor(
                         EVENT_STATUS,
-                        "The status reported by the scale changed. Also emitted as scale.onStatus.",
+                        "The scale's status changed — including to \"offline\" when it stopped sending readings " +
+                            "for 3 s (switched off, or another app took the USB interface) and back. Also emitted as scale.onStatus.",
                         CAPABILITY,
                         exampleEvent = """{"status":"stable","previous":"inMotion"}"""
                     )
@@ -328,8 +330,13 @@ class DymoM10Plugin(
     private fun getWeight(): CommandResult {
         if (findDevice() == null) return CommandResult.unavailable("Dymo M10 not connected")
         if (!hasPermission()) return CommandResult.unavailable("USB permission not granted")
-        val snapshot = synchronized(stateLock) { state.snapshot() }
-            ?: return CommandResult.unavailable("No reading from the scale yet — is it switched on?")
+        val (snapshot, offline) = synchronized(stateLock) { state.snapshot() to state.isOffline }
+        if (snapshot == null) {
+            return CommandResult.unavailable(
+                if (offline) "The scale stopped sending readings — is it switched off, or is another app using it?"
+                else "No reading from the scale yet — is it switched on?"
+            )
+        }
         return CommandResult.Success(readingJson(snapshot).toString())
     }
 

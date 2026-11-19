@@ -251,7 +251,8 @@ szyny.
 - **`scale`** (definer `ScaleInterface`): `scale.getInfo/getWeight`, eventy `scale.onWeight` (odczyt
   `{grams, value, unit, status, stable}`) i `scale.onStatus {status, previous}`. Bez cech. `stable` liczy
   provider (waga nie zmieniła się o ≥ 1 g przez 500 ms i brak statusu błędu) — `status` to surowy stan wagi,
-  tylko informacyjnie. Provider `dymo.m10` (USB Dymo M10, default).
+  tylko informacyjnie; `onStatus` zgłasza też `offline`, gdy provider przestał dostawać odczyty. Provider
+  `dymo.m10` (USB Dymo M10, default).
 - **`demo`** (definer `DemoInterface`): bezsprzętowy interfejs testowy — providerzy `demo.alpha`
   (uppercase, default) i `demo.beta` (reverse), metody `demo.echo/ping/emit` i event `demo.notice`.
   Mieszka w osobnym module `plugin-generic-demo-lib`, podpiętym wyłącznie pod flavor

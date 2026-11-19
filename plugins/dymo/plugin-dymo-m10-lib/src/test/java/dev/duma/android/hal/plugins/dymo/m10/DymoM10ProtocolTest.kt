@@ -35,6 +35,23 @@ class DymoM10ProtocolTest {
     }
 
     @Test
+    fun `underZero weight is negative`() {
+        // Captured from an M10: tared, then the load removed — 90 g below zero, sent unsigned.
+        val r = assertNotNull(DymoM10Protocol.parse(report(3, 5, 2, 0, 0x5a, 0)))
+        assertEquals(-90.0, r.grams)
+        assertEquals(-90.0, r.value)
+        assertEquals(ScaleStatus.UNDER_ZERO, r.status)
+    }
+
+    @Test
+    fun `captured ounce report`() {
+        // 122 g switched to ounces on the scale: 03 04 0b ff 2b 00 = 4.3 oz
+        val r = assertNotNull(DymoM10Protocol.parse(report(3, 4, 11, 0xFF, 0x2b, 0)))
+        assertEquals(4.3, r.value)
+        assertEquals(121.9, r.grams)
+    }
+
+    @Test
     fun `zero reading`() {
         val r = assertNotNull(DymoM10Protocol.parse(report(3, 2, 2, 0, 0, 0)))
         assertEquals(0.0, r.grams)
@@ -74,7 +91,7 @@ class DymoM10ProtocolTest {
         )
         for ((byte, status) in expected) assertEquals(status, DymoM10Protocol.mapStatus(byte), "byte $byte")
         assertEquals(
-            listOf("unknown", "fault", "zero", "inMotion", "stable", "underZero", "overWeight", "needCalibration", "needZeroing"),
+            listOf("unknown", "fault", "zero", "inMotion", "stable", "underZero", "overWeight", "needCalibration", "needZeroing", "offline"),
             ScaleStatus.entries.map { it.json }
         )
     }
