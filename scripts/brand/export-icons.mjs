@@ -44,8 +44,13 @@ const SHAPES = {
 
 const work = mkdtempSync(join(tmpdir(), 'hal-icons-'));
 
+/** The `<svg>` element of a source file (dropping the XML declaration and leading comments), in white. */
+function svgElement(svg) {
+  return svg.slice(svg.indexOf('<svg'), svg.lastIndexOf('</svg>') + '</svg>'.length);
+}
+
 function whiteMark(svg) {
-  return svg.replace(/<\?xml[^>]*>/, '').replace(/<!--[\s\S]*?-->/g, '').replace(/color="#[0-9A-Fa-f]+"/, 'color="#FFFFFF"');
+  return svgElement(svg).replace(/color="#[0-9A-Fa-f]+"/, 'color="#FFFFFF"');
 }
 
 /** Screenshots `html` at width×height into a PNG at `out`, transparent outside what is drawn. */
@@ -108,7 +113,7 @@ try {
     renderIcon('app', 'tile', size, join(png, `hal-icon-${size}.png`));
     renderIcon('plugin', 'tile', size, join(png, `hal-plugin-icon-${size}.png`));
   }
-  const social = readFileSync(join(root, 'branding/social-preview.svg'), 'utf8').replace(/<\?xml[^>]*>/, '');
+  const social = svgElement(readFileSync(join(root, 'branding/social-preview.svg'), 'utf8'));
   render(social, 1280, 640, join(png, 'social-preview.png'));
   mkdirSync(join(root, 'clients/ts/example/public'), { recursive: true });
   copyFileSync(join(root, 'branding/hal-icon.svg'), join(root, 'clients/ts/example/public/favicon.svg'));
