@@ -171,6 +171,95 @@ przy błędzie odczytu.
 `magneticCardReader.read` bez sufiksu trafia do providera z cechą `read` nawet gdy defaultem jest pasywny
 czytnik; `magneticCardReader.read@sunmi.card` → `unavailable`.
 
+## plugin-generic-lib: ScaleInterface (definer interfejsu `scale`)
+
+Abstrakcja wagi. `ScaleInterface` (pluginId `interface.scale`) rejestruje kontrakt `scale` (bez cech).
+
+| Metoda | Params | Wynik |
+|--------|--------|-------|
+| scale.getInfo | `{}` | `{name, connected, reading \| null}` |
+| scale.getWeight | `{}` | odczyt; przed pierwszym odczytem → `unavailable` |
+
+**Odczyt:** `{grams, value, unit, status, stable}`:
+
+| pole | znaczenie |
+|------|-----------|
+| `grams` | waga w gramach niezależnie od jednostki ustawionej na wadze (dla oz: `oz × 28.3495`, do 0.1 g), ujemna poniżej zera — główne pole dla klientów |
+| `value` + `unit` (`"g"`/`"oz"`) | waga dokładnie tak, jak pokazuje wyświetlacz wagi |
+| `status` | surowy stan zgłaszany przez wagę: `zero`, `inMotion`, `stable`, `underZero`, `overWeight`, `fault`, `needCalibration`, `needZeroing`, `unknown` — tylko informacyjnie |
+| `stable` | liczone przez providera: waga ustabilizowana i bez statusu błędu — tego używają klienci |
+
+**Eventy:** `scale.onWeight` (odczyt) i `scale.onStatus {status, previous}` — `source` = `pluginId` wagi.
+`scale.onStatus` może zgłosić też `offline` (provider stracił odczyty wagi; do ich powrotu `getWeight` →
+`unavailable`).
+
+**Providerzy:** `dymo.m10` (`DymoM10Plugin`, priority 100, default) — wbudowany w flavor `sunmi`; inne buildy —
+osobne APK `plugin-dymo-bundle`.
+
+## plugin-dymo-m10-lib: DymoM10Plugin
+
+Waga pocztowa **Dymo M10** (USB HID, VID `0x0922`, PID `0x8003`), czytana bezpośrednio przez Android USB host
+API. Port z kduma-OSS/CS-usb-scale-counter (`ScaleReport.cs`, `AndroidScale.cs`). Waga tylko nadaje — nie
+przyjmuje komend (brak tary sprzętowej; tara/liczenie sztuk są po stronie klienta, np. w demo).
+
+**Dystrybucja:** jak MSR605X — wbudowany w hal-service tylko we flavorze `sunmi`; pozostałe buildy — osobne APK
+**`plugin-dymo-bundle`** (`dev.duma.android.hal.plugins.dymo`, Service `DymoService`, `plugin.id=dymo.m10`),
+które nadpisuje wersję wbudowaną.
+
+```kotlin
+pluginId = "dymo.m10"
+capabilities = ["dymo.m10"]
+interfaces = [InterfaceBinding("scale", priority = 100)]
+```
+
+**Protokół:** 6-bajtowe raporty wejściowe z interrupt IN (`claimInterface(force = true)`):
+`[0]` report id (`3` = dane, inne ignorowane), `[1]` status, `[2]` jednostka (`2` = g, `11` = oz),
+`[3]` wykładnik (signed), `[4..5]` waga LE → `waga = raw · 10^wykładnik`.
+
+| bajt statusu | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | inny |
+|---|---|---|---|---|---|---|---|---|---|
+| `status` | `fault` | `zero` | `inMotion` | `stable` | `underZero` | `overWeight` | `needCalibration` | `needZeroing` | `unknown` |
+
+**Stabilność liczona w pluginie** (`ScaleState`): M10 zgłasza `stable` prawie cały czas (komentarze w
+`MainViewModel.cs`/`Form1.cs` referencji), więc — jak referencja — plugin ma **timer 500 ms**: każda zmiana
+wagi o ≥ 1 g (względem ostatnio wyemitowanego odczytu) go restartuje, a po 500 ms bez zmiany odczyt dostaje
+`stable = true`. Statusy błędu (`fault`, `overWeight`, `needCalibration`, `needZeroing`, `unknown`) trzymają
+`stable = false`; wyjście z błędu restartuje timer. `inMotion` nie blokuje stabilizacji.
+
+**Eventy wagi** (`dymo.m10.weight` + `scale.onWeight`, zawsze pełny odczyt): zmiana o ≥ 1 g (`stable=false`),
+ustabilizowanie (`stable=true`, raz na stabilizację), zmiana statusu wagi lub jednostki.
+`dymo.m10.status` + `scale.onStatus {status, previous}` przy zmianie statusu (także `offline` i powrót z niego).
+Do tego `dymo.m10.attached` /
+`dymo.m10.detached`.
+
+**USB i dostępność:** plugin jest dostępny tylko gdy waga jest podłączona **i** aplikacja ma uprawnienie USB
+(prosi sam przy wykryciu). Błąd stanu wagi (np. `overWeight`) nie zmienia dostępności. Odłączenie →
+`detached`, `available = false`, ostatni odczyt jest czyszczony. Pętla odczytu (`UsbScaleTransport`, timeout
+250 ms) po błędzie otwiera urządzenie ponownie co 1 s. Raporty: `adb shell setprop log.tag.DymoM10 DEBUG`.
+
+**Metody** (uprawnienie `dymo.m10`):
+
+| Metoda | Params | Wynik |
+|--------|--------|-------|
+| dymo.m10.getWeight (= scale.getWeight) | `{}` | odczyt; `unavailable` bez wagi/uprawnienia/odczytu |
+| dymo.m10.getInfo (= scale.getInfo) | `{}` | `{name, connected, permission, reading \| null}` |
+
+**Zachowanie sprzętu (sprawdzone na M10 + OrderPAD_3):**
+- waga nadaje raport co ~130–260 ms także bez zmian;
+- surowy status to `stable` (4) również w trakcie zmian wagi (np. 6 → 92 → 124 → 88 g), a `inMotion`
+  nie pojawia się wcale — stąd stabilność liczona w pluginie;
+- poniżej zera waga podaje wartość bez znaku ze statusem `underZero` (tara, zdjęcie ładunku → `05 02 00 5a00`
+  = 90 g) — plugin ją neguje (`-90`);
+- przy zerze waga zawsze podaje uncje (`03 02 0b ff 0000`), niezależnie od ustawienia — `ScaleState` zostawia
+  jednostkę ostatniego niezerowego odczytu (przed pierwszym takim odczytem zero jest w `oz`);
+- aplikacja z domyślnym skojarzeniem USB dla wagi (np. referencyjna `sh.duma.scalecounter`) uruchamia się przy
+  podłączeniu i przejmuje interfejs (`forceClaim`) — raporty do pluginu ustają. Po **3 s bez raportów** plugin
+  zgłasza status `offline` (`scale.onStatus {status: "offline"}`), czyści odczyt (`getWeight` → `unavailable`),
+  a gdy raporty wrócą (inna aplikacja zwolni interfejs), emituje `{status, previous: "offline"}` i nowy odczyt —
+  bez ponownego otwierania urządzenia.
+
+Emitowane eventy widać w logu: `adb shell setprop log.tag.DymoM10 DEBUG` (`emit …`, `rx …`).
+
 ## plugin-msr605x-lib: Msr605xPlugin
 
 Czytnik/nagrywarka kart magnetycznych **MSR605X** (USB HID, VID `0x0801`, PID `0x0003`), sterowany bezpośrednio

@@ -50,6 +50,9 @@ include(":plugins:generic:plugin-generic-demo-lib")
 include(":plugins:msr605x:plugin-msr605x-lib")
 include(":plugins:msr605x:plugin-msr605x-bundle")
 
+include(":plugins:dymo:plugin-dymo-m10-lib")
+include(":plugins:dymo:plugin-dymo-bundle")
+
 include(":plugins:sunmi:plugin-sunmi-bundle")
 include(":plugins:sunmi:plugin-sunmi-printer-lib")
 include(":plugins:sunmi:plugin-sunmi-scanner-lib")
