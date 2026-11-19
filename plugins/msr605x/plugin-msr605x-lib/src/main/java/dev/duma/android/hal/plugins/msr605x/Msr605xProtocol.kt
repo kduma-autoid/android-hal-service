@@ -16,6 +16,12 @@ object Msr605xProtocol {
     const val PACKET_SIZE = 64
     const val PAYLOAD_SIZE = 63
 
+    /**
+     * Payload bytes per *outgoing* packet. The reference driver sends at most 62 data bytes per
+     * report (header + 62, zero-padded to 64); the device itself replies with up to [PAYLOAD_SIZE].
+     */
+    const val TX_PAYLOAD_SIZE = 62
+
     private const val HEADER_FIRST = 0x80
     private const val HEADER_LAST = 0x40
     private const val HEADER_LENGTH_MASK = 0x3F
@@ -84,12 +90,13 @@ object Msr605xProtocol {
     // ------------------------------------------------------------------------------------------
 
     /**
-     * Splits [data] into 64-byte HID packets. Byte 0 of each packet is the header: bit 7 marks the
-     * first packet, bit 6 the last, bits 0-5 the payload length; the rest is zero-padded.
+     * Splits [data] into 64-byte HID packets of at most [TX_PAYLOAD_SIZE] data bytes. Byte 0 of each
+     * packet is the header: bit 7 marks the first packet, bit 6 the last, bits 0-5 the payload
+     * length; the rest is zero-padded.
      */
     fun framePackets(data: ByteArray): List<ByteArray> {
         val chunks = if (data.isEmpty()) listOf(ByteArray(0))
-        else (data.indices step PAYLOAD_SIZE).map { data.copyOfRange(it, minOf(it + PAYLOAD_SIZE, data.size)) }
+        else (data.indices step TX_PAYLOAD_SIZE).map { data.copyOfRange(it, minOf(it + TX_PAYLOAD_SIZE, data.size)) }
         return chunks.mapIndexed { i, chunk ->
             val header = (if (i == 0) HEADER_FIRST else 0) or
                 (if (i == chunks.lastIndex) HEADER_LAST else 0) or

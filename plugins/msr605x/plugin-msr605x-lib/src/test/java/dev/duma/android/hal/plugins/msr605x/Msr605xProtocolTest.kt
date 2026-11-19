@@ -38,13 +38,14 @@ class Msr605xProtocolTest {
     }
 
     @Test
-    fun `long payload is split into 63-byte chunks`() {
+    fun `long payload is split into 62-byte chunks`() {
         val data = ByteArray(130) { it.toByte() }
         val packets = Msr605xProtocol.framePackets(data)
         assertEquals(3, packets.size)
-        assertEquals(0x80 or 63, packets[0][0].toInt() and 0xFF)
-        assertEquals(63, packets[1][0].toInt() and 0xFF)
-        assertEquals(0x40 or 4, packets[2][0].toInt() and 0xFF)
+        assertTrue(packets.all { it.size == 64 })
+        assertEquals(0x80 or 62, packets[0][0].toInt() and 0xFF)
+        assertEquals(62, packets[1][0].toInt() and 0xFF)
+        assertEquals(0x40 or 6, packets[2][0].toInt() and 0xFF)
 
         val assembler = Msr605xProtocol.PacketAssembler()
         packets.forEach(assembler::add)

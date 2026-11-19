@@ -9,6 +9,7 @@ import android.content.pm.PackageManager
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.os.Build
+import android.util.Log
 import androidx.core.content.ContextCompat
 import dev.duma.android.hal.contract.BaseHalPlugin
 import dev.duma.android.hal.contract.CommandResult
@@ -301,6 +302,7 @@ class Msr605xPlugin(
                 try {
                     dispatch(method, json)
                 } catch (e: DeviceUnavailableException) {
+                    Log.i(TAG, "$method: ${e.message}")
                     CommandResult.unavailable(e.message ?: "MSR605X unavailable")
                 } catch (e: Msr605xTimeoutException) {
                     CommandResult.timeout(e.message ?: "Timed out waiting for card")
@@ -316,9 +318,11 @@ class Msr605xPlugin(
                         throw e
                     }
                 } catch (e: IOException) {
+                    Log.w(TAG, "$method: USB I/O error", e)
                     closeDevice() // reopen on next call
                     CommandResult.internalError(e.message ?: "USB I/O error")
                 } catch (e: Exception) {
+                    Log.w(TAG, "$method failed", e)
                     CommandResult.internalError(e.message ?: "MSR605X error")
                 }
             }
@@ -527,6 +531,7 @@ class Msr605xPlugin(
     }
 
     companion object {
+        private const val TAG = "Msr605x"
         private const val CAPABILITY = "msr605x"
         private const val EVENT_SWIPE = "msr605x.swipe"
         private const val EVENT_ATTACHED = "msr605x.attached"
