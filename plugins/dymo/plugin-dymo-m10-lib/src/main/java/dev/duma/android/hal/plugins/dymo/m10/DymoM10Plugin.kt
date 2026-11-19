@@ -31,7 +31,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.json.JSONObject
-import java.io.IOException
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
@@ -64,8 +63,8 @@ class DymoM10Plugin(
     /** Guarded by [readLock]. */
     private var readJob: Job? = null
     @Volatile private var disposed = false
-    /** The USB connection is open and the read loop is running. */
-    @Volatile private var opened = false
+    /** The read loop that currently holds the open USB connection, or null. */
+    @Volatile private var openedBy: Job? = null
 
     private val stateLock = Any()
     /** Guarded by [stateLock]. */
@@ -195,13 +194,18 @@ class DymoM10Plugin(
             if (!usb.hasPermission(dev)) return
             val transport = try {
                 UsbScaleTransport(usb, dev)
-            } catch (e: IOException) {
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // IOException, but openDevice can also throw (IllegalArgument / Security) when the
+                // scale goes away mid-open — nothing may escape: the scope has no exception handler.
                 Log.w(TAG, "cannot open the scale, retrying: ${e.message}")
                 delay(RETRY_MS)
                 continue
             }
             Log.d(TAG, "reading started")
-            opened = true
+            val self = currentCoroutineContext()[Job]
+            openedBy = self
             try {
                 while (currentCoroutineContext().isActive) {
                     val startedAt = SystemClock.elapsedRealtime()
@@ -222,8 +226,14 @@ class DymoM10Plugin(
                 Log.w(TAG, "read error, reopening", e)
                 delay(RETRY_MS)
             } finally {
-                opened = false
                 runCatching { transport.close() }
+                // Only this loop's own state: a re-attach may already have started the next loop.
+                if (openedBy === self) {
+                    openedBy = null
+                    // Cleared here, after the last update — clearing only in onDetached would race
+                    // with an iteration still in flight when the job was cancelled.
+                    synchronized(stateLock) { state.clear() }
+                }
                 Log.d(TAG, "reading stopped")
             }
         }
@@ -327,7 +337,7 @@ class DymoM10Plugin(
         val snapshot = synchronized(stateLock) { state.snapshot() }
         val json = JSONObject()
             .put("name", "Dymo M10")
-            .put("connected", findDevice() != null && opened)
+            .put("connected", findDevice() != null && openedBy != null)
             .put("permission", hasPermission())
             .put("reading", snapshot?.let(::readingJson) ?: JSONObject.NULL)
         return CommandResult.Success(json.toString())
