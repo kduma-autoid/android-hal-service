@@ -37,11 +37,22 @@ const detailLink = computed(() => ({
       <span v-for="cap in plugin.capabilities" :key="cap" class="badge badge-cap">{{ cap }}</span>
     </div>
 
-    <p class="summary">{{ methodCount }} method(s), {{ eventCount }} event(s)</p>
+    <p class="summary">
+      {{ methodCount }} method(s), {{ eventCount }} event(s)
+      <template v-if="plugin.providesInterfaces?.length">
+        · provides
+        <code v-for="i in plugin.providesInterfaces" :key="i" class="iface">{{ i }}</code>
+      </template>
+      <template v-if="plugin.definesInterfaces?.length">
+        · defines
+        <code v-for="i in plugin.definesInterfaces" :key="i" class="iface">{{ i }}</code>
+      </template>
+    </p>
   </router-link>
 </template>
 
 <style scoped>
+.iface { font-size: 12px; background: #f1f5f9; padding: 1px 5px; border-radius: 3px; margin-left: 4px; }
 .card {
   display: block;
   border: 1px solid #ddd;

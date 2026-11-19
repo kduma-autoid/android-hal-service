@@ -21,7 +21,7 @@ export type {
   InterfaceFeature,
   InterfaceProvider,
 } from './describe.js';
-export { allMethods, allEvents, PROVIDER_SELECTOR, methodForProvider } from './describe.js';
+export { allMethods, allEvents, isInterfaceDefinerOnly, PROVIDER_SELECTOR, methodForProvider } from './describe.js';
 export type { StatusResponse, PluginStatus, TransportStatus } from './status.js';
 export type { HealthResponse } from './health.js';
 export type {
