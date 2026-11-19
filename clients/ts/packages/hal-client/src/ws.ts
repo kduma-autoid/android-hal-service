@@ -9,6 +9,9 @@ export function createWsHalClient(options: HalClientOptions): HalClient {
     url: wsUrl,
     autoReconnect: options.autoReconnect,
     maxReconnectAttempts: options.maxReconnectAttempts,
+    maxReconnectDelay: options.maxReconnectDelay,
+    heartbeatInterval: options.heartbeatInterval,
+    heartbeatTimeout: options.heartbeatTimeout,
     requestTimeout: options.timeout,
     logger: options.logger,
   });

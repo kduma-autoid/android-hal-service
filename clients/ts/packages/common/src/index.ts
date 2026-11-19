@@ -2,6 +2,8 @@
 export type {
   TokenRequest,
   TokenResult,
+  AuthState,
+  AuthStateHandler,
   HalErrorCode,
   HalErrorResponse,
   HalEvent,
@@ -54,6 +56,8 @@ export {
   HalConnectionError,
   isHalErrorResponse,
   createHalError,
+  isAuthError,
+  TOKEN_DENIAL_CODES,
   allMethods,
   allEvents,
   isInterfaceDefinerOnly,
