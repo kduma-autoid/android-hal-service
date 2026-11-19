@@ -129,7 +129,10 @@ function log(text: string) {
 function onReading(r: ScaleReading) {
   reading.value = r;
   readingError.value = '';
-  log(`${fmtGrams(r.grams)} (${r.value} ${r.unit}) ${r.status}${r.stable ? ' · stable' : ''}`);
+  // `stable` (computed by the plugin) and `status` (reported by the scale, which says "stable"
+  // nearly all the time) are different things — label both so the line doesn't read "stable stable".
+  const display = r.unit === 'g' ? '' : ` (${r.value} ${r.unit})`;
+  log(`${fmtGrams(r.grams)}${display} · ${r.stable ? '✓ stable' : 'measuring…'} · scale: ${STATUS_LABEL[r.status]}`);
 }
 
 async function refresh() {
