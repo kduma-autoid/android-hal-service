@@ -3,6 +3,9 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import { useHalClient } from '../composables/useHalClient';
 
+// The HAL Service icon (public/favicon.svg, from branding/); BASE_URL keeps it working under sub-paths.
+const logoUrl = `${import.meta.env.BASE_URL}favicon.svg`;
+
 const route = useRoute();
 const { isConnected, error, connect, disconnect } = useHalClient();
 const menuOpen = ref(false);
@@ -39,7 +42,7 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick));
   <nav class="navbar">
     <div class="navbar-inner">
       <div class="navbar-brand">
-        <span class="navbar-title">HAL Client Demo</span>
+        <span class="navbar-title"><img :src="logoUrl" alt="" class="navbar-logo" width="24" height="24" />HAL Client Demo</span>
         <div class="navbar-brand-right">
           <div class="navbar-right-mobile">
             <span class="status">
@@ -126,9 +129,16 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick));
   width: auto;
 }
 .navbar-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   font-weight: 700;
   font-size: 16px;
   white-space: nowrap;
+}
+.navbar-logo {
+  display: block;
+  flex-shrink: 0;
 }
 .menu-toggle {
   display: none;

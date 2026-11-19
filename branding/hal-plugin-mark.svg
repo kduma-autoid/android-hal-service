@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The bare plugin mark (a puzzle piece cut out of the chip instead of the H), one colour (no tile): tray / menu-bar icons, monochrome uses, small print.
+     fill="currentColor" so it takes the surrounding text colour when inlined; standalone it renders
+     in the brand indigo below. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="26 26 56 56" role="img" aria-label="HAL Service plugin" color="#4C5CF5">
+  <g fill="currentColor">
+    <path fill-rule="evenodd" d="M43 34H65A9 9 0 0 1 74 43V65A9 9 0 0 1 65 74H43A9 9 0 0 1 34 65V43A9 9 0 0 1 43 34ZM43.25 46.75H48.75A3.5 3.5 0 0 1 55.75 46.75H61.25V52.25A3.5 3.5 0 0 1 61.25 59.25V64.75H43.25Z"/>
+    <path d="M44 28a2.5 2.5 0 0 1 2.5 2.5V35h-5v-4.5A2.5 2.5 0 0 1 44 28ZM54 28a2.5 2.5 0 0 1 2.5 2.5V35h-5v-4.5A2.5 2.5 0 0 1 54 28ZM64 28a2.5 2.5 0 0 1 2.5 2.5V35h-5v-4.5A2.5 2.5 0 0 1 64 28ZM41.5 73h5v4.5a2.5 2.5 0 0 1-5 0ZM51.5 73h5v4.5a2.5 2.5 0 0 1-5 0ZM61.5 73h5v4.5a2.5 2.5 0 0 1-5 0ZM30.5 41.5H35v5h-4.5a2.5 2.5 0 0 1 0-5ZM30.5 51.5H35v5h-4.5a2.5 2.5 0 0 1 0-5ZM30.5 61.5H35v5h-4.5a2.5 2.5 0 0 1 0-5ZM73 41.5h4.5a2.5 2.5 0 0 1 0 5H73ZM73 51.5h4.5a2.5 2.5 0 0 1 0 5H73ZM73 61.5h4.5a2.5 2.5 0 0 1 0 5H73Z"/>
+  </g>
+</svg>
