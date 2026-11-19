@@ -242,6 +242,11 @@ szyny.
   `sunmi.scanner.external` i `sunmi.scanner.camera` (dev-only). Każdy emituje `barcodeScanner.onScan` obok
   swojego natywnego eventu — `source` = `pluginId`, więc `barcodeScanner.onScan@sunmi.scanner.inner` filtruje
   konkretny skaner. Zastępuje dawny `GenericScannerPlugin`.
+- **`magneticCardReader`** (definer `MagneticCardReaderInterface`): `magneticCardReader.getInfo/read/cancel/write`,
+  event `magneticCardReader.onSwipe {track1, track2, track3}` (ścieżki bez sentineli). `read`/`cancel` bramkowane
+  cechą `read`, `write` cechą `write`. Provider aktywny `msr605x` (USB MSR605X, `read`+`write`, default) i pasywny
+  `sunmi.card` (FLEX, bez cech — tylko `getInfo` i event). Gołe `magneticCardReader.read` zawsze trafia do
+  czytnika z cechą `read`; `magneticCardReader.read@sunmi.card` → `unavailable`.
 - **`demo`** (definer `DemoInterface`): bezsprzętowy interfejs testowy — providerzy `demo.alpha`
   (uppercase, default) i `demo.beta` (reverse), metody `demo.echo/ping/emit` i event `demo.notice`.
   Mieszka w osobnym module `plugin-generic-demo-lib`, podpiętym wyłącznie pod flavor
@@ -301,10 +306,12 @@ providera. Generyczny `InterfacesView` dalej pokazuje surowo każdy zarejestrowa
   w describe),
   `config/InterfacePreferenceConfig.kt`.
 - Definery/providerzy: `plugin-generic-lib` (`LightInterface`, `PrinterInterface`, `BarcodeScannerInterface`,
+  `MagneticCardReaderInterface`,
   `plugin-generic-demo-lib` dla `DemoInterface`/`DemoProviders`), `SunmiTmsLedPlugin`,
   `SunmiStatusLightPlugin`,
   `SunmiPrinterXPrinterPlugin` (interfejs `printer`), `SunmiInnerScannerPlugin`/
-  `SunmiExternalScannerPlugin`/`SunmiCameraScannerPlugin` (interfejs `barcodeScanner`).
+  `SunmiExternalScannerPlugin`/`SunmiCameraScannerPlugin` (interfejs `barcodeScanner`), `Msr605xPlugin`/
+  `SunmiCardPlugin` (interfejs `magneticCardReader`).
 - Klient: `common` (`InterfaceDescriptor`, `PROVIDER_SELECTOR`/`methodForProvider`,
   `matchSubscription`), fasady `sunmi-light-facade` (`light`), `sunmi-printer-facade` (`printer`),
   `sunmi-barcode-scanner-facade` (`barcodeScanner`). Powierzchnię opisują same klasy fasad — nie ma
