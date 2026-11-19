@@ -114,3 +114,16 @@ export function allMethods(plugin: PluginDescriptor): MethodDescriptor[] {
 export function allEvents(plugin: PluginDescriptor): EventDescriptor[] {
   return plugin.groups.flatMap(g => g.events);
 }
+
+/**
+ * A plugin that only registers interface contracts (e.g. `interface.scale`): no methods or events of
+ * its own and no interface it provides. Plugin lists can hide these — `interfaces` describes them.
+ */
+export function isInterfaceDefinerOnly(plugin: PluginDescriptor): boolean {
+  return (
+    (plugin.definesInterfaces?.length ?? 0) > 0 &&
+    (plugin.providesInterfaces?.length ?? 0) === 0 &&
+    allMethods(plugin).length === 0 &&
+    allEvents(plugin).length === 0
+  );
+}
