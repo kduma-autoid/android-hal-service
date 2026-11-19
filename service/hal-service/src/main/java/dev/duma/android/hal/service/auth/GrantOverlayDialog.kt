@@ -21,7 +21,9 @@ object GrantOverlayDialog {
         packageName: String?,
         origin: String?,
         requestedPermissions: List<String>?,
-        deferred: CompletableDeferred<GrantDecision>
+        deferred: CompletableDeferred<GrantDecision>,
+        /** When the request times out (epoch ms); shown as a countdown on Deny. */
+        deadlineMs: Long
     ): () -> Unit {
         val callerInfo = when {
             origin != null -> "Origin: $origin"
@@ -69,6 +71,12 @@ object GrantOverlayDialog {
         )
 
         dialog.show()
+
+        val deny = dialog.getButton(AlertDialog.BUTTON_NEGATIVE)
+        val countdown = DenyCountdown(deadlineMs, deny.text.toString()) { deny.text = it }
+        dialog.setOnDismissListener { countdown.stop() }
+        countdown.start()
+
         return { if (dialog.isShowing) dialog.dismiss() }
     }
 }

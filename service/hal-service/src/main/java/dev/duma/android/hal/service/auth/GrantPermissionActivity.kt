@@ -14,6 +14,7 @@ import kotlinx.coroutines.CompletableDeferred
 class GrantPermissionActivity : AppCompatActivity() {
 
     private var decided = false
+    private var countdown: DenyCountdown? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,7 +47,7 @@ class GrantPermissionActivity : AppCompatActivity() {
 
         val message = "\"$clientId\" ($callerInfo) is requesting access to hardware services.$permissionsInfo"
 
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.grant_dialog_title)
             .setMessage(message)
             .setPositiveButton(R.string.grant_dialog_allow_permanent) { _, _ ->
@@ -60,6 +61,13 @@ class GrantPermissionActivity : AppCompatActivity() {
             }
             .setCancelable(false)
             .show()
+
+        val deadline = intent.getLongExtra(EXTRA_DEADLINE, 0L)
+        if (deadline > 0) {
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.let { deny ->
+                countdown = DenyCountdown(deadline, deny.text.toString()) { deny.text = it }.also { it.start() }
+            }
+        }
     }
 
     private fun completeWith(decision: GrantDecision) {
@@ -73,6 +81,7 @@ class GrantPermissionActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        countdown?.stop()
         if (current === this) current = null
         if (!decided) {
             pendingResult?.complete(GrantDecision.Deny)
@@ -85,6 +94,8 @@ class GrantPermissionActivity : AppCompatActivity() {
         const val EXTRA_PACKAGE_NAME = "package_name"
         const val EXTRA_ORIGIN = "origin"
         const val EXTRA_REQUESTED_PERMISSIONS = "requested_permissions"
+        /** When the request times out (epoch ms); shown as a countdown on Deny. */
+        const val EXTRA_DEADLINE = "deadline"
 
         var pendingResult: CompletableDeferred<GrantDecision>? = null
 

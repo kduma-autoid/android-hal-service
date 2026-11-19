@@ -119,6 +119,7 @@ class HalService : Service() {
             Log.i(TAG, "Grant dialog requested for clientId=${request.clientId}")
             val deferred = CompletableDeferred<GrantDecision>()
             var dismiss: () -> Unit = {}
+            val deadline = System.currentTimeMillis() + GRANT_DIALOG_TIMEOUT_MS
 
             if (Settings.canDrawOverlays(serviceContext)) {
                 // Primary: overlay dialog over any app
@@ -127,7 +128,7 @@ class HalService : Service() {
                     GrantOverlayDialog.show(
                         serviceContext, request.clientId,
                         callerContext.packageName, callerContext.origin,
-                        request.requestedPermissions, deferred
+                        request.requestedPermissions, deferred, deadline
                     )
                 }
             } else {
@@ -140,6 +141,7 @@ class HalService : Service() {
                     putExtra(GrantPermissionActivity.EXTRA_PACKAGE_NAME, callerContext.packageName)
                     putExtra(GrantPermissionActivity.EXTRA_ORIGIN, callerContext.origin)
                     putExtra(GrantPermissionActivity.EXTRA_REQUESTED_PERMISSIONS, request.requestedPermissions?.toTypedArray())
+                    putExtra(GrantPermissionActivity.EXTRA_DEADLINE, deadline)
                 }
                 showGrantNotification(activityIntent, request.clientId)
                 dismiss = {
