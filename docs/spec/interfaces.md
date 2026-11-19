@@ -248,6 +248,10 @@ szyny.
   nasłuchuje w tle, więc `onSwipe` przychodzi też bez `read`) i pasywny
   `sunmi.card` (FLEX, bez cech — tylko `getInfo` i event). Gołe `magneticCardReader.read` zawsze trafia do
   czytnika z cechą `read`; `magneticCardReader.read@sunmi.card` → `unavailable`.
+- **`scale`** (definer `ScaleInterface`): `scale.getInfo/getWeight`, eventy `scale.onWeight` (odczyt
+  `{grams, value, unit, status, stable}`) i `scale.onStatus {status, previous}`. Bez cech. `stable` liczy
+  provider (waga nie zmieniła się o ≥ 1 g przez 500 ms i brak statusu błędu) — `status` to surowy stan wagi,
+  tylko informacyjnie. Provider `dymo.m10` (USB Dymo M10, default).
 - **`demo`** (definer `DemoInterface`): bezsprzętowy interfejs testowy — providerzy `demo.alpha`
   (uppercase, default) i `demo.beta` (reverse), metody `demo.echo/ping/emit` i event `demo.notice`.
   Mieszka w osobnym module `plugin-generic-demo-lib`, podpiętym wyłącznie pod flavor
@@ -301,16 +305,27 @@ if (reader.read) console.log(await reader.read({ timeoutMs: 15000 }));   // unde
 if (reader.write) await reader.write({ track1: 'B4111111111111111^DOE/JOHN^3012201', track2: '4111111111111111=3012201' });
 ```
 
+```ts
+// scale — gotowość odczytu decyduje `stable` (liczone przez provider), nie `status` wagi:
+const scale = await ScaleClient.create(client);   // np. dymo.m10
+const off = await scale.onWeight(({ grams, stable }) => { if (stable) console.log(grams); });   // @backend
+console.log(await scale.getWeight());   // {grams, value, unit, status, stable}; przed 1. odczytem → unavailable
+```
+
 Natywne API pluginów: `Msr605xClient` (`@kduma-autoid/hal-client-plugin-msr605x`) i `SunmiCardClient`
 (`@kduma-autoid/hal-client-plugin-sunmi-card`). Biblioteki tylko przenoszą dane ścieżek — walidacja ISO 7811,
 interpretacja karty płatniczej (Luhn, marka, ważność, service code) i budowanie ścieżek są w demo
 (`example/src/utils/magneticCard.ts`), nie w adapterach.
+Natywne API wagi: `DymoM10Client` (`@kduma-autoid/hal-client-plugin-dymo-m10`), fasada `ScaleClient`
+(`@kduma-autoid/hal-client-plugin-scale-facade`).
 
 Demo (`clients/ts/example`) ma widoki oparte o te fasady: **Printer** (karta per wspierany format —
 nieobsługiwane są wypisane jako brakujące, bo interfejs po prostu nie ma tych metod) i **Scanner**
 (trigger/stop + żywa lista skanów z widocznym filtrem `barcodeScanner.onScan@<backend>`); oba z pickerem
 providera, oraz **Magnetic Card** (odczyt na żądanie i z eventów `onSwipe`, interpretacja karty płatniczej,
-zapis ścieżek surowych albo z pól karty płatniczej, panele natywne `msr605x` i `sunmi.card`). Generyczny
+zapis ścieżek surowych albo z pól karty płatniczej, panele natywne `msr605x` i `sunmi.card`) i **Scale**
+(żywy odczyt + liczenie sztuk po stronie demo: tara pojemnika, kalibracja z próbki, liczenie tylko przy
+`stable`). Generyczny
 `InterfacesView` dalej pokazuje surowo każdy zarejestrowany interfejs.
 
 ## Kluczowe pliki
@@ -322,13 +337,14 @@ zapis ścieżek surowych albo z pól karty płatniczej, panele natywne `msr605x`
   w describe),
   `config/InterfacePreferenceConfig.kt`.
 - Definery/providerzy: `plugin-generic-lib` (`LightInterface`, `PrinterInterface`, `BarcodeScannerInterface`,
-  `MagneticCardReaderInterface`,
+  `MagneticCardReaderInterface`, `ScaleInterface`,
   `plugin-generic-demo-lib` dla `DemoInterface`/`DemoProviders`), `SunmiTmsLedPlugin`,
   `SunmiStatusLightPlugin`,
   `SunmiPrinterXPrinterPlugin` (interfejs `printer`), `SunmiInnerScannerPlugin`/
   `SunmiExternalScannerPlugin`/`SunmiCameraScannerPlugin` (interfejs `barcodeScanner`), `Msr605xPlugin`/
-  `SunmiCardPlugin` (interfejs `magneticCardReader`).
+  `SunmiCardPlugin` (interfejs `magneticCardReader`), `DymoM10Plugin` (interfejs `scale`).
 - Klient: `common` (`InterfaceDescriptor`, `PROVIDER_SELECTOR`/`methodForProvider`,
   `matchSubscription`), fasady `sunmi-light-facade` (`light`), `sunmi-printer-facade` (`printer`),
-  `sunmi-barcode-scanner-facade` (`barcodeScanner`). Powierzchnię opisują same klasy fasad — nie ma
+  `sunmi-barcode-scanner-facade` (`barcodeScanner`), `magnetic-card-reader-facade` (`magneticCardReader`),
+  `scale-facade` (`scale`). Powierzchnię opisują same klasy fasad — nie ma
   osobnych typów `I<Interfejs>`.
