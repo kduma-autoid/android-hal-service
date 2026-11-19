@@ -92,6 +92,23 @@ class Msr605xProtocolTest {
     }
 
     @Test
+    fun `status is a bitmask of failed tracks`() {
+        assertEquals(emptyList(), Msr605xProtocol.failedTracks('0'))
+        assertEquals(listOf(1), Msr605xProtocol.failedTracks('1'))
+        assertEquals(listOf(3), Msr605xProtocol.failedTracks('4'))
+        assertEquals(listOf(1, 3), Msr605xProtocol.failedTracks('5'))
+        assertEquals(listOf(1, 2, 3), Msr605xProtocol.failedTracks('7'))
+        assertNull(Msr605xProtocol.failedTracks('9'))
+        assertNull(Msr605xProtocol.failedTracks(null))
+
+        assertEquals("ok", Msr605xProtocol.describeStatus('0'))
+        assertEquals("failed on track 3", Msr605xProtocol.describeStatus('4'))
+        assertEquals("failed on track 1+2+3", Msr605xProtocol.describeStatus('7'))
+        assertEquals("invalid card swipe in write mode", Msr605xProtocol.describeStatus('9'))
+        assertEquals("no response", Msr605xProtocol.describeStatus(null))
+    }
+
+    @Test
     fun `non data-block response yields null status`() {
         val r = Msr605xProtocol.parseIsoRead(bytes(esc, "A"))
         assertNull(r.status)

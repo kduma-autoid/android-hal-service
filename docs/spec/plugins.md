@@ -216,5 +216,10 @@ aplikacja ma uprawnienie USB. O uprawnienie prosi sam, gdy wykryje czytnik (przy
 Błędy: `timeout` (brak karty w czasie), `cancelled`, `unavailable` (brak urządzenia/uprawnienia),
 `bad_request` (zła walidacja), `write_failed`/`erase_failed` (status urządzenia ≠ `0`).
 
+Status po odczycie/zapisie/kasowaniu to `'0'` + maska bitowa ścieżek, które nie przeszły weryfikacji
+(bit 0 = ścieżka 1, bit 1 = ścieżka 2, bit 2 = ścieżka 3), np. `'5'` → `"failed on track 1+3"`.
+Sterownik referencyjny traktuje `'1'`/`'2'`/`'4'` jako „R/W error” / „command format error” /
+„invalid command” — na sprzęcie to awarie ścieżek 1/2/3. Zapis Lo-Co na karcie Hi-Co daje `'7'`.
+
 **Eventy:** `msr605x.swipe` (każdy odczyt, obok unified `magneticCardReader.onSwipe`), `msr605x.attached`,
 `msr605x.detached`.

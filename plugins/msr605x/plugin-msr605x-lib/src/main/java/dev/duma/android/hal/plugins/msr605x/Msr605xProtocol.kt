@@ -67,10 +67,11 @@ object Msr605xProtocol {
     private val BAD_DATA = esc('*')
 
     // --- Status bytes ---
+    // After a read/write/erase the device answers '0' + a bitmask of the tracks that failed
+    // (bit 0 = track 1, bit 1 = track 2, bit 2 = track 3), so '0'..'7'. The reference driver reads
+    // '1', '2' and '4' as "R/W error", "command format error" and "invalid command"; on hardware
+    // they turned out to be "track 1 / 2 / 3 failed" (e.g. a Lo-Co write to a Hi-Co card gives '7').
     const val STATUS_OK = '0'
-    const val STATUS_RW_ERROR = '1'
-    const val STATUS_CMD_FORMAT_ERROR = '2'
-    const val STATUS_CMD_INVALID = '4'
     const val STATUS_SWIPE_ERROR = '9'
     private const val STATUS_FAIL = 'A'
 
@@ -314,12 +315,20 @@ object Msr605xProtocol {
     fun isCommTestOk(response: ByteArray): Boolean =
         response.size >= 2 && response[0] == ESC && response[1] == 'y'.code.toByte()
 
+    /**
+     * Tracks (1-3) that a read/write/erase status reports as failed: `[]` for `'0'`, e.g. `[1, 3]`
+     * for `'5'`. Null when [status] is not a track mask (`'9'`, `'A'`, no response, ...).
+     */
+    fun failedTracks(status: Char?): List<Int>? {
+        if (status == null || status !in '0'..'7') return null
+        val mask = status - '0'
+        return (1..3).filter { mask and (1 shl (it - 1)) != 0 }
+    }
+
     /** Human-readable description of a device status character. */
     fun describeStatus(status: Char?): String = when (status) {
         STATUS_OK -> "ok"
-        STATUS_RW_ERROR -> "read/write error"
-        STATUS_CMD_FORMAT_ERROR -> "command format error"
-        STATUS_CMD_INVALID -> "invalid command"
+        in '1'..'7' -> "failed on track " + failedTracks(status)!!.joinToString("+")
         STATUS_SWIPE_ERROR -> "invalid card swipe in write mode"
         STATUS_FAIL -> "command failed"
         null -> "no response"
