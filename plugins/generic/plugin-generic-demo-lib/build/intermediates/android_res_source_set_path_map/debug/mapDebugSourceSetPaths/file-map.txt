@@ -1,0 +1,8 @@
+dev.duma.android.hal.plugins.generic.demo.plugin-generic-demo-lib-pngs-0 /home/user/android-hal-service/plugins/generic/plugin-generic-demo-lib/build/generated/res/pngs/debug
+dev.duma.android.hal.plugins.generic.demo.plugin-generic-demo-lib-updated_navigation_xml-1 /home/user/android-hal-service/plugins/generic/plugin-generic-demo-lib/build/generated/updated_navigation_xml/debug
+dev.duma.android.hal.plugins.generic.demo.plugin-generic-demo-lib-mergeDebugResources-2 /home/user/android-hal-service/plugins/generic/plugin-generic-demo-lib/build/intermediates/incremental/debug/mergeDebugResources/merged.dir
+dev.duma.android.hal.plugins.generic.demo.plugin-generic-demo-lib-mergeDebugResources-3 /home/user/android-hal-service/plugins/generic/plugin-generic-demo-lib/build/intermediates/incremental/debug/mergeDebugResources/stripped.dir
+dev.duma.android.hal.plugins.generic.demo.plugin-generic-demo-lib-debug-4 /home/user/android-hal-service/plugins/generic/plugin-generic-demo-lib/build/intermediates/merged_res/debug/mergeDebugResources
+dev.duma.android.hal.plugins.generic.demo.plugin-generic-demo-lib-debug-5 /home/user/android-hal-service/plugins/generic/plugin-generic-demo-lib/build/intermediates/packaged_res/debug/packageDebugResources
+dev.duma.android.hal.plugins.generic.demo.plugin-generic-demo-lib-debug-6 /home/user/android-hal-service/plugins/generic/plugin-generic-demo-lib/src/debug/res
+dev.duma.android.hal.plugins.generic.demo.plugin-generic-demo-lib-main-7 /home/user/android-hal-service/plugins/generic/plugin-generic-demo-lib/src/main/res
