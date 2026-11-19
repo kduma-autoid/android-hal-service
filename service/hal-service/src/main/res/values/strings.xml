@@ -4,4 +4,6 @@
     <string name="grant_dialog_allow_permanent">Allow permanently</string>
     <string name="grant_dialog_allow_once">Allow for today</string>
     <string name="grant_dialog_deny">Deny</string>
+    <string name="keyboard_filter_service_label">HAL keyboard filter</string>
+    <string name="keyboard_filter_service_description">Swallows the key presses typed by hardware that HAL plugins read directly (for example scanners and card readers), so they do not reach the app in front. Other keyboards are not affected. Window content is not read.</string>
 </resources>

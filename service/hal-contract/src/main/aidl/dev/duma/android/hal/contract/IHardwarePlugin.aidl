@@ -14,4 +14,6 @@ interface IHardwarePlugin {
     void registerEventCallback(IPluginEventCallback callback);
     void unregisterEventCallback(IPluginEventCallback callback);
     void initialize(IPluginContext context);
+    // Appended last to keep the transaction codes above stable for older bundles and hosts.
+    String getKeyboardFilterDevicesJson();
 }

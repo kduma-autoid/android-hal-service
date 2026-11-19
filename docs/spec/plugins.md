@@ -1,5 +1,8 @@
 # Pluginy — implementacja
 
+Urządzenia emulujące klawiaturę (skanery, czytniki kart) zgłaszają się do wspólnego filtra klawiatury HAL:
+[`keyboard-filter.md`](keyboard-filter.md).
+
 ## plugin-sunmi-printer-lib: SunmiPrinterPlugin
 
 Stub — drukarka Sunmi.

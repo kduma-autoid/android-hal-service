@@ -11,6 +11,8 @@ interface HalPlugin {
     fun initialize(pluginContext: PluginContext)
     suspend fun execute(method: String, params: String): String
     fun setEventCallback(callback: HalPluginEventCallback?)
+    fun dispose() {}
+    fun getKeyboardFilterDevices(): List<KeyboardDeviceId> = emptyList()  // patrz keyboard-filter.md
 }
 
 interface HalPluginEventCallback {
@@ -127,6 +129,8 @@ interface IHardwarePlugin {
     String getDescriptorJson();     // JSON serialized PluginDescriptor
     void registerEventCallback(IPluginEventCallback callback);
     void unregisterEventCallback(IPluginEventCallback callback);
+    void initialize(IPluginContext context);
+    String getKeyboardFilterDevicesJson();  // dopisane na końcu; JSON List<KeyboardDeviceId>
 }
 ```
 
@@ -143,6 +147,8 @@ interface IPluginEventCallback {
 Opakowuje IHardwarePlugin (Binder) → HalPlugin:
 - execute() przenosi na Dispatchers.IO
 - getDescriptor() parsuje JSON z getDescriptorJson()
+- getKeyboardFilterDevices() parsuje getKeyboardFilterDevicesJson(); stary bundle bez tej
+  transakcji, `null` lub błędny JSON → pusta lista (rejestracja nie jest przerywana)
 - initialize() — rejestruje IPluginEventCallback
 - Out-of-process pluginy NIE dostają PluginContext
 

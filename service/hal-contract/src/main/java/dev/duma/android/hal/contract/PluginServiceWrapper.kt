@@ -48,6 +48,10 @@ class PluginServiceWrapper(
         return Json.encodeToString(plugin.getDescriptor())
     }
 
+    override fun getKeyboardFilterDevicesJson(): String {
+        return Json.encodeToString(plugin.getKeyboardFilterDevices())
+    }
+
     override fun registerEventCallback(callback: IPluginEventCallback) {
         callbackList.register(callback)
     }
