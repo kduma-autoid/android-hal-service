@@ -35,7 +35,9 @@ class PluginRegistryKeyboardFilterTest {
         override fun getCapabilities() = listOf(pluginId)
         override fun getDescriptor() = PluginDescriptor.withFlatLists(
             pluginId = pluginId, name = pluginId, version = version, capabilities = getCapabilities(),
-            methods = listOf(MethodDescriptor("$pluginId.get", "get", pluginId)),
+            methods = listOf(
+                MethodDescriptor("$pluginId.get", "get", pluginId, exampleParameters = "{}", exampleOutput = "{}"),
+            ),
         )
         override fun initialize(pluginContext: PluginContext) {}
         override suspend fun execute(method: String, params: String) = CommandResult.unsupportedMethod(method)
