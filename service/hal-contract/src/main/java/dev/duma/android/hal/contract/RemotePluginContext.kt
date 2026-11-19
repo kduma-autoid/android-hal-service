@@ -42,6 +42,20 @@ class RemotePluginContext(
         }
     }
 
+    override fun setPluginAvailable(available: Boolean) {
+        try {
+            binder.setPluginAvailable(available)
+        } catch (e: Exception) {
+            // hal-service gone or too old to support availability — it then treats us as available.
+        }
+    }
+
+    override fun getBooleanSetting(key: String, default: Boolean): Boolean = try {
+        binder.getSetting(key)?.toBooleanStrictOrNull() ?: default
+    } catch (e: Exception) {
+        default
+    }
+
     override fun emitEvent(eventName: String, jsonData: String) {
         // Not supported in remote context
     }
