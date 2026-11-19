@@ -179,7 +179,7 @@ Opakowuje IHardwarePlugin (Binder) → HalPlugin:
 ## PluginServiceWrapper
 
 Opakowuje HalPlugin → IHardwarePlugin.Stub:
-Używany przez bundle APK (plugin-sunmi-*-bundle, plugin-msr605x-bundle). Żyje w hal-contract.
+Używany przez bundle APK (plugin-sunmi-*-bundle, plugin-msr605x-bundle, plugin-dymo-bundle). Żyje w hal-contract.
 
 ## EventBus
 
