@@ -1,11 +1,15 @@
 package dev.duma.android.hal.service.plugin
 
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.content.ServiceConnection
 import android.os.IBinder
 import android.util.Log
+import androidx.core.content.ContextCompat
 import dev.duma.android.hal.contract.AidlPluginAdapter
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.EventBus
@@ -73,7 +77,9 @@ class PluginRegistry {
     private val plugins = ConcurrentHashMap<String, HalPlugin>()
     private val unsupportedPlugins = ConcurrentHashMap<String, HalPlugin>()
     private val capabilityToPlugin = ConcurrentHashMap<String, HalPlugin>()
-    private val serviceConnections = mutableListOf<ServiceConnection>()
+    /** Bound plugin services of other apps, by component; main thread only. */
+    private val externalBindings = ConcurrentHashMap<ComponentName, ExternalBinding>()
+    private var packageReceiver: Pair<Context, BroadcastReceiver>? = null
     // Dynamic availability: a registered plugin whose value is false is loaded but its
     // capabilities are not routable/advertised (e.g. hardware currently absent).
     private val available = ConcurrentHashMap<String, Boolean>()
@@ -404,53 +410,147 @@ class PluginRegistry {
 
     private fun isAvailable(pluginId: String): Boolean = available[pluginId] ?: true
 
-    fun discoverExternal(context: Context) {
-        val intent = Intent(ACTION_HARDWARE_PLUGIN)
-        val resolveInfos = context.packageManager.queryIntentServices(
-            intent, android.content.pm.PackageManager.GET_META_DATA
-        )
-        Log.i(TAG, "External plugin discovery: found ${resolveInfos.size} services")
+    /**
+     * Finds plugin services other apps declare ([ACTION_HARDWARE_PLUGIN] with `plugin.id` meta-data)
+     * and binds the ones not bound yet. With [packageName] only that app is looked at — what
+     * [watchPackages] does when an app is installed, updated, enabled or disabled while the service
+     * runs. Services that no longer resolve (app removed or disabled, component turned off) are
+     * released, which unregisters their plugin and restores a built-in it displaced.
+     *
+     * A service that bound but was not kept (lost its pluginId, empty API) is not bound again until
+     * its own app changes: an update may fix it, and nothing else would.
+     */
+    fun discoverExternal(context: Context, packageName: String? = null) {
+        val intent = Intent(ACTION_HARDWARE_PLUGIN).apply { packageName?.let { setPackage(it) } }
+        val found = context.packageManager.queryIntentServices(intent, PackageManager.GET_META_DATA)
+            .mapNotNull { info ->
+                val pluginId = info.serviceInfo.metaData?.getString("plugin.id") ?: return@mapNotNull null
+                ComponentName(info.serviceInfo.packageName, info.serviceInfo.name) to pluginId
+            }
+            .toMap()
+        Log.i(TAG, "External plugin discovery${packageName?.let { " in $it" } ?: ""}: found ${found.size} services")
 
-        for (info in resolveInfos) {
-            val componentName = ComponentName(info.serviceInfo.packageName, info.serviceInfo.name)
-            val pluginId = info.serviceInfo.metaData?.getString("plugin.id") ?: continue
-
-            val connection = object : ServiceConnection {
-                /** What this connection handed to the registry; the only handle left once the remote side is gone. */
-                private var adapter: HalPlugin? = null
-
-                override fun onServiceConnected(name: ComponentName, service: IBinder) {
-                    val plugin = AidlPluginAdapter(IHardwarePlugin.Stub.asInterface(service))
-                    if (registerExternal(plugin, name.packageName)) {
-                        adapter = plugin
-                        return
-                    }
-                    // Nothing of it is in use: it lost its pluginId to another plugin, or its build
-                    // left it no API. BIND_AUTO_CREATE would keep the other app's service alive for as
-                    // long as this one runs, so let it go. It is not retried; neither was it before,
-                    // when the binding stayed but the plugin never registered.
-                    serviceConnections.remove(this)
-                    try {
-                        context.unbindService(this)
-                    } catch (e: IllegalArgumentException) {
-                        Log.w(TAG, "unbindService failed for $pluginId: ${e.message}")
-                    }
-                    Log.i(TAG, "Released unused external plugin service: $pluginId from ${name.packageName}")
-                }
-
-                override fun onServiceDisconnected(name: ComponentName) {
-                    Log.w(TAG, "Disconnected external plugin service: $pluginId from ${name.packageName}")
-                    adapter?.let { unregisterExternal(it) }
-                    adapter = null
-                }
+        externalBindings.values
+            .filter { (packageName == null || it.component.packageName == packageName) && it.component !in found }
+            .forEach {
+                Log.i(TAG, "External plugin service gone: ${it.pluginId} from ${it.component.packageName}")
+                it.release()
             }
 
-            serviceConnections.add(connection)
-            context.bindService(
-                Intent(ACTION_HARDWARE_PLUGIN).setComponent(componentName),
-                connection,
-                Context.BIND_AUTO_CREATE
-            )
+        for ((component, pluginId) in found) {
+            if (externalBindings.containsKey(component)) continue
+            val binding = ExternalBinding(context, component, pluginId)
+            externalBindings[component] = binding
+            val bound = try {
+                context.bindService(
+                    Intent(ACTION_HARDWARE_PLUGIN).setComponent(component),
+                    binding,
+                    Context.BIND_AUTO_CREATE
+                )
+            } catch (e: SecurityException) {
+                Log.w(TAG, "Not allowed to bind $pluginId from ${component.packageName}: ${e.message}")
+                false
+            }
+            if (!bound) binding.release()
+        }
+    }
+
+    /**
+     * Re-runs [discoverExternal] for an app whenever it is installed, updated, enabled, disabled or
+     * removed, so a bundle APK takes effect without restarting the service. Stopped by [disconnectAll].
+     */
+    fun watchPackages(context: Context) {
+        if (packageReceiver != null) return
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(ctx: Context, intent: Intent) {
+                val pkg = intent.data?.schemeSpecificPart ?: return
+                if (pkg == context.packageName) return
+                when (intent.action) {
+                    // An update arrives as REMOVED(replacing) + ADDED(replacing) + REPLACED; act once.
+                    Intent.ACTION_PACKAGE_REMOVED, Intent.ACTION_PACKAGE_ADDED ->
+                        if (intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)) return
+                    Intent.ACTION_PACKAGE_REPLACED ->
+                        // The old process is gone; its bindings may not have reported it yet. Start over.
+                        externalBindings.values.filter { it.component.packageName == pkg }.forEach { it.release() }
+                }
+                discoverExternal(context, pkg)
+            }
+        }
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_PACKAGE_ADDED)
+            addAction(Intent.ACTION_PACKAGE_REPLACED)
+            addAction(Intent.ACTION_PACKAGE_CHANGED)
+            addAction(Intent.ACTION_PACKAGE_REMOVED)
+            addDataScheme("package")
+        }
+        // Package broadcasts come from the system only; nothing else needs to reach this receiver.
+        ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        packageReceiver = context to receiver
+    }
+
+    /** One bound plugin service of another app. Callbacks run on the main thread. */
+    private inner class ExternalBinding(
+        private val context: Context,
+        val component: ComponentName,
+        val pluginId: String
+    ) : ServiceConnection {
+        /** What this binding handed to the registry; the only handle left once the remote side is gone. */
+        private var adapter: HalPlugin? = null
+
+        override fun onServiceConnected(name: ComponentName, service: IBinder) {
+            if (externalBindings[component] !== this) return // released while the bind was pending
+            val plugin = AidlPluginAdapter(IHardwarePlugin.Stub.asInterface(service))
+            if (registerExternal(plugin, name.packageName)) {
+                adapter = plugin
+                return
+            }
+            // Nothing of it is in use: it lost its pluginId to another plugin, or its build left it no
+            // API. BIND_AUTO_CREATE would keep the other app's service alive for as long as this one
+            // runs, so let it go.
+            release()
+            Log.i(TAG, "Released unused external plugin service: $pluginId from ${name.packageName}")
+        }
+
+        /** The process died; the binding stays and Android reconnects when it restarts it. */
+        override fun onServiceDisconnected(name: ComponentName) {
+            Log.w(TAG, "Disconnected external plugin service: $pluginId from ${name.packageName}")
+            dropAdapter()
+        }
+
+        /**
+         * The binding will never reconnect by itself: the app was updated, disabled or force-stopped.
+         * Bind again if its service still resolves.
+         */
+        override fun onBindingDied(name: ComponentName) {
+            Log.w(TAG, "Binding died for external plugin service: $pluginId from ${name.packageName}")
+            release()
+            discoverExternal(context, component.packageName)
+        }
+
+        override fun onNullBinding(name: ComponentName) {
+            Log.w(TAG, "External plugin service returned no binder: $pluginId from ${name.packageName}")
+            release()
+        }
+
+        private fun dropAdapter() {
+            adapter?.let { unregisterExternal(it) }
+            adapter = null
+        }
+
+        /** Unregisters its plugin (restoring a displaced built-in) and unbinds. */
+        fun release() {
+            externalBindings.remove(component, this)
+            dropAdapter()
+            unbind()
+        }
+
+        /** Unbinds without touching the registry — for [disconnectAll], which clears it wholesale. */
+        fun unbind() {
+            try {
+                context.unbindService(this)
+            } catch (e: IllegalArgumentException) {
+                Log.w(TAG, "unbindService failed for $pluginId: ${e.message}")
+            }
         }
     }
 
@@ -894,12 +994,14 @@ class PluginRegistry {
 
     @Synchronized
     fun disconnectAll(context: Context) {
-        serviceConnections.forEach { connection ->
+        packageReceiver?.let { (ctx, receiver) ->
             try {
-                context.unbindService(connection)
-            } catch (_: Exception) { }
+                ctx.unregisterReceiver(receiver)
+            } catch (_: IllegalArgumentException) { }
         }
-        serviceConnections.clear()
+        packageReceiver = null
+        externalBindings.values.forEach { it.unbind() }
+        externalBindings.clear()
         // Tear down initialized plugins (active + displaced) so they release resources.
         plugins.forEach { (id, plugin) -> safeDispose(plugin, id) }
         displacedPlugins.forEach { (id, displaced) -> safeDispose(displaced.first, id) }
