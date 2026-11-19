@@ -1,4 +1,4 @@
-export type { TokenRequest, TokenResult } from './token.js';
+export type { TokenRequest, TokenResult, AuthState, AuthStateHandler } from './token.js';
 export type { HalErrorCode, HalErrorResponse } from './error.js';
 export {
   HalError,
@@ -7,6 +7,8 @@ export {
   HalConnectionError,
   isHalErrorResponse,
   createHalError,
+  isAuthError,
+  TOKEN_DENIAL_CODES,
 } from './error.js';
 export type { HalEvent, EventMeta, EventHandler, EventSubscription } from './event.js';
 export type { ExecuteRequest, ExecuteResponse, CommandMeta, ExecuteOptions } from './command.js';

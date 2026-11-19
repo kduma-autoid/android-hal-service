@@ -9,6 +9,7 @@ function createMockConnection() {
 
   const connection = {
     send: vi.fn().mockResolvedValue({ type: 'response', id: '1', result: null }),
+    addSessionHook: vi.fn(() => () => undefined),
     onMessage: vi.fn((handler: (msg: WsServerMessage) => void) => {
       messageCallback = handler;
       return () => {

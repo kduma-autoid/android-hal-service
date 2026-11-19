@@ -8,6 +8,8 @@ function mockConnection(response: WsServerMessage) {
   return {
     send: vi.fn().mockResolvedValue(response),
     authenticate: vi.fn().mockResolvedValue(undefined),
+    addSessionHook: vi.fn(() => () => undefined),
+    restoreSession: vi.fn().mockResolvedValue(undefined),
   } as unknown as WsConnection;
 }
 

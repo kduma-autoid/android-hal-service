@@ -7,5 +7,10 @@ export interface ICommandTransport extends ITokenAware {
    * observe response metadata (e.g. the handling provider) without changing the return value.
    */
   execute<T = unknown>(method: string, params?: unknown, options?: ExecuteOptions): Promise<T>;
+  /**
+   * Optional: reports that the service rejected a token outside of a command — e.g. a WebSocket
+   * re-authenticating after a reconnect. `token` is the one that was rejected.
+   */
+  onTokenRejected?(handler: (token: string) => void): () => void;
   dispose(): void;
 }

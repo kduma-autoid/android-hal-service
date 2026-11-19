@@ -13,20 +13,49 @@ export class WsCommandTransport implements ICommandTransport, IAuthTransport {
   private readonly connection: WsConnection;
   private readonly logger?: ILogger;
   private token: string | null = null;
+  private rejectedHandlers: Array<(token: string) => void> = [];
+  private readonly removeSessionHook: () => void;
 
   constructor(connection: WsConnection, logger?: ILogger) {
     this.connection = connection;
     this.logger = logger;
+
+    // The server keeps the token per socket: every new socket (and every new token) is authenticated
+    // first, before anything else may use the connection. Order 0 — event re-subscription runs after.
+    this.removeSessionHook = connection.addSessionHook(async (send) => {
+      const token = this.token;
+      if (token === null) return;
+      const response = await send({ type: 'authenticate', token });
+      if (response.type === 'error') {
+        this.logger?.warn('WebSocket authenticate rejected', { code: response.error.code });
+        if (response.error.code === 'unauthorized') this.notifyRejected(token);
+        throw new HalError(response.error.code, response.error.message);
+      }
+    }, 0);
   }
 
   setToken(token: string): void {
     this.token = token;
     this.logger?.debug('Token set');
+    // Authenticates (and re-subscribes) on the live socket; requests sent meanwhile wait for it.
+    void this.connection.restoreSession();
+  }
 
-    // Fire-and-forget authenticate on the WebSocket connection
-    this.connection.authenticate(token).catch((error) => {
-      this.logger?.error('WebSocket authenticate failed', error);
-    });
+  onTokenRejected(handler: (token: string) => void): () => void {
+    this.rejectedHandlers.push(handler);
+    return () => {
+      this.rejectedHandlers = this.rejectedHandlers.filter((h) => h !== handler);
+    };
+  }
+
+  private notifyRejected(token: string): void {
+    for (const handler of this.rejectedHandlers) {
+      try {
+        handler(token);
+      } catch (e) {
+        this.logger?.error('Token-rejected handler threw', e);
+      }
+    }
   }
 
   getToken(): string | null {
@@ -115,6 +144,8 @@ export class WsCommandTransport implements ICommandTransport, IAuthTransport {
 
   dispose(): void {
     this.token = null;
+    this.rejectedHandlers = [];
+    this.removeSessionHook();
     this.logger?.debug('WsCommandTransport disposed');
   }
 }
