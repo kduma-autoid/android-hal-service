@@ -18,11 +18,13 @@ export type ScaleStatus =
   | 'fault'
   | 'needCalibration'
   | 'needZeroing'
-  | 'unknown';
+  | 'unknown'
+  /** Only in `scale.onStatus`: the provider lost the scale's readings (off, or USB taken by another app). */
+  | 'offline';
 
 /** One reading (`scale.getWeight`, `scale.onWeight`). */
 export interface ScaleReading {
-  /** Weight in grams, whatever unit the scale is set to. */
+  /** Weight in grams, whatever unit the scale is set to; negative below zero. */
   grams: number;
   /** Weight as shown on the scale's display, in {@link unit}. */
   value: number;

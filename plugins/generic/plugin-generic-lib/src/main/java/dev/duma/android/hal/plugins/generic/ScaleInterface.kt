@@ -13,10 +13,13 @@ import dev.duma.android.hal.contract.PluginDescriptor
  * Definer for the `scale` interface — the unified weighing scale surface (first provider: `dymo.m10`).
  *
  * A **reading** is `{grams, value, unit, status, stable}`:
- * - `grams` — the weight in grams whatever unit the scale is set to (the field clients should use);
+ * - `grams` — the weight in grams whatever unit the scale is set to, negative below zero (the field
+ *   clients should use);
  * - `value` + `unit` (`"g"` / `"oz"`) — the weight exactly as the scale displays it;
  * - `status` — the state the scale itself reports: `zero`, `inMotion`, `stable`, `underZero`,
- *   `overWeight`, `fault`, `needCalibration`, `needZeroing` or `unknown`. Informational only;
+ *   `overWeight`, `fault`, `needCalibration`, `needZeroing` or `unknown`. Informational only.
+ *   `scale.onStatus` can also report `offline` (the provider lost the scale's readings; there is no
+ *   reading until they resume);
  * - `stable` — computed by the provider: the weight has settled (not changed for a short while) and
  *   the scale reports no error. Use this rather than `status`, which some scales (the M10) report as
  *   `stable` nearly all the time.
@@ -84,7 +87,8 @@ class ScaleInterface : HalPlugin {
                 ),
                 EventDescriptor(
                     "scale.onStatus",
-                    "The status reported by the scale changed.",
+                    "The status reported by the scale changed, or became \"offline\" (no readings — " +
+                        "getWeight is unavailable until they resume).",
                     PERMISSION,
                     exampleEvent = """{"status":"stable","previous":"inMotion"}"""
                 )

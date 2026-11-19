@@ -184,12 +184,14 @@ Abstrakcja wagi. `ScaleInterface` (pluginId `interface.scale`) rejestruje kontra
 
 | pole | znaczenie |
 |------|-----------|
-| `grams` | waga w gramach niezależnie od jednostki ustawionej na wadze (dla oz: `oz × 28.3495`, do 0.1 g) — główne pole dla klientów |
+| `grams` | waga w gramach niezależnie od jednostki ustawionej na wadze (dla oz: `oz × 28.3495`, do 0.1 g), ujemna poniżej zera — główne pole dla klientów |
 | `value` + `unit` (`"g"`/`"oz"`) | waga dokładnie tak, jak pokazuje wyświetlacz wagi |
 | `status` | surowy stan zgłaszany przez wagę: `zero`, `inMotion`, `stable`, `underZero`, `overWeight`, `fault`, `needCalibration`, `needZeroing`, `unknown` — tylko informacyjnie |
 | `stable` | liczone przez providera: waga ustabilizowana i bez statusu błędu — tego używają klienci |
 
 **Eventy:** `scale.onWeight` (odczyt) i `scale.onStatus {status, previous}` — `source` = `pluginId` wagi.
+`scale.onStatus` może zgłosić też `offline` (provider stracił odczyty wagi; do ich powrotu `getWeight` →
+`unavailable`).
 
 **Providerzy:** `dymo.m10` (`DymoM10Plugin`, priority 100, default) — wbudowany w flavor `sunmi`; inne buildy —
 osobne APK `plugin-dymo-bundle`.
@@ -226,7 +228,8 @@ wagi o ≥ 1 g (względem ostatnio wyemitowanego odczytu) go restartuje, a po 50
 
 **Eventy wagi** (`dymo.m10.weight` + `scale.onWeight`, zawsze pełny odczyt): zmiana o ≥ 1 g (`stable=false`),
 ustabilizowanie (`stable=true`, raz na stabilizację), zmiana statusu wagi lub jednostki.
-`dymo.m10.status` + `scale.onStatus {status, previous}` przy zmianie statusu. Do tego `dymo.m10.attached` /
+`dymo.m10.status` + `scale.onStatus {status, previous}` przy zmianie statusu (także `offline` i powrót z niego).
+Do tego `dymo.m10.attached` /
 `dymo.m10.detached`.
 
 **USB i dostępność:** plugin jest dostępny tylko gdy waga jest podłączona **i** aplikacja ma uprawnienie USB
@@ -241,8 +244,21 @@ ustabilizowanie (`stable=true`, raz na stabilizację), zmiana statusu wagi lub j
 | dymo.m10.getWeight (= scale.getWeight) | `{}` | odczyt; `unavailable` bez wagi/uprawnienia/odczytu |
 | dymo.m10.getInfo (= scale.getInfo) | `{}` | `{name, connected, permission, reading \| null}` |
 
-**Do sprawdzenia na sprzęcie:** czy przy `underZero` waga podaje wartość bez znaku (wtedy plugin powinien ją
-zanegować) i czy po wyłączeniu (bez odłączania USB) przestaje nadawać raporty (wtedy status `offline`).
+**Zachowanie sprzętu (sprawdzone na M10 + OrderPAD_3):**
+- waga nadaje raport co ~130–260 ms także bez zmian;
+- surowy status to `stable` (4) również w trakcie zmian wagi (np. 6 → 92 → 124 → 88 g), a `inMotion`
+  nie pojawia się wcale — stąd stabilność liczona w pluginie;
+- poniżej zera waga podaje wartość bez znaku ze statusem `underZero` (tara, zdjęcie ładunku → `05 02 00 5a00`
+  = 90 g) — plugin ją neguje (`-90`);
+- przy zerze waga zawsze podaje uncje (`03 02 0b ff 0000`), niezależnie od ustawienia — `ScaleState` zostawia
+  jednostkę ostatniego niezerowego odczytu (przed pierwszym takim odczytem zero jest w `oz`);
+- aplikacja z domyślnym skojarzeniem USB dla wagi (np. referencyjna `sh.duma.scalecounter`) uruchamia się przy
+  podłączeniu i przejmuje interfejs (`forceClaim`) — raporty do pluginu ustają. Po **3 s bez raportów** plugin
+  zgłasza status `offline` (`scale.onStatus {status: "offline"}`), czyści odczyt (`getWeight` → `unavailable`),
+  a gdy raporty wrócą (inna aplikacja zwolni interfejs), emituje `{status, previous: "offline"}` i nowy odczyt —
+  bez ponownego otwierania urządzenia.
+
+Emitowane eventy widać w logu: `adb shell setprop log.tag.DymoM10 DEBUG` (`emit …`, `rx …`).
 
 ## plugin-msr605x-lib: Msr605xPlugin
 

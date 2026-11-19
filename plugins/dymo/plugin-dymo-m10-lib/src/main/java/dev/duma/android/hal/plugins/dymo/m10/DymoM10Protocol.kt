@@ -13,7 +13,10 @@ enum class ScaleStatus(val json: String, val isError: Boolean = false) {
     UNDER_ZERO("underZero"),
     OVER_WEIGHT("overWeight", isError = true),
     NEED_CALIBRATION("needCalibration", isError = true),
-    NEED_ZEROING("needZeroing", isError = true);
+    NEED_ZEROING("needZeroing", isError = true),
+
+    /** Not in the protocol: set by [ScaleState] when the scale stopped sending reports. */
+    OFFLINE("offline", isError = true);
 }
 
 /** Unit the scale is set to (its g/oz button). */
@@ -45,7 +48,11 @@ data class ScaleReading(
  * [4] weight LSB
  * [5] weight MSB
  * ```
- * weight = (LSB + MSB·256) · 10^exponent, in the given unit.
+ * weight = (LSB + MSB·256) · 10^exponent, in the given unit; negative when the status is underZero.
+ *
+ * Observed on hardware: the scale streams a report every ~130–260 ms even when nothing changes; at
+ * zero it always reports ounces (`03 02 0b ff 00 00`), whatever unit it is set to (see [ScaleState]);
+ * and it says `stable` (4) even while the weight is still changing — `inMotion` never shows up.
  */
 object DymoM10Protocol {
     const val VENDOR_ID = 0x0922
@@ -64,12 +71,16 @@ object DymoM10Protocol {
 
         val exponent = report[3].toInt() // signed byte
         val raw = (report[4].toInt() and 0xFF) + (report[5].toInt() and 0xFF) * 256
-        val value = round(raw * 10.0.pow(exponent), decimals = maxOf(0, -exponent))
+        val status = mapStatus(report[1].toInt() and 0xFF)
+        // The weight is an unsigned magnitude: below zero the M10 sends e.g. 90 g with status
+        // underZero (verified on hardware), so the sign comes from the status.
+        val sign = if (status == ScaleStatus.UNDER_ZERO) -1 else 1
+        val value = sign * round(raw * 10.0.pow(exponent), decimals = maxOf(0, -exponent))
 
         val unit = if ((report[2].toInt() and 0xFF) == UNIT_OUNCES) ScaleUnit.OUNCES else ScaleUnit.GRAMS
         val grams = if (unit == ScaleUnit.OUNCES) round(value * GRAMS_PER_OUNCE, 1) else round(value, 1)
 
-        return ScaleReading(grams, value, unit, mapStatus(report[1].toInt() and 0xFF))
+        return ScaleReading(grams, value, unit, status)
     }
 
     fun mapStatus(status: Int): ScaleStatus = when (status) {

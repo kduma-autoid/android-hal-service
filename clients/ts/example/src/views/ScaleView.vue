@@ -83,7 +83,13 @@ async function bindOnce(pluginId?: string) {
     await stopSubscriptions();
     unsubscribers.push(await scale.value.onWeight((r) => onReading(r)));
     unsubscribers.push(
-      await scale.value.onStatus((s) => log(`status ${s.previous} → ${s.status}`)),
+      await scale.value.onStatus((s) => {
+        log(`status ${s.previous} → ${s.status}`);
+        if (s.status === 'offline') {
+          reading.value = null;
+          readingError.value = 'The scale stopped sending readings.';
+        }
+      }),
     );
     eventError.value = '';
   } catch (e) {
@@ -156,8 +162,9 @@ const STATUS_LABEL: Record<ScaleStatus, string> = {
   needCalibration: 'Needs calibration',
   needZeroing: 'Needs zeroing',
   unknown: 'Unknown',
+  offline: 'Offline',
 };
-const ERROR_STATUSES: ScaleStatus[] = ['overWeight', 'fault', 'needCalibration', 'needZeroing', 'unknown'];
+const ERROR_STATUSES: ScaleStatus[] = ['overWeight', 'fault', 'needCalibration', 'needZeroing', 'unknown', 'offline'];
 
 function fmtGrams(g: number): string {
   return `${Number.isInteger(g) ? g : g.toFixed(1)} g`;
