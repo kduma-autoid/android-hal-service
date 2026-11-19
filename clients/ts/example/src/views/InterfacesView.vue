@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import type { DescribeResponse, InterfaceDescriptor } from '@kduma-autoid/hal-client-common';
 import { useHalClient } from '../composables/useHalClient';
+import { useSystemChanges } from '../composables/useSystemChanges';
 import InterfaceSummaryCard from '../components/InterfaceSummaryCard.vue';
 
 const { client, isConnected } = useHalClient();
@@ -37,6 +38,9 @@ watch(isConnected, (connected) => {
   if (connected) fetchInterfaces();
   else interfaces.value = [];
 });
+
+// A provider plugged in/out, a bundle installed/removed, a reorder from another client.
+useSystemChanges(fetchInterfaces);
 </script>
 
 <template>

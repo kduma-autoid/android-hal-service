@@ -1,6 +1,7 @@
 package dev.duma.android.hal.service.plugin
 
 import dev.duma.android.hal.contract.CommandResult
+import dev.duma.android.hal.contract.EventBus
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.InterfaceBinding
@@ -551,6 +552,78 @@ class PluginRegistryInterfaceTest {
         assertNull(registry.getPluginInfo("ext.light"))
         assertFalse("ext.light" in registry.allCapabilities())
         assertEquals(listOf("p.high", "p.low"), registry.getInterfaceProviders("light").map { it.pluginId })
+    }
+
+    /** Records `system.plugins.changed` payloads; the registry only emits once initialized. */
+    private fun recordPluginsChanged(registry: PluginRegistry): MutableList<String> {
+        val bus = EventBus()
+        val seen = mutableListOf<String>()
+        bus.addPluginListener("test", PluginRegistry.EVENT_PLUGINS_CHANGED) { _, data -> seen += data }
+        registry.initializeAll(ApplicationProvider.getApplicationContext<Context>(), bus)
+        return seen
+    }
+
+    @Test
+    fun `an external plugin connecting and going away notifies clients`() {
+        val registry = registryWithProviders()
+        val seen = recordPluginsChanged(registry)
+        val ext = FakeRemote("ext.light")
+
+        assertTrue(registry.registerExternal(ext, "com.vendor"))
+        ext.die()
+        registry.unregisterExternal(ext)
+
+        assertEquals(
+            listOf(
+                """{"pluginId":"ext.light","available":true,"change":"connected"}""",
+                """{"pluginId":"ext.light","available":false,"change":"disconnected"}"""
+            ),
+            seen
+        )
+    }
+
+    @Test
+    fun `a restored built-in is announced as available`() {
+        val registry = registryWithProviders()
+        val seen = recordPluginsChanged(registry)
+        val ext = FakeRemote("p.high", ver = 2)
+
+        assertTrue(registry.registerExternal(ext, "com.vendor"))
+        ext.die()
+        registry.unregisterExternal(ext)
+
+        assertEquals("""{"pluginId":"p.high","available":true,"change":"disconnected"}""", seen.last())
+        assertEquals(PluginRegistry.PluginSource.BUILT_IN, registry.getPluginInfo("p.high")?.source)
+    }
+
+    @Test
+    fun `hot-plug notifies once per change`() {
+        val registry = registryWithProviders()
+        val seen = recordPluginsChanged(registry)
+
+        registry.setPluginAvailability("p.low", false)
+        registry.setPluginAvailability("p.low", false)
+        registry.setPluginAvailability("p.low", true)
+
+        assertEquals(
+            listOf(
+                """{"pluginId":"p.low","available":false,"change":"availability"}""",
+                """{"pluginId":"p.low","available":true,"change":"availability"}"""
+            ),
+            seen
+        )
+    }
+
+    @Test
+    fun `a plugin that loses its slot or has no API notifies nobody`() {
+        val registry = registryWithProviders()
+        registry.registerExternal(FakeRemote("ext.light", ver = 2), "com.vendor.a")
+        val seen = recordPluginsChanged(registry)
+
+        assertFalse(registry.registerExternal(FakeRemote("ext.light", ver = 1), "com.vendor.b"))
+        assertFalse(registry.registerExternal(FakeRemote("ext.empty", binding = null), "com.vendor.c"))
+
+        assertTrue(seen.isEmpty())
     }
 
     @Test
