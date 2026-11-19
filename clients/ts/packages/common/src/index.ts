@@ -40,6 +40,11 @@ export type {
   MagneticCardWrite,
   MagneticCardSwipeOptions,
   MagneticCardReaderInfo,
+  ScaleUnit,
+  ScaleStatus,
+  ScaleReading,
+  ScaleStatusChange,
+  ScaleInfo,
 } from './types/index.js';
 
 export {

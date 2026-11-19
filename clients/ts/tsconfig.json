@@ -13,6 +13,8 @@
     { "path": "packages/sunmi-barcode-scanner-facade" },
     { "path": "packages/magnetic-card-reader-facade" },
     { "path": "packages/msr605x" },
-    { "path": "packages/sunmi-card" }
+    { "path": "packages/sunmi-card" },
+    { "path": "packages/scale-facade" },
+    { "path": "packages/dymo-m10" }
   ]
 }

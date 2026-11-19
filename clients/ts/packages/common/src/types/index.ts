@@ -44,3 +44,4 @@ export type {
   MagneticCardReaderInfo,
 } from './magnetic-card.js';
 export { MAGNETIC_CARD_READER_FEATURES } from './magnetic-card.js';
+export type { ScaleUnit, ScaleStatus, ScaleReading, ScaleStatusChange, ScaleInfo } from './scale.js';
