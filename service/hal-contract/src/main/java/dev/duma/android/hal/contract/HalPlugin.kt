@@ -28,4 +28,15 @@ interface HalPlugin {
 
     /** Called when the user changes one of [getSettings] (on the thread that made the change). */
     fun onSettingChanged(key: String, value: Boolean) {}
+
+    /**
+     * Keyboard-emulating input devices owned by this plugin. While the user has enabled HAL's
+     * keyboard filter (one Android accessibility service in the HAL app, shared by all plugins),
+     * key DOWN/UP events from these devices are consumed so they never reach the focused app —
+     * the plugin delivers the data through its own API instead.
+     *
+     * Read once when the plugin registers; the list is expected to be constant for the instance.
+     * Default: none.
+     */
+    fun getKeyboardFilterDevices(): List<KeyboardDeviceId> = emptyList()
 }
