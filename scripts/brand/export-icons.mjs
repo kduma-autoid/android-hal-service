@@ -53,6 +53,24 @@ function whiteMark(svg) {
   return svgElement(svg).replace(/color="#[0-9A-Fa-f]+"/, 'color="#FFFFFF"');
 }
 
+/** The mark filled with the brand gradient, along the same axis (108 grid) as the app tile's. */
+function gradientMark(svg) {
+  const defs = '<defs><linearGradient id="hal-mark-gradient" gradientUnits="userSpaceOnUse" x1="33.8" y1="10.7" x2="74.2" y2="97.3">'
+    + '<stop offset="0" stop-color="#7C8CFF"/><stop offset="0.5" stop-color="#4C5CF5"/><stop offset="1" stop-color="#2F33C9"/>'
+    + '</linearGradient></defs>';
+  const el = svgElement(svg).replace('fill="currentColor"', 'fill="url(#hal-mark-gradient)"');
+  return el.replace(/(<svg[^>]*>)/, `$1${defs}`);
+}
+
+/**
+ * Tile colouring per kind: the app is the white mark on the gradient; plugin bundles are its negative —
+ * the gradient mark on a white tile with a hairline edge, so they read as distinct from the app.
+ */
+const KINDS = {
+  app: { background: GRADIENT, edge: 'none', mark: whiteMark },
+  plugin: { background: '#FFFFFF', edge: 'inset 0 0 0 1px rgba(20,24,29,0.10)', mark: gradientMark },
+};
+
 /** Screenshots `html` at width×height into a PNG at `out`, transparent outside what is drawn. */
 function render(html, width, height, out) {
   const page = join(work, `page-${Math.random().toString(36).slice(2)}.html`);
@@ -69,9 +87,12 @@ function iconHtml(kind, shape, size) {
   const s = SHAPES[shape];
   const margin = Math.round(size * s.margin);
   const mark = Math.round((size - 2 * margin) * s.markScale);
+  const k = KINDS[kind];
+  // The Play Store icon is full-bleed (Play draws the mask), so it gets no edge.
+  const edge = shape === 'playstore' ? 'none' : k.edge;
   return `<div style="width:${size}px;height:${size}px;box-sizing:border-box;padding:${margin}px">`
-    + `<div style="width:100%;height:100%;border-radius:${s.radius};overflow:hidden;background:${GRADIENT};display:flex;align-items:center;justify-content:center">`
-    + `<div style="width:${mark}px;height:${mark}px;display:flex">${whiteMark(marks[kind]).replace('<svg ', '<svg style="width:100%;height:100%" ')}</div>`
+    + `<div style="width:100%;height:100%;border-radius:${s.radius};overflow:hidden;background:${k.background};box-shadow:${edge};display:flex;align-items:center;justify-content:center">`
+    + `<div style="width:${mark}px;height:${mark}px;display:flex">${k.mark(marks[kind]).replace('<svg ', '<svg style="width:100%;height:100%" ')}</div>`
     + '</div></div>';
 }
 

@@ -10,8 +10,8 @@ thirds of the tile, details cut out rather than outlined, no second colour.
 | File | Use |
 |------|-----|
 | `hal-icon.svg` | App icon: tile + mark (512 px). Source for every app icon. |
-| `hal-plugin-icon.svg` | Plugin bundle apps: the same chip with a **puzzle piece** cut out instead of the H. |
-| `hal-mark.svg`, `hal-plugin-mark.svg` | The bare mark, one colour (`currentColor`, indigo when standalone): tray / menu bar, monochrome, small print. |
+| `hal-plugin-icon.svg` | Plugin bundle apps: the icon **in negative** — white tile, the chip in the brand gradient, a **jigsaw piece** cut out instead of the H. |
+| `hal-mark.svg`, `hal-plugin-mark.svg` | The bare mark (H / jigsaw), one colour (`currentColor`, indigo when standalone): tray / menu bar, monochrome, small print. |
 | `hal-logo.svg`, `hal-logo-dark.svg` | Icon + "HAL Service" wordmark for light / dark backgrounds (README, docs). |
 | `social-preview.svg` | GitHub social preview, 1280×640. |
 | `png/` | Rendered PNGs of the above (generated, see below). |
@@ -27,6 +27,7 @@ the same path data is used in the SVGs and in the Android vector drawables.
 | Brand indigo (single colour) | `#4C5CF5` |
 | Mark on the tile | `#FFFFFF` |
 | DEV band (development builds) | `#FFD43B`, lettering `#1A1A1A` |
+| Plugin tile (negative) | `#FFFFFF` with a 10 % `#14181D` hairline edge; chip in the tile gradient |
 | Text on light / dark | `#14181D` / `#FFFFFF`; secondary `#4A5562` / `#B6C0CC` |
 
 Indigo is chosen to stay apart from the neighbouring products' hues (blues, purples, orange).
@@ -37,6 +38,9 @@ Indigo is chosen to stay apart from the neighbouring products' hues (blues, purp
   for: Android adaptive icon (the launcher draws the mask; plus a monochrome layer for themed icons),
   macOS (824/1024 tile with shadow), Windows and Linux (tile). The platform is not marked on the icon —
   on download pages name it in text next to the icon.
+- **Plugins** are the negative of the app icon (white tile, gradient chip, jigsaw cut-out), so an app
+  and its plugins never look alike in the launcher. With themed icons (Android 13+) the colours are
+  dropped and only the cut-out tells them apart.
 - **Builds:** Sunmi builds use the same icon; they are told apart by the app name ("HAL Service
   (Sunmi)"). Development builds add the yellow **DEV** band across the lower edge, because a
   development and a stable build can be installed side by side.
@@ -50,7 +54,8 @@ Indigo is chosen to stay apart from the neighbouring products' hues (blues, purp
 
 - `service/hal-service/src/main/res/drawable/ic_launcher_{background,foreground,monochrome}.xml` —
   adaptive icon (vector); `dev_ribbon.xml` — the DEV band of the `*Development` flavours.
-- `plugins/**/plugin-*-bundle/src/main/res/drawable/ic_launcher_*.xml` — plugin bundles (puzzle variant).
+- `plugins/**/plugin-*-bundle/src/main/res/drawable/ic_launcher_*.xml` — plugin bundles (negative: white
+  background, gradient-filled chip with the jigsaw cut-out).
 - `mipmap-*dpi/ic_launcher*.webp` and `ic_launcher-playstore.png` in those modules — generated rasters
   (legacy icons for API 24–25, Play Store).
 - `clients/ts/example/public/favicon.svg` — demo favicon and navigation-bar logo (a copy of `hal-icon.svg`).
