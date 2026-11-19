@@ -51,6 +51,14 @@ val PluginDescriptor.allEvents: List<EventDescriptor>
     get() = groups.flatMap { it.events }
 
 /**
+ * A plugin that only registers interface contracts (e.g. `interface.scale`): no methods or events of
+ * its own and no interface it provides. UIs list these under interfaces, not among plugins.
+ */
+val PluginDescriptor.isInterfaceDefinerOnly: Boolean
+    get() = definesInterfaces.isNotEmpty() && interfaces.isEmpty() &&
+        allMethods.isEmpty() && allEvents.isEmpty()
+
+/**
  * Returns a copy of this descriptor with all experimental content removed.
  *
  * - If the whole plugin is experimental, the result exposes nothing — empty groups, no interfaces

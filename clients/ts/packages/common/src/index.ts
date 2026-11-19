@@ -56,6 +56,7 @@ export {
   createHalError,
   allMethods,
   allEvents,
+  isInterfaceDefinerOnly,
   PROVIDER_SELECTOR,
   methodForProvider,
 } from './types/index.js';

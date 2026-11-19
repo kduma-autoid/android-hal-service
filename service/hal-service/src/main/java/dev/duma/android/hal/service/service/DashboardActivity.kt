@@ -48,6 +48,7 @@ import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.widget.Toolbar
 import androidx.drawerlayout.widget.DrawerLayout
 import com.google.android.material.navigation.NavigationView
+import dev.duma.android.hal.contract.isInterfaceDefinerOnly
 import dev.duma.android.hal.service.plugin.PluginRegistry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -505,7 +506,9 @@ class DashboardActivity : AppCompatActivity() {
             return wrapInScrollView(layout)
         }
 
-        val descriptors = pluginReg.getAllDescriptors()
+        // Interface definers (interface.*) have no API of their own — the Interfaces tab lists them;
+        // here they only sit in the collapsed group so the plugin list shows real plugins.
+        val (definers, descriptors) = pluginReg.getAllDescriptors().partition { it.isInterfaceDefinerOnly }
         val unsupportedIds = pluginReg.getUnsupportedPluginIds()
         val unavailableIds = pluginReg.getUnavailablePluginIds()
         val experimentalIds = pluginReg.getExperimentalPluginIds()
@@ -517,7 +520,8 @@ class DashboardActivity : AppCompatActivity() {
         val experimental = descriptors.filter { it.pluginId in experimentalIds && it.pluginId !in hiddenNonExpIds }.sortedBy { it.name }
         val unavailable = descriptors.filter { it.pluginId in unavailableIds && it.pluginId !in unsupportedIds }.sortedBy { it.name }
         val unsupported = descriptors.filter { it.pluginId in unsupportedIds }.sortedBy { it.name }
-        val hidden = experimental + unavailable + unsupported
+        val definersSorted = definers.sortedBy { it.name }
+        val hidden = experimental + unavailable + unsupported + definersSorted
 
         if (normal.isEmpty() && hidden.isEmpty()) {
             layout.addView(TextView(this).apply {
@@ -549,12 +553,18 @@ class DashboardActivity : AppCompatActivity() {
                     hiddenContainer.addView(buildPluginBlock(desc, pluginReg, isUnsupported = true, isUnavailable = false, isExperimental = desc.pluginId in experimentalIds))
                     hiddenContainer.addView(divider())
                 }
+                for (desc in definersSorted) {
+                    hiddenContainer.addView(buildPluginBlock(desc, pluginReg, isUnsupported = false, isUnavailable = false, isExperimental = false))
+                    hiddenContainer.addView(divider())
+                }
 
                 val parts = mutableListOf<String>()
                 if (experimental.isNotEmpty()) parts.add("${experimental.size} experimental")
                 if (unavailable.isNotEmpty()) parts.add("${unavailable.size} unavailable")
                 if (unsupported.isNotEmpty()) parts.add("${unsupported.size} unsupported")
-                val collapsedLabel = parts.joinToString(" + ") + " plugin${if (hidden.size != 1) "s" else ""}"
+                val pluginParts = parts.joinToString(" + ").let { if (it.isEmpty()) "" else it + " plugin${if (hidden.size - definersSorted.size != 1) "s" else ""}" }
+                val definerPart = if (definersSorted.isEmpty()) "" else "${definersSorted.size} interface definer${if (definersSorted.size != 1) "s" else ""}"
+                val collapsedLabel = listOf(pluginParts, definerPart).filter { it.isNotEmpty() }.joinToString(" + ")
 
                 val toggleButton = Button(this).apply {
                     text = collapsedLabel

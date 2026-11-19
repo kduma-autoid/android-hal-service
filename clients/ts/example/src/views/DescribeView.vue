@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import type { PluginDescriptor } from '@kduma-autoid/hal-client-common';
+import { isInterfaceDefinerOnly } from '@kduma-autoid/hal-client-common';
 import { useHalClient } from '../composables/useHalClient';
 import PluginSummaryCard from '../components/PluginSummaryCard.vue';
 
@@ -14,15 +15,22 @@ const loading = ref(false);
 const error = ref<string | null>(null);
 const withSuper = ref(route.query.withSuper === 'true');
 const withExperimental = ref(route.query.withExperimental === 'true');
+// Interface definers (interface.*) have no API of their own — the Interfaces view covers them.
+const withDefiners = ref(route.query.withDefiners === 'true');
+
+const definerCount = computed(() => plugins.value.filter(isInterfaceDefinerOnly).length);
 
 const sortedPlugins = computed(() =>
-  [...plugins.value].sort((a, b) => a.name.localeCompare(b.name))
+  plugins.value
+    .filter((p) => withDefiners.value || !isInterfaceDefinerOnly(p))
+    .sort((a, b) => a.name.localeCompare(b.name))
 );
 
 const filterQuery = computed(() => {
   const q: Record<string, string> = {};
   if (withSuper.value) q.withSuper = 'true';
   if (withExperimental.value) q.withExperimental = 'true';
+  if (withDefiners.value) q.withDefiners = 'true';
   return q;
 });
 
@@ -78,6 +86,10 @@ watch(isConnected, (connected) => {
         <input v-model="withExperimental" type="checkbox" @change="fetchDescribe" />
         Include experimental
       </label>
+      <label class="checkbox">
+        <input v-model="withDefiners" type="checkbox" />
+        Include interface definers
+      </label>
       <button class="btn" @click="fetchDescribe" :disabled="loading">
         {{ loading ? 'Loading...' : 'Refresh' }}
       </button>
@@ -88,7 +100,12 @@ watch(isConnected, (connected) => {
     <div v-if="loading && !plugins.length" class="loading">Loading API description...</div>
 
     <div v-if="sortedPlugins.length" class="plugins">
-      <p class="count">{{ sortedPlugins.length }} plugin(s)</p>
+      <p class="count">
+        {{ sortedPlugins.length }} plugin(s)
+        <template v-if="!withDefiners && definerCount">
+          · {{ definerCount }} interface definer(s) hidden — see <router-link to="/interfaces">Interfaces</router-link>
+        </template>
+      </p>
       <PluginSummaryCard v-for="p in sortedPlugins" :key="p.pluginId" :plugin="p" :link-query="filterQuery" />
     </div>
 
