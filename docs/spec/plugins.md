@@ -187,7 +187,8 @@ interfaces = [InterfaceBinding("magneticCardReader", priority = 100, features = 
 **Struktura:** `Msr605xProtocol` (czysty Kotlin: ramkowanie 64-bajtowych raportów HID — nagłówek
 `0x80` first | `0x40` last | długość — budowanie komend i parsowanie odpowiedzi), `Msr605xDevice` (komendy
 nad transportem; czekanie na kartę z timeoutem i anulowaniem, po timeoucie/anulowaniu hard reset przez
-feature report), `UsbHidTransport` (interrupt IN; OUT przez interrupt OUT albo `SET_REPORT`), `Msr605xPlugin`.
+feature report), `UsbHidTransport` (odpowiedzi z interrupt IN; komendy zawsze jako `SET_REPORT(Feature)` — czytnik nie ma
+endpointu OUT i ignoruje `SET_REPORT(Output)` z report id 0, tak jak sterownik referencyjny na macOS), `Msr605xPlugin`.
 
 **USB i uprawnienia:** plugin jest dostępny (`setPluginAvailable`) tylko gdy MSR605X jest podłączony **i**
 aplikacja ma uprawnienie USB. O uprawnienie prosi sam, gdy wykryje czytnik (przy starcie albo
