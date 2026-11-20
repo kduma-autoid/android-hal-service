@@ -65,6 +65,22 @@ jeden komunikat.
 - Kod: surowe bajty zakończone `0D`, bez nagłówka (np. `41 51 52 7C … 0D` = `AQR|…\r`) ✔.
 - Pakiet SSI rozpoznaje się po spójności długości i sumy kontrolnej (`[0] == rozmiar − 2`, poprawny checksum) ✔.
 
+### 2.3 Kodowanie tekstu w odczycie: GB2312/GBK
+
+Skaner **przekodowuje zdekodowany tekst na GB2312/GBK** przed wysłaniem (sprawdzone w trybie TTDATA ✔, 20.11.2026; kanał HID i
+klawiatura najpewniej tak samo). Kod QR w trybie bajtowym z UTF-8 „Zażółć gęślą jaźń 🙂” przyszedł jako:
+
+| znak | bajty od skanera |
+|---|---|
+| ASCII | bez zmian |
+| `ó` | `A8 AE` (GB2312) |
+| `ń` | `A8 BD` (GB2312) |
+| `ż ł ć ę ś ą ź`, emoji | `00 00` – **utracone** |
+
+Znaki spoza GB2312 są tracone w skanerze, zanim dane dotrą do hosta, więc host nie może ich odtworzyć. Treść spoza ASCII trzeba
+przenosić w postaci ASCII, np. Base64 z UTF-8 (tak robią ramki `AQRB` w demie „Rolling QR Code”). Parametru wyboru kodowania
+wyjścia nie znaleziono.
+
 ## 3. Pakiet SSI
 
 ```
@@ -213,3 +229,4 @@ opisanymi mają nieznane znaczenie; ślepe zapisy są ryzykowne (patrz `F2 01`).
 - Różnice między `0A`, `0B`, `0C`, `0D` (wszystkie dają TTDATA) oraz między `02`, `04`, `07`, `08` (wszystkie CDC).
 - Pozostałe parametry stron `F2`/`F3`/`F5`/`F6`, limity długości symbologii.
 - Skąd okres bez odczytów zaraz po przełączeniu na TTDATA (raz zaobserwowany; po komendzie SSI odczyty ruszyły).
+- Czy istnieje parametr kodowania wyjścia (np. UTF-8 zamiast GB2312, §2.3).
