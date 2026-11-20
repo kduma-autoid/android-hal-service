@@ -6,6 +6,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -33,6 +34,7 @@ internal class Ss2222Controller(
     private val events: ControllerEvents,
     private val commandTimeoutMs: Long = 2_000,
     private val closeTimeoutMs: Long = 2_500,
+    private val singleReadSettleMs: Long = SINGLE_READ_SETTLE_MS,
 ) {
     private data class Pending(
         val opcode: Int,
@@ -565,6 +567,10 @@ internal class Ss2222Controller(
     }
 
     private suspend fun stopAfterSingleRead() {
+        // The scanner ignores SCAN_DISABLE that arrives right after a decode (seen on FLEX 3: EA sent
+        // 5 ms after the barcode got no ACK and the session was invalidated). Further barcodes of
+        // this session are already discarded, so waiting costs nothing but the scanner's light.
+        delay(singleReadSettleMs)
         events.onDiagnostic("Auto-stop after single barcode")
         try {
             stop()
@@ -625,6 +631,8 @@ internal class Ss2222Controller(
         const val TRIGGER_MODE_DEFAULT = 0x11
         const val LIGHT_MODE_FIRMWARE = 0x00
         const val MAX_EARLY_BARCODES = 32
+        /** Pause between a single-shot barcode and its SCAN_DISABLE; see [stopAfterSingleRead]. */
+        const val SINGLE_READ_SETTLE_MS = 300L
         val NON_INVALIDATING_ERRORS = setOf("closing", "device_disconnected", "nak")
     }
 }

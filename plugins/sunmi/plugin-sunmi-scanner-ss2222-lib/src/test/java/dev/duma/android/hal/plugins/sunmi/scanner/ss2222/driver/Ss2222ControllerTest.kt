@@ -7,6 +7,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import kotlinx.coroutines.async
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -36,6 +37,27 @@ class Ss2222ControllerTest {
         assertEquals(listOf("FIRST\r"), events.barcodes.map { it.decodeToString() })
         assertEquals(Ss2222Driver.State.IDLE, controller.state)
         assertTrue(transport.opcodes.takeLast(2).containsAll(listOf(SsiCodec.SCAN_ENABLE, SsiCodec.SCAN_DISABLE)))
+    }
+
+    @Test
+    fun `single shot waits for the scanner to settle before disabling it`() = runTest {
+        // FLEX 3: SCAN_DISABLE sent 5 ms after the decode got no ACK and invalidated the session.
+        val fixture = fixture(this)
+        fixture.controller.initialize(fixture.transport)
+        fixture.controller.start(singleShot = true)
+        val beforeBarcode = fixture.transport.opcodes.size
+
+        fixture.controller.onMessage(fixture.transport, "CODE\r".encodeToByteArray())
+        fixture.controller.onMessage(fixture.transport, "SECOND\r".encodeToByteArray())
+        advanceTimeBy(299) // SINGLE_READ_SETTLE_MS is 300
+        runCurrent()
+        assertEquals(beforeBarcode, fixture.transport.opcodes.size) // nothing sent yet
+        assertEquals(Ss2222Driver.State.SCANNING, fixture.controller.state)
+
+        advanceUntilIdle()
+        assertEquals(SsiCodec.SCAN_DISABLE, fixture.transport.opcodes.last())
+        assertEquals(Ss2222Driver.State.IDLE, fixture.controller.state)
+        assertEquals(listOf("CODE\r"), fixture.events.barcodes.map { it.decodeToString() })
     }
 
     @Test
