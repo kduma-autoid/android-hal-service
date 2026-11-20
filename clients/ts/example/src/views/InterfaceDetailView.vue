@@ -3,6 +3,7 @@ import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import type { DescribeResponse, InterfaceDescriptor, EventMeta } from '@kduma-autoid/hal-client-common';
 import { useHalClient } from '../composables/useHalClient';
+import { useSystemChanges } from '../composables/useSystemChanges';
 import { useToast } from '../composables/useToast';
 import InterfaceCard from '../components/InterfaceCard.vue';
 
@@ -112,6 +113,9 @@ watch(interfaceId, () => {
   cleanupSubscriptions();
   fetchInterface();
 });
+
+// Providers come and go, or are reordered from elsewhere: refresh the data, keep the subscriptions.
+useSystemChanges(refreshData);
 </script>
 
 <template>

@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import type { PluginDescriptor } from '@kduma-autoid/hal-client-common';
 import { isInterfaceDefinerOnly } from '@kduma-autoid/hal-client-common';
 import { useHalClient } from '../composables/useHalClient';
+import { useSystemChanges } from '../composables/useSystemChanges';
 import PluginSummaryCard from '../components/PluginSummaryCard.vue';
 
 const route = useRoute();
@@ -65,6 +66,8 @@ watch(isConnected, (connected) => {
   if (connected) fetchDescribe();
   else plugins.value = [];
 });
+
+useSystemChanges(fetchDescribe);
 </script>
 
 <template>

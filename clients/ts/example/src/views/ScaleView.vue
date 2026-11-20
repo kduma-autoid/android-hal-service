@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, shallowRef, computed, watch, onUnmounted } from 'vue';
 import { useHalClient } from '../composables/useHalClient';
+import { usePageLifetime } from '../composables/usePageLifetime';
 import { useToast } from '../composables/useToast';
 import { bindBackend, enabledBackends, serialized } from '../composables/backendBinding';
 import { ScaleClient } from '@kduma-autoid/hal-client-plugin-scale-facade';
@@ -8,6 +9,8 @@ import type { InterfaceProvider, ScaleReading, ScaleStatus } from '@kduma-autoid
 import { DymoM10Client, type DymoM10Info } from '@kduma-autoid/hal-client-plugin-dymo-m10';
 
 const { client, isConnected } = useHalClient();
+// Subscriptions that resolve after the page is gone are released instead of kept.
+const page = usePageLifetime();
 const toast = useToast();
 
 const MAX_LOG = 30;
@@ -47,6 +50,7 @@ async function stopSubscriptions() {
 const bind = serialized((pluginId?: string) => bindOnce(pluginId));
 
 async function bindOnce(pluginId?: string) {
+  if (!page.isAlive()) return;
   if (!client.value || !isConnected.value) {
     await stopSubscriptions();
     scale.value = null;
@@ -81,9 +85,12 @@ async function bindOnce(pluginId?: string) {
 
   try {
     await stopSubscriptions();
-    unsubscribers.push(await scale.value.onWeight((r) => onReading(r)));
-    unsubscribers.push(
-      await scale.value.onStatus((s) => {
+    // Each one stored as soon as it is kept, so a teardown between the two still releases the first.
+    const current = scale.value;
+    const offWeight = await page.keep(current.onWeight((r) => onReading(r)));
+    if (offWeight) unsubscribers.push(offWeight);
+    const offStatus = await page.keep(
+      current.onStatus((s) => {
         log(`status ${s.previous} → ${s.status}`);
         if (s.status === 'offline') {
           reading.value = null;
@@ -91,6 +98,7 @@ async function bindOnce(pluginId?: string) {
         }
       }),
     );
+    if (offStatus) unsubscribers.push(offStatus);
     eventError.value = '';
   } catch (e) {
     await stopSubscriptions();
@@ -285,9 +293,9 @@ watch(
       if (client.value && !unsubscribeChanges) {
         // Hot-plug (the scale is USB) / interface reorder: re-resolve, keeping the pinned backend.
         try {
-          unsubscribeChanges = await ScaleClient.onChanged(client.value, () => {
+          unsubscribeChanges = await page.keep(ScaleClient.onChanged(client.value, () => {
             bind(selectedBackend.value || undefined);
-          });
+          }));
         } catch {
           /* no event channel */
         }
