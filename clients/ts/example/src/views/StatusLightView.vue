@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, shallowRef, computed, watch, onUnmounted } from 'vue';
 import { useHalClient } from '../composables/useHalClient';
+import { usePageLifetime } from '../composables/usePageLifetime';
 import { useToast } from '../composables/useToast';
 import {
   SunmiLightClient,
@@ -11,6 +12,8 @@ import type { InterfaceProvider } from '@kduma-autoid/hal-client-common';
 import { bindBackend, enabledBackends, serialized } from '../composables/backendBinding';
 
 const { client, isConnected } = useHalClient();
+// Subscriptions that resolve after the page is gone are released instead of kept.
+const page = usePageLifetime();
 const toast = useToast();
 
 // The facade resolves the `light` interface and binds a provider — the interface default, or one
@@ -27,6 +30,7 @@ let unsubscribeChanges: (() => Promise<void>) | null = null;
 
 // Serialized: two `system.interfaces.changed` in a row must not interleave two binds.
 const bind = serialized(async (pluginId?: string) => {
+  if (!page.isAlive()) return;
   if (!client.value || !isConnected.value) {
     light.value = null;
     backends.value = [];
@@ -75,9 +79,9 @@ async function connectAndWatch() {
   await bind();
   if (client.value && isConnected.value && !unsubscribeChanges) {
     // Hot-plug / interface reorder: re-resolve, keeping the user's pinned backend if it survives.
-    unsubscribeChanges = await SunmiLightClient.onChanged(client.value, () => {
+    unsubscribeChanges = await page.keep(SunmiLightClient.onChanged(client.value, () => {
       bind(selectedBackend.value || undefined);
-    });
+    }));
   }
 }
 
