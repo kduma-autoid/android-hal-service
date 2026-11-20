@@ -1,24 +1,26 @@
 import { ref, watch, computed } from 'vue';
 import type { StatusResponse } from '@kduma-autoid/hal-client-common';
 import { useHalClient } from './useHalClient';
+import { useSystemChanges } from './useSystemChanges';
 
 const status = ref<StatusResponse | null>(null);
 const loading = ref(false);
 const fetchError = ref<string | null>(null);
 let fetched = false;
 
-async function fetchStatus(): Promise<void> {
+/** [silent]: a background re-read keeps the current answer instead of going back to "checking". */
+async function fetchStatus(silent = false): Promise<void> {
   const { client, isConnected } = useHalClient();
   if (!client.value || !isConnected.value) return;
 
-  loading.value = true;
+  if (!silent) loading.value = true;
   fetchError.value = null;
   try {
     status.value = await client.value.getStatus();
     fetched = true;
   } catch (e) {
     fetchError.value = e instanceof Error ? e.message : String(e);
-    status.value = null;
+    if (!silent) status.value = null;
   } finally {
     loading.value = false;
   }
@@ -35,6 +37,9 @@ watch(isConnected, (connected) => {
     fetched = false;
   }
 });
+
+// App-wide, not per component: views gate on this, and a reader plugged in later must unlock them.
+useSystemChanges(() => fetchStatus(true));
 
 export interface PluginRequirement {
   pluginId?: string;
@@ -84,6 +89,6 @@ export function usePluginAvailability(
     plugins,
     loading,
     fetchError,
-    refreshStatus: fetchStatus,
+    refreshStatus: () => fetchStatus(),
   };
 }

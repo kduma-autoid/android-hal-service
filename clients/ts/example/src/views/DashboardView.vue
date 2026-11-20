@@ -2,6 +2,7 @@
 import { ref, onMounted, watch } from 'vue';
 import type { HealthResponse, StatusResponse } from '@kduma-autoid/hal-client-common';
 import { useHalClient } from '../composables/useHalClient';
+import { useSystemChanges } from '../composables/useSystemChanges';
 
 const { client, isConnected } = useHalClient();
 
@@ -50,6 +51,8 @@ watch(isConnected, (connected) => {
   if (connected) fetchData();
   else { health.value = null; status.value = null; }
 });
+
+useSystemChanges(fetchData);
 </script>
 
 <template>

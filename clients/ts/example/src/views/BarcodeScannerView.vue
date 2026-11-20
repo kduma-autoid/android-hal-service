@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { ref, shallowRef, computed, watch, onUnmounted } from 'vue';
 import { useHalClient } from '../composables/useHalClient';
+import { usePageLifetime } from '../composables/usePageLifetime';
 import { useToast } from '../composables/useToast';
 import { SunmiBarcodeScannerClient } from '@kduma-autoid/hal-client-plugin-sunmi-barcode-scanner-facade';
 import type { InterfaceProvider, ScanResult } from '@kduma-autoid/hal-client-common';
 import { bindBackend, enabledBackends, serialized } from '../composables/backendBinding';
 
 const { client, isConnected } = useHalClient();
+// Subscriptions that resolve after the page is gone are released instead of kept.
+const page = usePageLifetime();
 const toast = useToast();
 
 const MAX_SCANS = 50;
@@ -63,10 +66,10 @@ async function stopStateSubscription() {
 async function subscribeScans() {
   await stopScanSubscription();
   if (!scanner.value) return;
-  unsubscribeScan = await scanner.value.onScan((scan) => {
+  unsubscribeScan = await page.keep(scanner.value.onScan((scan) => {
     scans.value.unshift({ ...scan, at: new Date() });
     if (scans.value.length > MAX_SCANS) scans.value.length = MAX_SCANS;
-  });
+  }));
 }
 
 async function subscribeSs2222State() {
@@ -74,7 +77,7 @@ async function subscribeSs2222State() {
   if (!scanner.value || scanner.value.backend !== SS2222_BACKEND || !client.value) return;
   const boundScanner = scanner.value;
 
-  unsubscribeState = await client.value.on(SS2222_STATE_EVENT, (_name, data) => {
+  unsubscribeState = await page.keep(client.value.on(SS2222_STATE_EVENT, (_name, data) => {
     // An unsubscribe can race an already queued event during rebind. Do not let an old bound
     // scanner mutate the state of the new one.
     if (scanner.value !== boundScanner) return;
@@ -86,7 +89,7 @@ async function subscribeSs2222State() {
     // The SS2222 backend publishes uppercase lifecycle states. Unknown/future states are treated
     // as non-scanning until a known active state arrives.
     scanning.value = state === 'STARTING' || state === 'SCANNING';
-  });
+  }));
 }
 
 // Two `system.interfaces.changed` in a row would otherwise run bind() concurrently and leave two
@@ -94,6 +97,7 @@ async function subscribeSs2222State() {
 const bind = serialized((pluginId?: string) => bindOnce(pluginId));
 
 async function bindOnce(pluginId?: string) {
+  if (!page.isAlive()) return;
   // Invalidate an optimistic operation from the previous binding, even when this bind ends up
   // disconnected or without a provider.
   ss2222StateVersion += 1;
@@ -173,9 +177,9 @@ watch(
       await bind();
       if (client.value && !unsubscribeChanges) {
         // Hot-plug / interface reorder: re-resolve, keeping the user's pinned backend if it survives.
-        unsubscribeChanges = await SunmiBarcodeScannerClient.onChanged(client.value, () => {
+        unsubscribeChanges = await page.keep(SunmiBarcodeScannerClient.onChanged(client.value, () => {
           bind(selectedBackend.value || undefined);
-        });
+        }));
       }
     } else {
       await teardown();

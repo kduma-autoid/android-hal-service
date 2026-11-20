@@ -198,8 +198,9 @@ class HalService : Service() {
         tryRegisterPlugin("dev.duma.android.hal.plugins.msr605x.Msr605xPlugin")
         tryRegisterPlugin("dev.duma.android.hal.plugins.dymo.m10.DymoM10Plugin")
 
-        // 6. Discover external plugins (standalone bundle APKs)
+        // 6. Discover external plugins (standalone bundle APKs), and keep discovering as apps change
         pluginRegistry.discoverExternal(this)
+        pluginRegistry.watchPackages(this)
 
         // 7. Register generic plugins (always available)
         // Interface definers (register interface contracts; providers opt in via bindings).

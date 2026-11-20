@@ -3,12 +3,15 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import { useHalClient } from '../composables/useHalClient';
 
+// The HAL Service icon (public/favicon.svg, from branding/); BASE_URL keeps it working under sub-paths.
+const logoUrl = `${import.meta.env.BASE_URL}favicon.svg`;
+
 const route = useRoute();
 const { client, status, needsToken, requestNewToken, error, connect, disconnect } = useHalClient();
 const menuOpen = ref(false);
 const demosOpen = ref(false);
 const isDescribeActive = computed(() => route.path.startsWith('/describe'));
-const DEMO_PATHS = ['/statuslight', '/printer', '/barcode-scanner', '/magnetic-card', '/scale', '/screens'];
+const DEMO_PATHS = ['/statuslight', '/printer', '/barcode-scanner', '/rolling-qr', '/magnetic-card', '/scale', '/screens'];
 const isDemosActive = computed(() => DEMO_PATHS.includes(route.path));
 
 function closeMenu() {
@@ -39,7 +42,7 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick));
   <nav class="navbar">
     <div class="navbar-inner">
       <div class="navbar-brand">
-        <span class="navbar-title">HAL Client Demo</span>
+        <span class="navbar-title"><img :src="logoUrl" alt="" class="navbar-logo" width="24" height="24" />HAL Client Demo</span>
         <div class="navbar-brand-right">
           <div class="navbar-right-mobile">
             <span class="status">
@@ -73,6 +76,7 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick));
               <router-link to="/statuslight" class="nav-link dropdown-link" @click="closeMenu">Status Light</router-link>
               <router-link to="/printer" class="nav-link dropdown-link" @click="closeMenu">Printer</router-link>
               <router-link to="/barcode-scanner" class="nav-link dropdown-link" @click="closeMenu">Barcode Scanner</router-link>
+              <router-link to="/rolling-qr" class="nav-link dropdown-link" @click="closeMenu">Rolling QR Code</router-link>
               <router-link to="/magnetic-card" class="nav-link dropdown-link" @click="closeMenu">Magnetic Card</router-link>
               <router-link to="/scale" class="nav-link dropdown-link" @click="closeMenu">Scale</router-link>
               <router-link to="/screens" class="nav-link dropdown-link" @click="closeMenu">Screens &amp; NFC</router-link>
@@ -132,9 +136,16 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick));
   width: auto;
 }
 .navbar-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   font-weight: 700;
   font-size: 16px;
   white-space: nowrap;
+}
+.navbar-logo {
+  display: block;
+  flex-shrink: 0;
 }
 .menu-toggle {
   display: none;

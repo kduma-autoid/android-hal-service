@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import type { PluginDescriptor, InterfaceDescriptor, EventMeta } from '@kduma-autoid/hal-client-common';
 import { allEvents } from '@kduma-autoid/hal-client-common';
 import { useHalClient } from '../composables/useHalClient';
+import { useSystemChanges } from '../composables/useSystemChanges';
 import { useToast } from '../composables/useToast';
 import PluginCard from '../components/PluginCard.vue';
 
@@ -127,6 +128,9 @@ watch(pluginId, () => {
   Object.keys(receivedEvents).forEach(k => delete receivedEvents[k]);
   fetchPlugin();
 });
+
+// Hot-plug or the bundle being swapped changes `available`, `source` and version on this page.
+useSystemChanges(fetchPlugin);
 </script>
 
 <template>
