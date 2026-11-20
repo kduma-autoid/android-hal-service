@@ -92,6 +92,66 @@ class Ss2222ControllerTest {
     }
 
     @Test
+    fun `initialize can switch the USB mode right after the revision check`() = runTest {
+        val fixture = fixture(this)
+
+        fixture.controller.initialize(fixture.transport, switchUsbModeTo = 0x0C)
+
+        assertEquals(0x0C, fixture.transport.parameters[USB_MODE_PARAM])
+        // Disable, revision, the switch — and nothing configured on an identity that is about to go.
+        assertEquals(listOf(SsiCodec.SCAN_DISABLE, SsiCodec.REQUEST_REVISION, SsiCodec.PARAM_SEND), fixture.transport.opcodes)
+        assertEquals(Ss2222Driver.State.CONNECTING, fixture.controller.state)
+        assertTrue(!fixture.transport.closed)
+
+        // The transport was released: the scanner can be opened again under its new identity.
+        val next = FakeTransport()
+        next.deliver = { fixture.controller.onMessage(next, it) }
+        fixture.controller.initialize(next)
+        assertEquals(Ss2222Driver.State.IDLE, fixture.controller.state)
+    }
+
+    @Test
+    fun `an unacknowledged USB mode switch is taken as done, not as a failure`() = runTest {
+        // The scanner may leave the bus before its ACK arrives.
+        val fixture = fixture(this)
+        fixture.transport.suppress += SsiCodec.PARAM_SEND
+
+        fixture.controller.initialize(fixture.transport, switchUsbModeTo = 0x0C)
+
+        assertEquals(Ss2222Driver.State.CONNECTING, fixture.controller.state)
+        assertTrue(!fixture.transport.closed, "the session must not be invalidated")
+        assertTrue(fixture.events.errors.isEmpty(), fixture.events.errors.toString())
+    }
+
+    @Test
+    fun `closing a data-mode session hands the scanner back in keyboard mode`() = runTest {
+        val fixture = fixture(this)
+        fixture.transport.releaseUsbMode = 0x0E
+        fixture.controller.initialize(fixture.transport)
+        fixture.transport.parameters[USB_MODE_PARAM] = 0x0C
+
+        fixture.controller.controlledClose()
+
+        assertEquals(0x0E, fixture.transport.parameters[USB_MODE_PARAM])
+        val enable = fixture.transport.opcodes.lastIndexOf(SsiCodec.SCAN_ENABLE)
+        assertTrue(enable >= 0 && fixture.transport.opcodes.drop(enable).contains(SsiCodec.PARAM_SEND))
+    }
+
+    @Test
+    fun `a failure in data mode releases the scanner to keyboard mode`() = runTest {
+        // Re-enumerating in keyboard mode is the hotplug the driver waits for, so it recovers by itself.
+        val fixture = fixture(this, commandTimeoutMs = 50)
+        fixture.transport.releaseUsbMode = 0x0E
+        fixture.controller.initialize(fixture.transport)
+        fixture.transport.suppress += SsiCodec.SCAN_ENABLE
+
+        assertFailsWith<DriverException> { fixture.controller.start(singleShot = true) }
+
+        assertEquals(SsiCodec.PARAM_SEND, fixture.transport.opcodes.last())
+        assertEquals(0x0E, fixture.transport.parameters[USB_MODE_PARAM])
+    }
+
+    @Test
     fun `a failure leaves the scanner disabled by default`() = runTest {
         val fixture = fixture(this, commandTimeoutMs = 50)
         fixture.controller.initialize(fixture.transport)
@@ -367,6 +427,7 @@ class Ss2222ControllerTest {
         var releaseBlocked = CompletableDeferred<Unit>()
         var closed = false
         var scanSessions = 0
+        override var releaseUsbMode: Int? = null
 
         override suspend fun send(message: ByteArray) {
             val packet = SsiCodec.decode(message)
@@ -452,6 +513,8 @@ class Ss2222ControllerTest {
     }
 
     private companion object {
+        /** `F2 01`, the scanner's USB mode. */
+        const val USB_MODE_PARAM = 0xF201
         const val REVISION = "Product Name:SS2222 Product ID:2502D57G02104 Hardware version:V3.0.A Firmware version:2.4.94"
         fun ackPacket(): ByteArray = SsiCodec.encode(
             SsiCodec.ACK,

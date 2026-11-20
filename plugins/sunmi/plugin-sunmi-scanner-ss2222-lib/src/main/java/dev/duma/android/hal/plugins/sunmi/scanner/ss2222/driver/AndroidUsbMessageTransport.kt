@@ -12,8 +12,15 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+/**
+ * One open SS2222 in either USB mode (see docs/spec/sunmi-ss2222-protocol.md):
+ * - [UsbMode.KEYBOARD_HID] (`324F:0113`): SSI wrapped in 64-byte HID reports on interface 1;
+ * - [UsbMode.DATA] (`AF99:8001`, TTDATA): bare SSI packets on interface 0's bulk endpoints, no keyboard.
+ *   Each bulk transfer (ended by a short packet) is one message.
+ */
 internal class AndroidUsbMessageTransport private constructor(
     val device: UsbDevice,
+    val mode: UsbMode,
     private val connection: UsbDeviceConnection,
     private val controlInterface: UsbInterface,
     private val input: UsbEndpoint,
@@ -41,8 +48,21 @@ internal class AndroidUsbMessageTransport private constructor(
     @Volatile private var lastReadResult: Int? = null
     private val reader = Reader().also { it.start() }
 
+    /** Leaving data mode hands the scanner back in its factory keyboard mode. */
+    override val releaseUsbMode: Int? get() = if (mode == UsbMode.DATA) USB_MODE_KEYBOARD_HID else null
+
     override suspend fun send(message: ByteArray) = withContext(Dispatchers.IO) {
         if (closed.get()) throw DriverException("device_disconnected", "USB transport is closed")
+        if (mode == UsbMode.DATA) {
+            if (message.isEmpty()) throw DriverException("invalid_message", "Message must not be empty")
+            synchronized(writeLock) {
+                val written = connection.bulkTransfer(output, message, message.size, WRITE_TIMEOUT_MS)
+                if (written != message.size) {
+                    throw DriverException("usb_write_failed", "USB write returned $written of ${message.size} bytes")
+                }
+            }
+            return@withContext
+        }
         val reports = try {
             HidReportCodec.encode(message)
         } catch (e: IllegalArgumentException) {
@@ -94,7 +114,38 @@ internal class AndroidUsbMessageTransport private constructor(
     }
 
     private inner class Reader : Thread("ss2222-usb-reader") {
-        override fun run() {
+        override fun run() = if (mode == UsbMode.DATA) readTransfers() else readReports()
+
+        /** Data mode: one bulk transfer is one message (a barcode ending in CR, or an SSI packet). */
+        private fun readTransfers() {
+            val buffer = ByteArray(DATA_TRANSFER_BUFFER)
+            var consecutiveErrors = 0
+            while (running.get()) {
+                val read = connection.bulkTransfer(input, buffer, buffer.size, READ_TIMEOUT_MS)
+                lastReadResult = read
+                lastReadAtMs = SystemClock.elapsedRealtime()
+                if (!running.get()) break
+                if (read <= 0) {
+                    if (read == 0) emptyReads.incrementAndGet() else negativeReads.incrementAndGet()
+                    if (++consecutiveErrors >= ERROR_BACKOFF_THRESHOLD) {
+                        try {
+                            sleep(ERROR_BACKOFF_MS)
+                        } catch (_: InterruptedException) {
+                            interrupt()
+                            break
+                        }
+                    }
+                    continue
+                }
+                fullReports.incrementAndGet()
+                lastReportAtMs = lastReadAtMs
+                consecutiveErrors = 0
+                messages.incrementAndGet()
+                callbacks.onMessage(this@AndroidUsbMessageTransport, buffer.copyOf(read))
+            }
+        }
+
+        private fun readReports() {
             val report = ByteArray(HidReportCodec.REPORT_SIZE)
             val assembler = HidMessageAssembler()
             var consecutiveErrors = 0
@@ -160,11 +211,60 @@ internal class AndroidUsbMessageTransport private constructor(
     }
 
     companion object {
+        /** `F2 01` value of the factory keyboard + vendor HID mode. */
+        const val USB_MODE_KEYBOARD_HID = 0x0E
+        /** `F2 01` value of the TTDATA mode (no keyboard, vendor bulk). */
+        const val USB_MODE_DATA = 0x0C
+        const val DATA_INTERFACE_ID = 0
+        const val DATA_INPUT_ENDPOINT_ADDRESS = 0x81
+        const val DATA_OUTPUT_ENDPOINT_ADDRESS = 0x01
         const val CONTROL_INTERFACE_ID = 1
         const val INPUT_ENDPOINT_ADDRESS = 0x82
         const val OUTPUT_ENDPOINT_ADDRESS = 0x02
 
         fun open(
+            usbManager: UsbManager,
+            device: UsbDevice,
+            callbacks: Callbacks,
+        ): AndroidUsbMessageTransport = when (Ss2222Driver.usbModeOf(device)) {
+            UsbMode.DATA -> openData(usbManager, device, callbacks)
+            else -> openKeyboardHid(usbManager, device, callbacks)
+        }
+
+        private fun openData(
+            usbManager: UsbManager,
+            device: UsbDevice,
+            callbacks: Callbacks,
+        ): AndroidUsbMessageTransport {
+            val dataInterface = (0 until device.interfaceCount)
+                .map(device::getInterface)
+                .singleOrNull { it.id == DATA_INTERFACE_ID }
+                ?: throw DriverException("invalid_device", "SS2222 data interface 0 was not found")
+            if (dataInterface.interfaceClass != UsbConstants.USB_CLASS_VENDOR_SPEC) {
+                throw DriverException("invalid_device", "Interface 0 is not vendor specific")
+            }
+            val endpoints = (0 until dataInterface.endpointCount).map(dataInterface::getEndpoint)
+            val input = endpoints.singleOrNull {
+                it.address == DATA_INPUT_ENDPOINT_ADDRESS &&
+                    it.direction == UsbConstants.USB_DIR_IN &&
+                    it.type == UsbConstants.USB_ENDPOINT_XFER_BULK
+            } ?: throw DriverException("invalid_device", "Expected bulk IN endpoint 0x81 was not found")
+            val output = endpoints.singleOrNull {
+                it.address == DATA_OUTPUT_ENDPOINT_ADDRESS &&
+                    it.direction == UsbConstants.USB_DIR_OUT &&
+                    it.type == UsbConstants.USB_ENDPOINT_XFER_BULK
+            } ?: throw DriverException("invalid_device", "Expected bulk OUT endpoint 0x01 was not found")
+
+            val connection = usbManager.openDevice(device)
+                ?: throw DriverException("usb_open_failed", "Could not open ${device.deviceName}")
+            if (!connection.claimInterface(dataInterface, true)) {
+                connection.close()
+                throw DriverException("usb_claim_failed", "Could not claim SS2222 interface 0")
+            }
+            return AndroidUsbMessageTransport(device, UsbMode.DATA, connection, dataInterface, input, output, callbacks)
+        }
+
+        private fun openKeyboardHid(
             usbManager: UsbManager,
             device: UsbDevice,
             callbacks: Callbacks,
@@ -198,6 +298,7 @@ internal class AndroidUsbMessageTransport private constructor(
             }
             return AndroidUsbMessageTransport(
                 device,
+                UsbMode.KEYBOARD_HID,
                 connection,
                 controlInterface,
                 input,
@@ -206,6 +307,7 @@ internal class AndroidUsbMessageTransport private constructor(
             )
         }
 
+        private const val DATA_TRANSFER_BUFFER = 16 * 1024
         private const val READ_TIMEOUT_MS = 300
         private const val WRITE_TIMEOUT_MS = 1_000
         private const val READER_JOIN_MS = 400L

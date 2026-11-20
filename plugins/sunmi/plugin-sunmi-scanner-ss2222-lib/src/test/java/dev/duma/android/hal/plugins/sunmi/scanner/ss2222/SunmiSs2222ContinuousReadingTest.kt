@@ -63,7 +63,7 @@ class SunmiSs2222ContinuousReadingTest {
     }
 
     @Test fun `the setting is declared and on by default, so HAL disables the scanner between scans`() {
-        val setting = plugin.getSettings().single()
+        val setting = plugin.getSettings().single { it.key == "disableWhenIdle" }
         assertEquals("disableWhenIdle", setting.key)
         assertTrue(setting.default)
     }

@@ -18,6 +18,7 @@ import dev.duma.android.hal.contract.PluginDescriptor
 import dev.duma.android.hal.contract.PluginSetting
 import dev.duma.android.hal.contract.stripExperimental
 import dev.duma.android.hal.plugins.sunmi.scanner.ss2222.driver.Ss2222Driver
+import dev.duma.android.hal.plugins.sunmi.scanner.ss2222.driver.UsbMode
 import dev.duma.android.hal.plugins.sunmi.scanner.ss2222.driver.DriverException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -55,6 +56,8 @@ class SunmiSs2222ScannerPlugin internal constructor(
      * turned off. Off by default — HAL disables the scanner and enables it only on demand.
      */
     @Volatile private var continuousEnabled = false
+    /** [SETTING_DATA_MODE]: run the scanner in its TTDATA USB mode (no keyboard). On by default. */
+    @Volatile private var dataModeEnabled = true
     /** The current session was started by [resumeContinuous], not by a client. */
     @Volatile private var autoSession = false
     /** Consecutive failed automatic starts, for the retry back-off. */
@@ -75,10 +78,23 @@ class SunmiSs2222ScannerPlugin internal constructor(
                 "Turn off to keep it reading every barcode in front of it, as it does without HAL; " +
                 "HAL then reports each one as an event.",
             default = true,
-        )
+        ),
+        PluginSetting(
+            key = SETTING_DATA_MODE,
+            title = "Use data mode (no keyboard)",
+            description = "HAL switches the scanner to its TTDATA USB mode: it stops typing every code as a " +
+                "keyboard and reads about twice as fast. Turn off to keep the factory keyboard mode. HAL " +
+                "hands the scanner back in keyboard mode when it stops.",
+            default = true,
+        ),
     )
 
     override fun onSettingChanged(key: String, value: Boolean) {
+        if (key == SETTING_DATA_MODE) {
+            dataModeEnabled = value
+            driver?.preferDataMode = value
+            return
+        }
         if (key != SETTING_DISABLE_WHEN_IDLE) return
         val continuous = !value
         continuousEnabled = continuous
@@ -105,6 +121,7 @@ class SunmiSs2222ScannerPlugin internal constructor(
         driver?.close()
         context = appContext?.applicationContext ?: pluginContext.applicationContext.applicationContext
         continuousEnabled = !pluginContext.getBooleanSetting(SETTING_DISABLE_WHEN_IDLE, default = true)
+        dataModeEnabled = pluginContext.getBooleanSetting(SETTING_DATA_MODE, default = true)
         autoSession = false
         autoFailures = 0
         scope?.cancel()
@@ -141,6 +158,7 @@ class SunmiSs2222ScannerPlugin internal constructor(
         }
         driver = newDriver(context!!, listener).also {
             it.keepScanningEnabled = continuousEnabled
+            it.preferDataMode = dataModeEnabled
             it.open()
         }
     }
@@ -245,6 +263,11 @@ class SunmiSs2222ScannerPlugin internal constructor(
         put("available", active?.state in READY_STATES)
         put("keyboardFilterEnabled", context?.let(KeyboardFilter::isEnabled) ?: false)
         put("continuous", continuousEnabled)
+        put("usbMode", when (active?.usbMode) {
+            UsbMode.DATA -> JsonPrimitive("data")
+            UsbMode.KEYBOARD_HID -> JsonPrimitive("keyboard")
+            null -> JsonNull
+        })
         put("device", if (active?.deviceInfo == null) JsonNull else deviceInfo(active))
     }
 
@@ -376,7 +399,7 @@ class SunmiSs2222ScannerPlugin internal constructor(
                 method("stop", "Stop scanning; already idle is a successful no-op."),
                 method("startContinuous", "Read successive barcodes until stop.", output = "{\"status\":\"scanning\"}"),
                 method("getStatus", "Session state, keyboard filter setting (enabled does not prove effective filtering) and whether continuous reading is on.",
-                    output = "{\"state\":\"SCANNING\",\"available\":true,\"keyboardFilterEnabled\":false,\"continuous\":true}"),
+                    output = "{\"state\":\"SCANNING\",\"available\":true,\"keyboardFilterEnabled\":false,\"continuous\":true,\"usbMode\":\"data\"}"),
                 method("getDeviceInfo", "Read SS2222 product, hardware and firmware information.",
                     output = "{\"model\":\"SS2222\",\"hardwareVersion\":\"V3.0.A\",\"firmwareVersion\":\"2.4.94\"}"),
             )),
@@ -412,6 +435,7 @@ class SunmiSs2222ScannerPlugin internal constructor(
     companion object {
         const val ID = "sunmi.scanner.ss2222"
         private const val SETTING_DISABLE_WHEN_IDLE = "disableWhenIdle"
+        private const val SETTING_DATA_MODE = "usbDataMode"
         /** Operations the controller only accepts while idle; the background session pauses for them. */
         private val IDLE_ONLY = setOf("trigger", "startContinuous", "setConfig", "setParams")
         private val ACTIVE_STATES = setOf(Ss2222Driver.State.STARTING, Ss2222Driver.State.SCANNING)

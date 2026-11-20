@@ -18,6 +18,9 @@ internal interface MessageTransport {
     suspend fun close()
     fun beginScanSession() = Unit
     fun diagnosticState(): String = "unavailable"
+
+    /** `F2 01` USB mode to switch the scanner to when HAL lets go of it, or null to leave it as is. */
+    val releaseUsbMode: Int? get() = null
 }
 
 internal interface ControllerEvents {
@@ -75,7 +78,16 @@ internal class Ss2222Controller(
     @Volatile
     var keepScanningEnabled = false
 
-    suspend fun initialize(newTransport: MessageTransport): ByteArray = operationMutex.withLock {
+    /**
+     * Opens [newTransport]: disables scanning, checks the revision and configures the scanner. With
+     * [switchUsbModeTo], it instead switches the scanner's USB mode (`F2 01`) right after the revision
+     * check and lets go of the transport, which is about to leave the bus; state stays CONNECTING until
+     * the scanner is opened again under its new identity.
+     */
+    suspend fun initialize(
+        newTransport: MessageTransport,
+        switchUsbModeTo: Int? = null,
+    ): ByteArray = operationMutex.withLock {
             val myGeneration = synchronized(sessionLock) {
                 if (transport != null) throw DriverException("already_open", "Scanner is already open")
                 ++generation
@@ -94,6 +106,10 @@ internal class Ss2222Controller(
                 synchronized(sessionLock) {
                     checkGenerationLocked(myGeneration, newTransport)
                     events.onRevision(SsiCodec.decode(revision))
+                }
+                if (switchUsbModeTo != null) {
+                    switchUsbModeInternal(newTransport, switchUsbModeTo)
+                    return@withLock revision
                 }
 
                 val triggerMode = oneByteParameter(PARAM_TRIGGER_MODE)
@@ -354,6 +370,17 @@ internal class Ss2222Controller(
                         if (!desynchronized && transport === active) {
                             commandExpectingAck(SsiCodec.SCAN_ENABLE)
                         }
+                        // Out of data mode: other apps expect the factory keyboard mode.
+                        val release = active.releaseUsbMode
+                        if (release != null && !desynchronized && transport === active) {
+                            try {
+                                switchUsbModeInternal(active, release)
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                report(DriverException("restore_failed", "Could not restore the scanner's USB mode", e))
+                            }
+                        }
                     }
                     bestEffortClose(active)
                     synchronized(sessionLock) {
@@ -460,6 +487,68 @@ internal class Ss2222Controller(
         return value[0].toInt() and 0xFF
     }
 
+    /**
+     * Switches the connected scanner to USB mode [mode] (`F2 01`): stops a scan, restores the parameters
+     * HAL changed and lets go of the transport. The scanner reappears under a new identity.
+     */
+    suspend fun switchUsbMode(mode: Int) = operationMutex.withLock {
+        val active = ensureConnected()
+        if (state == Ss2222Driver.State.STARTING || state == Ss2222Driver.State.SCANNING) stopInternal()
+        try {
+            restoreSnapshots()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            report(DriverException("restore_failed", "Could not restore scanner parameters", e))
+        }
+        switchUsbModeInternal(active, mode)
+    }
+
+    /**
+     * Sends `PARAM_SEND F2 01 = mode`. The scanner acknowledges and leaves the bus at once, so a missing
+     * reply or a failed transfer means it is already switching, not that the session broke: unlike
+     * [command] this never invalidates. Only a NAK fails. Afterwards [active] is released.
+     */
+    private suspend fun switchUsbModeInternal(active: MessageTransport, mode: Int) {
+        val reply = commandMutex.withLock {
+            val request = synchronized(sessionLock) {
+                if (transport !== active) throw DriverException("device_disconnected", "Scanner connection changed")
+                Pending(
+                    SsiCodec.PARAM_SEND, active, generation,
+                    { SsiCodec.isAck(it) || SsiCodec.isNak(it) }, CompletableDeferred(),
+                ).also { check(pending.compareAndSet(null, it)) { "Only one SSI request may be outstanding" } }
+            }
+            events.onDiagnostic("USB mode -> 0x${mode.toString(16)}")
+            try {
+                withTimeout(USB_MODE_ACK_TIMEOUT_MS) {
+                    active.send(
+                        SsiCodec.encode(SsiCodec.PARAM_SEND, SsiCodec.parameterWriteData(mapOf(PARAM_USB_MODE to mode))),
+                    )
+                    request.result.await()
+                }
+            } catch (_: TimeoutCancellationException) {
+                null
+            } catch (e: DriverException) {
+                if (e.code == "nak") throw e
+                null
+            } finally {
+                pending.compareAndSet(request, null)
+            }
+        }
+        if (reply != null && SsiCodec.isNak(reply)) {
+            throw DriverException("nak", "Scanner rejected USB mode 0x${mode.toString(16)}")
+        }
+        synchronized(sessionLock) {
+            if (transport === active) {
+                transport = null
+                generation++
+                snapshots.clear()
+                resetSessionLocked()
+                setState(Ss2222Driver.State.CONNECTING)
+            }
+        }
+    }
+
     private suspend fun commandExpectingAck(opcode: Int, data: ByteArray = ByteArray(0)) {
         val packet = command(opcode, data) { SsiCodec.isAck(it) || SsiCodec.isNak(it) }
         throwIfNak(packet, opcode)
@@ -528,6 +617,15 @@ internal class Ss2222Controller(
             try {
                 val release = if (keepScanningEnabled) SsiCodec.SCAN_ENABLE else SsiCodec.SCAN_DISABLE
                 withTimeout(250) { active.send(SsiCodec.encode(release)) }
+                // Leaving data mode re-enumerates the scanner in keyboard mode, which also counts as the
+                // hotplug the driver waits for after a failure, so it recovers without a replug.
+                active.releaseUsbMode?.let { mode ->
+                    withTimeout(250) {
+                        active.send(
+                            SsiCodec.encode(SsiCodec.PARAM_SEND, SsiCodec.parameterWriteData(mapOf(PARAM_USB_MODE to mode))),
+                        )
+                    }
+                }
             } catch (_: Throwable) { }
             bestEffortClose(active)
         }
@@ -628,6 +726,9 @@ internal class Ss2222Controller(
     private companion object {
         const val PARAM_TRIGGER_MODE = 0x8A
         const val PARAM_LIGHT_MODE = 0xF202
+        /** `F2 01`: the scanner's USB mode (0E keyboard + HID, 0C data/TTDATA, …). */
+        const val PARAM_USB_MODE = 0xF201
+        const val USB_MODE_ACK_TIMEOUT_MS = 1_000L
         const val TRIGGER_MODE_DEFAULT = 0x11
         const val LIGHT_MODE_FIRMWARE = 0x00
         const val MAX_EARLY_BARCODES = 32

@@ -28,6 +28,15 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 
+/** How the scanner presents itself on USB (`F2 01`); see docs/spec/sunmi-ss2222-protocol.md. */
+enum class UsbMode {
+    /** `324F:0113`: HID keyboard (types every code) + vendor HID carrying SSI. Factory mode. */
+    KEYBOARD_HID,
+
+    /** `AF99:8001` TTDATA: vendor bulk carrying bare SSI and raw codes, no keyboard. Reads faster. */
+    DATA,
+}
+
 internal enum class PermissionDisposition { STALE, DENIED, GRANTED }
 internal enum class ScannerMultiplicity { NONE, SINGLE, AMBIGUOUS }
 
@@ -128,6 +137,25 @@ class Ss2222Driver(
     private var closed = false
 
     val state: State get() = stateValue
+
+    /**
+     * Run the scanner in [UsbMode.DATA] (TTDATA: no keyboard, reads faster). On connect the driver
+     * switches a scanner found in the other mode; changing this while connected switches it at once.
+     * Closing the driver always hands the scanner back in [UsbMode.KEYBOARD_HID].
+     */
+    @Volatile
+    var preferDataMode: Boolean = true
+        set(value) {
+            field = value
+            if (!closed) scope.launch { applyPreferredUsbMode() }
+        }
+
+    /** The USB mode of the open scanner, or null when none is open. */
+    val usbMode: UsbMode? get() = activeTransport?.mode
+
+    /** Until this uptime, a scanner leaving the bus is an intended mode switch: report CONNECTING. */
+    @Volatile
+    private var modeSwitchUntilMs = 0L
 
     /** See [Ss2222Controller.keepScanningEnabled]. */
     var keepScanningEnabled: Boolean
@@ -307,11 +335,51 @@ class Ss2222Driver(
             return
         }
         activeTransport = transport
+        val wanted = if (preferDataMode) UsbMode.DATA else UsbMode.KEYBOARD_HID
+        val switchTo = if (transport.mode != wanted) usbModeValue(wanted) else null
+        if (switchTo != null) expectModeSwitch()
         try {
-            controller.initialize(transport)
+            controller.initialize(transport, switchTo)
         } catch (_: Throwable) {
+            modeSwitchUntilMs = 0L
             if (activeTransport === transport) activeTransport = null
+            return
         }
+        if (switchTo != null) {
+            // The scanner is re-enumerating under its other identity; the hotplug receiver opens it.
+            if (activeTransport === transport) activeTransport = null
+            transport.close()
+        }
+    }
+
+    private suspend fun applyPreferredUsbMode() = connectMutex.withLock {
+        val active = activeTransport ?: return@withLock
+        val wanted = if (preferDataMode) UsbMode.DATA else UsbMode.KEYBOARD_HID
+        if (active.mode == wanted || closing.get() || !wantOpen.get()) return@withLock
+        expectModeSwitch()
+        try {
+            controller.switchUsbMode(usbModeValue(wanted))
+        } catch (e: Throwable) {
+            modeSwitchUntilMs = 0L
+            val driver = e as? DriverException
+            publishError(driver?.code ?: "usb_mode_failed", e.message ?: "Could not switch the scanner's USB mode")
+            return@withLock
+        }
+        if (activeTransport === active) activeTransport = null
+        active.close()
+    }
+
+    /** Reports CONNECTING across the coming re-enumeration; gives up after [MODE_SWITCH_TIMEOUT_MS]. */
+    private fun expectModeSwitch() {
+        modeSwitchUntilMs = SystemClock.elapsedRealtime() + MODE_SWITCH_TIMEOUT_MS
+        main.postDelayed({
+            if (modeSwitchUntilMs != 0L && SystemClock.elapsedRealtime() >= modeSwitchUntilMs) {
+                modeSwitchUntilMs = 0L
+                if (activeTransport == null && wantOpen.get() && !closing.get()) {
+                    scope.launch { discoverAndConnect() }
+                }
+            }
+        }, MODE_SWITCH_TIMEOUT_MS + 50)
     }
 
     private fun requestPermission(device: UsbDevice) {
@@ -439,6 +507,8 @@ class Ss2222Driver(
 
     private fun publishState(newState: State, generation: Long = lifecycleGeneration.get()) {
         if (generation != lifecycleGeneration.get() || closed) return
+        if (newState == State.DISCONNECTED && SystemClock.elapsedRealtime() < modeSwitchUntilMs) return
+        if (newState == State.IDLE || newState == State.ERROR) modeSwitchUntilMs = 0L
         if (stateValue == newState) return
         Log.i(TAG, "State $stateValue -> $newState")
         stateValue = newState
@@ -478,9 +548,24 @@ class Ss2222Driver(
         private const val EXPECTED_MODEL = "SS2222"
         private const val EXTRA_PERMISSION_GENERATION = "generation"
         private const val CONNECT_BARRIER_TIMEOUT_MS = 3_500L
+        private const val MODE_SWITCH_TIMEOUT_MS = 8_000L
+        /** The scanner in TTDATA mode (`F2 01` = 0C): its engine maker's own USB identity. */
+        const val DATA_VENDOR_ID = 0xAF99
+        const val DATA_PRODUCT_ID = 0x8001
 
-        fun isScanner(device: UsbDevice?): Boolean =
-            device != null && device.vendorId == VENDOR_ID && device.productId == PRODUCT_ID
+        fun isScanner(device: UsbDevice?): Boolean = usbModeOf(device) != null
+
+        fun usbModeOf(device: UsbDevice?): UsbMode? = when {
+            device == null -> null
+            device.vendorId == VENDOR_ID && device.productId == PRODUCT_ID -> UsbMode.KEYBOARD_HID
+            device.vendorId == DATA_VENDOR_ID && device.productId == DATA_PRODUCT_ID -> UsbMode.DATA
+            else -> null
+        }
+
+        internal fun usbModeValue(mode: UsbMode): Int = when (mode) {
+            UsbMode.KEYBOARD_HID -> AndroidUsbMessageTransport.USB_MODE_KEYBOARD_HID
+            UsbMode.DATA -> AndroidUsbMessageTransport.USB_MODE_DATA
+        }
 
         internal fun parseRevision(data: ByteArray): DeviceInfo {
             val text = data.toString(Charsets.US_ASCII)

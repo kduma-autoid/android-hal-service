@@ -221,6 +221,8 @@ class AndroidUsbMessageTransportTest {
 
         every { device.deviceId } returns 2222
         every { device.deviceName } returns "/dev/bus/usb/001/001"
+        every { device.vendorId } returns Ss2222Driver.VENDOR_ID
+        every { device.productId } returns Ss2222Driver.PRODUCT_ID
         every { if0.id } returns 0
         every { if1.id } returns 1
         every { if1.interfaceClass } returns interfaceClass

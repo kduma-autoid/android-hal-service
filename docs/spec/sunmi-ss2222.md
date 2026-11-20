@@ -1,6 +1,6 @@
 # Sunmi SS2222 USB
 
-`sunmi.scanner.ss2222` obsługuje jeden skaner USB `324F:0113` przez Android USB Host API
+`sunmi.scanner.ss2222` obsługuje jeden skaner USB (`324F:0113`, w trybie danych `AF99:8001`) przez Android USB Host API
 (minSdk 24). Moduł `plugins/sunmi/plugin-sunmi-scanner-ss2222-lib` dostarcza AAR;
 HAL Sunmi i `plugin-sunmi-bundle` zawierają go w wariantach `stable` i `development`.
 
@@ -34,6 +34,30 @@ oraz 1 s na wiadomość; niepełne i błędne wiadomości są odrzucane.
 Puste transfery USB (0 B), obserwowane na Flex 3 pomiędzy poprawnymi raportami, nie są fragmentami
 HID: są pomijane bez przerywania składania wiadomości.
 Reconnect wraca do bezczynności; dalej decyduje ustawienie odczytu ciągłego (niżej).
+
+## Tryb danych (ustawienie)
+
+Fabrycznie skaner jest klawiaturą USB i każdy kod „pisze” w Androidzie, a kolejny kod czyta dopiero po
+skończeniu pisania (ok. 12 ms na znak). Ustawienie pluginu **„Use data mode (no keyboard)”**
+(`usbDataMode`, domyślnie **włączone**) przełącza skaner w tryb USB **TTDATA** (`F2 01=0C`, `AF99:8001`):
+bez klawiatury, z SSI po bulk, z odczytem różnych kodów co ok. 160 ms zamiast 283–390 ms. Szczegóły
+trybów: [`sunmi-ss2222-protocol.md`](sunmi-ss2222-protocol.md).
+
+- Przy połączeniu w trybie klawiatury sterownik wyłącza skanowanie, sprawdza rewizję i wysyła `F2 01=0C`.
+  Skaner znika z USB i wraca jako `AF99:8001`; w tym czasie stan to `CONNECTING`, nie `DISCONNECTED`.
+  Inicjalizacja (parametry, `IDLE`) odbywa się już w trybie danych.
+- Kontrolowane zamknięcie przywraca parametry, włącza skanowanie i **wysyła `F2 01=0E`**: skaner wraca
+  w fabrycznym trybie klawiatury dla innych aplikacji. Po błędzie USB/SSI sterownik też wysyła `F2 01=0E`;
+  ponowne wyliczenie urządzenia działa jak ponowne podłączenie, więc HAL sam łączy się znowu (bez odłączania kabla).
+- Wyłączenie ustawienia przy otwartym skanerze przełącza go od razu na `0E`, włączenie – na `0C`.
+- Jeśli HAL zostanie zabity bez zamknięcia, skaner zostaje w trybie danych (bez klawiatury) do ponownego
+  startu HAL albo odłączenia zasilania.
+- Każda tożsamość USB to dla Androida osobne urządzenie, więc HAL prosi o uprawnienie także dla `AF99:8001`.
+  Biblioteka rejestruje `Ss2222UsbAttachActivity` (bez interfejsu) z filtrem `USB_DEVICE_ATTACHED` dla obu
+  tożsamości: wybór „Zawsze otwieraj” w systemowym oknie sprawia, że kolejne podłączenia i przełączenia
+  dostają uprawnienie automatycznie.
+- `getStatus.usbMode`: `"data"`, `"keyboard"` albo `null` (brak otwartego skanera).
+- W trybie danych filtr klawiatury nie ma czego filtrować; reguła `UsbDevice(324F:0113)` zostaje dla trybu klawiatury.
 
 ## Odczyt ciągły (ustawienie)
 
@@ -70,7 +94,7 @@ Natywne nazwy mają prefiks `sunmi.scanner.ss2222.`. Wszystkie parametry są obi
 | `trigger` | `{}` | `{"status":"scanning"}` po ACK, potem jeden wynik |
 | `stop` | `{}` | `{}` po ACK lub od razu w bezczynności |
 | `startContinuous` | `{}` | `{"status":"scanning"}` po ACK, kolejne wyniki |
-| `getStatus` | `{}` | `state`, `available`, `keyboardFilterEnabled`, `continuous`, `device` |
+| `getStatus` | `{}` | `state`, `available`, `keyboardFilterEnabled`, `continuous`, `usbMode`, `device` |
 | `getDeviceInfo` | `{}` | `model`, `productId`, `hardwareVersion`, `firmwareVersion` |
 | `getConfig` | `{}` | `symbologies`, `goodReadBeep`, `beepVolume` |
 | `setConfig` | częściowa konfiguracja poniżej | `{}` po kontrolnym odczycie |
