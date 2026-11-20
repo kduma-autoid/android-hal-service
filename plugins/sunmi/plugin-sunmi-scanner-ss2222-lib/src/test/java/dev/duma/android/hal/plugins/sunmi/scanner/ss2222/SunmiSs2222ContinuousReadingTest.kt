@@ -23,7 +23,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/** The "Read barcodes continuously" setting: the scanner reads in the background whenever idle. */
+/** "Disable the scanner between scans" turned off: the scanner reads in the background whenever idle. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class SunmiSs2222ContinuousReadingTest {
@@ -56,19 +56,31 @@ class SunmiSs2222ContinuousReadingTest {
     private fun connect(continuous: Boolean) {
         val owner = mockk<PluginContext>(relaxed = true).also {
             every { it.applicationContext } returns context
-            every { it.getBooleanSetting("continuousReading", true) } returns continuous
+            every { it.getBooleanSetting("disableWhenIdle", true) } returns !continuous
         }
         plugin.initialize(owner)
         move(State.IDLE)
     }
 
-    @Test fun `the setting is declared and on by default`() {
+    @Test fun `the setting is declared and on by default, so HAL disables the scanner between scans`() {
         val setting = plugin.getSettings().single()
-        assertEquals("continuousReading", setting.key)
+        assertEquals("disableWhenIdle", setting.key)
         assertTrue(setting.default)
     }
 
-    @Test fun `a connected scanner starts reading continuously on its own`() = runBlocking {
+    @Test fun `with no stored value the scanner is not started on its own`() = runBlocking {
+        val owner = mockk<PluginContext>(relaxed = true).also {
+            every { it.applicationContext } returns context
+            every { it.getBooleanSetting("disableWhenIdle", true) } returns true // the default
+        }
+        plugin.initialize(owner)
+        move(State.IDLE)
+        Thread.sleep(300)
+        coVerify(exactly = 0) { driver.start(any()) }
+        io.mockk.verify { driver.keepScanningEnabled = false }
+    }
+
+    @Test fun `with the setting off a connected scanner starts reading continuously on its own`() = runBlocking {
         connect(continuous = true)
         coVerify(timeout = 2_000) { driver.start(singleShot = false) }
         val status = Json.parseToJsonElement((plugin.execute("sunmi.scanner.ss2222.getStatus", "{}") as CommandResult.Success).body!!).jsonObject
@@ -76,14 +88,14 @@ class SunmiSs2222ContinuousReadingTest {
         assertEquals("SCANNING", status.getValue("state").jsonPrimitive.content)
     }
 
-    @Test fun `the driver hands the scanner back reading only while the setting is on`() {
+    @Test fun `the driver hands the scanner back reading only while the setting is off`() {
         connect(continuous = true)
         io.mockk.verify { driver.keepScanningEnabled = true }
-        plugin.onSettingChanged("continuousReading", false)
+        plugin.onSettingChanged("disableWhenIdle", true)
         io.mockk.verify { driver.keepScanningEnabled = false }
     }
 
-    @Test fun `with the setting off the scanner stays idle`() = runBlocking {
+    @Test fun `with the setting on the scanner stays idle`() = runBlocking {
         connect(continuous = false)
         Thread.sleep(300)
         coVerify(exactly = 0) { driver.start(any()) }
@@ -119,16 +131,16 @@ class SunmiSs2222ContinuousReadingTest {
         coVerify(timeout = 2_000, exactly = 2) { driver.start(singleShot = false) }
     }
 
-    @Test fun `turning the setting off stops the background session for good`() = runBlocking {
+    @Test fun `turning the setting on stops the background session for good`() = runBlocking {
         connect(continuous = true)
         coVerify(timeout = 2_000) { driver.start(singleShot = false) }
 
-        plugin.onSettingChanged("continuousReading", false)
+        plugin.onSettingChanged("disableWhenIdle", true)
         coVerify(timeout = 2_000) { driver.stop() }
         Thread.sleep(300)
         coVerify(exactly = 1) { driver.start(singleShot = false) }
 
-        plugin.onSettingChanged("continuousReading", true)
+        plugin.onSettingChanged("disableWhenIdle", false)
         coVerify(timeout = 2_000, exactly = 2) { driver.start(singleShot = false) }
     }
 

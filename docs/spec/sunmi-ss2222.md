@@ -19,7 +19,8 @@ z urządzeniem i konkretną próbą połączenia; odmowa nie udostępnia skanera
 Inicjalizacja wyłącza skanowanie (`EA`), odczytuje wersję (`A3` → `A4`) i zapewnia tymczasowo
 tryb `8A=11` oraz światło sterowane przez firmware (`F202=00`). Zachowuje beep po odczycie.
 Skany spoza sesji są odrzucane. `trigger` uruchamia pojedynczą sesję bez limitu oczekiwania;
-pierwszy wynik zamyka przyjmowanie następnych i powoduje `EA`. `startContinuous` działa do
+pierwszy wynik zamyka przyjmowanie następnych i po 300 ms powoduje `EA` (skaner ignoruje `EA` wysłane
+tuż po dekodowaniu: na FLEX 3 brak ACK po 5 ms unieważniał sesję). `startContinuous` działa do
 `stop`. Kolejny start aktywnej sesji zwraca `busy`, a `stop` w bezczynności jest idempotentny.
 Odpowiedź sterująca wraca po potwierdzeniu komendy, wynik skanowania przychodzi zdarzeniem.
 
@@ -34,14 +35,16 @@ Reconnect wraca do bezczynności; dalej decyduje ustawienie odczytu ciągłego (
 ## Odczyt ciągły (ustawienie)
 
 Bez HAL skaner czyta kody cały czas. Sterownik HAL przejmuje go, wyłącza (`EA`) i włącza tylko na
-żądanie. Ustawienie pluginu **„Keep the scanner reading continuously"** (`continuousReading`,
-domyślnie włączone, na ekranie szczegółów pluginu w HAL; odpowiednik `autoListen` w MSR605X) wyłącza
-to zachowanie: skaner czyta tak jak bez HAL, a HAL zgłasza każdy kod zdarzeniem
-`barcode` / `barcodeScanner.onScan`, bez wywoływania `trigger`.
+żądanie. Tym zachowaniem steruje ustawienie pluginu **„Disable the scanner between scans"**
+(`disableWhenIdle`, domyślnie **włączone**, na ekranie szczegółów pluginu w HAL):
 
-Gdy jest włączone, plugin sam uruchamia sesję ciągłą (`E9`), ilekroć skaner jest bezczynny (`IDLE`):
-zaraz po inicjalizacji, po podłączeniu, po zakończeniu skanu (`trigger`, `stop`, auto-stop po
-pojedynczym odczycie) i po włączeniu ustawienia. Po błędzie USB/SSI (timeout, NAK) sterownik oddaje
+- **włączone** (domyślnie): skaner jest wyłączony i czyta tylko w `trigger` / `startContinuous`;
+- **wyłączone**: skaner czyta tak jak bez HAL, a HAL zgłasza każdy kod zdarzeniem
+  `barcode` / `barcodeScanner.onScan`, bez wywoływania `trigger`.
+
+Przy wyłączonym ustawieniu plugin sam uruchamia sesję ciągłą (`E9`), ilekroć skaner jest bezczynny
+(`IDLE`): zaraz po inicjalizacji, po podłączeniu, po zakończeniu skanu (`trigger`, `stop`, auto-stop po
+pojedynczym odczycie) i po wyłączeniu ustawienia. Po błędzie USB/SSI (timeout, NAK) sterownik oddaje
 skaner włączony (`E9`) zamiast wyłączonego (`EA`), więc nie zostaje martwy do ponownego podłączenia.
 Kontrolowane zamknięcie przywraca parametry i włącza skaner niezależnie od ustawienia. Inicjalizacja
 nadal na chwilę wysyła `EA`, bo zapis parametrów wymaga bezczynności.
@@ -49,11 +52,11 @@ nadal na chwilę wysyła `EA`, bo zapis parametrów wymaga bezczynności.
 - Operacje wymagające bezczynności (`trigger`, `startContinuous`, `setConfig`, `setParams`,
   `rawCommand` `C6`/`E9`) najpierw zatrzymują sesję tła, a po nich odczyt ciągły wraca sam.
   Po `trigger` wraca dopiero po pojedynczym odczycie (lub `stop`).
-- `stop` przy włączonym ustawieniu kończy bieżący skan, po czym odczyt ciągły wraca. Żeby skaner
-  przestał czytać, wyłącz ustawienie.
-- Wyłączenie ustawienia zatrzymuje tylko sesję uruchomioną przez plugin; sesja klienta trwa dalej.
+- `stop` przy wyłączonym ustawieniu kończy bieżący skan, po czym odczyt ciągły wraca. Żeby skaner
+  przestał czytać, włącz ustawienie.
+- Włączenie ustawienia zatrzymuje tylko sesję uruchomioną przez plugin; sesja klienta trwa dalej.
 - Nieudany start jest ponawiany z rosnącym odstępem (1 s … 30 s), nie przy każdym `IDLE`.
-- `getStatus.continuous` mówi, czy ustawienie jest włączone.
+- `getStatus.continuous` mówi, czy skaner czyta ciągle (ustawienie wyłączone).
 
 ## Metody
 
