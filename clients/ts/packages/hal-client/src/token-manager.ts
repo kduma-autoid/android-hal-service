@@ -66,8 +66,18 @@ export class TokenManager {
     this.commandTransport = commandTransport ?? null;
     this.eventTransport = eventTransport ?? null;
     this.options = options ?? {};
-    this._authState =
-      tokenStore.getToken() !== null && !tokenStore.isExpired() ? 'authenticated' : 'unauthenticated';
+    this._authState = this.keptToken() !== null ? 'authenticated' : 'unauthenticated';
+    this.propagateToken(this.keptToken() ?? '');
+  }
+
+  /**
+   * A still-valid token left in the store by an earlier session (a page reload). The auth state starts
+   * `authenticated` on it, so every transport must hold it too — otherwise the WebSocket skips
+   * `authenticate` and the first command fails with "No token set".
+   */
+  private keptToken(): string | null {
+    const token = this.tokenStore.getToken();
+    return token !== null && !this.tokenStore.isExpired() ? token : null;
   }
 
   registerAuthTransport(transport: IAuthTransport): void {
@@ -76,10 +86,14 @@ export class TokenManager {
 
   registerCommandTransport(transport: ICommandTransport): void {
     this.commandTransport = transport;
+    const kept = this.keptToken();
+    if (kept !== null) transport.setToken(kept);
   }
 
   registerEventTransport(transport: IEventTransport): void {
     this.eventTransport = transport;
+    const kept = this.keptToken();
+    if (kept !== null) transport.setToken(kept);
   }
 
   // --- Auth state ---
