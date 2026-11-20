@@ -144,6 +144,15 @@ class SunmiSs2222ContinuousReadingTest {
         coVerify(timeout = 2_000, exactly = 2) { driver.start(singleShot = false) }
     }
 
+    @Test fun `a scanner that is not ready is not retried - the next IDLE resumes reading`() = runBlocking {
+        // Seen during a USB mode switch: the scan stops (IDLE) just before the transport is released.
+        coEvery { driver.start(false) } throws DriverException("invalid_state", "Scanner is in state CONNECTING")
+        connect(continuous = true)
+        coVerify(timeout = 2_000, exactly = 1) { driver.start(singleShot = false) }
+        Thread.sleep(1_500)
+        coVerify(exactly = 1) { driver.start(singleShot = false) } // no back-off retry
+    }
+
     @Test fun `a failed start is retried after a back-off, not in a tight loop`() = runBlocking {
         failStarts = 1
         connect(continuous = true)

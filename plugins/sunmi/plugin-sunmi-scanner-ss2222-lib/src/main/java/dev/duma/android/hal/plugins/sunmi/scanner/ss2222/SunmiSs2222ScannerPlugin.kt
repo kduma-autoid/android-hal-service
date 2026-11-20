@@ -343,6 +343,8 @@ class SunmiSs2222ScannerPlugin internal constructor(
                     throw e
                 } catch (e: DriverException) {
                     autoSession = false
+                    // Not ready rather than failing (e.g. mid USB mode switch): the next IDLE resumes.
+                    if (e.code in NOT_READY_CODES) return@withLock
                     val wait = (1_000L shl autoFailures.coerceAtMost(5)).coerceAtMost(30_000L)
                     autoFailures++
                     Log.w("SS2222", "Continuous reading did not start (${e.code}); retrying in ${wait}ms")
@@ -439,6 +441,7 @@ class SunmiSs2222ScannerPlugin internal constructor(
         /** Operations the controller only accepts while idle; the background session pauses for them. */
         private val IDLE_ONLY = setOf("trigger", "startContinuous", "setConfig", "setParams")
         private val ACTIVE_STATES = setOf(Ss2222Driver.State.STARTING, Ss2222Driver.State.SCANNING)
+        private val NOT_READY_CODES = setOf("invalid_state", "not_connected", "device_disconnected")
         private val READY_STATES = setOf(Ss2222Driver.State.IDLE, Ss2222Driver.State.STARTING,
             Ss2222Driver.State.SCANNING, Ss2222Driver.State.STOPPING)
     }
