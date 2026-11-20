@@ -10,7 +10,7 @@ import org.json.JSONObject
  * Facts about HAL's keyboard filter that plugins (in-process or in a bundle) and the HAL UI share.
  *
  * The filter is a single Android accessibility service living in the HAL app. Plugins never ship
- * their own: they declare their devices with [HalPlugin.getKeyboardFilterDevices] and HAL filters
+ * their own: they declare rules with [HalPlugin.getKeyboardFilterRules] and HAL filters
  * them all, so the user enables one service no matter how many keyboard-emulating devices exist.
  */
 object KeyboardFilter {
@@ -59,11 +59,13 @@ object KeyboardFilter {
      * Lists the input devices Android currently knows, for working out which one a keyboard-emulating
      * peripheral is. Contains device metadata only, never key events.
      *
-     * @param filtered devices to mark with `"filtered": true` (e.g. the plugin's own list).
+     * @param filtered rules whose [KeyboardFilterRule.UsbDevice] entries mark devices with
+     *   `"filtered": true` (e.g. the plugin's own list). [KeyboardFilterRule.EventSource] rules match
+     *   events rather than devices, so they mark nothing here.
      */
     @JvmStatic
     @JvmOverloads
-    fun describeInputDevices(filtered: Collection<KeyboardDeviceId> = emptyList()): JSONArray {
+    fun describeInputDevices(filtered: Collection<KeyboardFilterRule> = emptyList()): JSONArray {
         val result = JSONArray()
         for (id in InputDevice.getDeviceIds()) {
             val device = InputDevice.getDevice(id) ?: continue
@@ -72,12 +74,12 @@ object KeyboardFilter {
                 put("name", device.name)
                 put("vendorId", device.vendorId)
                 put("productId", device.productId)
-                put("usbId", KeyboardDeviceId(device.vendorId, device.productId).toString())
+                put("usbId", "%04X:%04X".format(device.vendorId, device.productId))
                 put("descriptor", device.descriptor)
                 put("sources", device.sources)
                 put("keyboard", device.sources and InputDevice.SOURCE_KEYBOARD == InputDevice.SOURCE_KEYBOARD)
                 put("virtual", device.isVirtual)
-                put("filtered", KeyboardDeviceId(device.vendorId, device.productId) in filtered)
+                put("filtered", KeyboardFilterRule.UsbDevice(device.vendorId, device.productId) in filtered)
             })
         }
         return result

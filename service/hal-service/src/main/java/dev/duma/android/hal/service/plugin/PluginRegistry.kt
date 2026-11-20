@@ -14,7 +14,7 @@ import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.IHardwarePlugin
 import dev.duma.android.hal.contract.InterfaceBinding
 import dev.duma.android.hal.contract.InterfaceContract
-import dev.duma.android.hal.contract.KeyboardDeviceId
+import dev.duma.android.hal.contract.KeyboardFilterRule
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginDescriptor
 import dev.duma.android.hal.contract.allEvents
@@ -90,15 +90,15 @@ class PluginRegistry {
     /** User's experimental opt-ins; consulted when an experimental plugin provides an interface. */
     var experimentalConfig: ExperimentalConfig? = null
 
-    /** Keyboard-emulating devices each registered plugin asked HAL's keyboard filter to swallow. */
-    private val keyboardDevicesByPlugin = ConcurrentHashMap<String, Set<KeyboardDeviceId>>()
+    /** Keyboard filter rules each registered plugin declared (see `HalPlugin.getKeyboardFilterRules`). */
+    private val keyboardRulesByPlugin = ConcurrentHashMap<String, Set<KeyboardFilterRule>>()
 
     /**
-     * Union of [keyboardDevicesByPlugin], replaced as a whole on every change so the keyboard filter
+     * Union of [keyboardRulesByPlugin], replaced as a whole on every change so the keyboard filter
      * reads it on each key event without locking.
      */
     @Volatile
-    var keyboardFilterDevices: Set<KeyboardDeviceId> = emptySet()
+    var keyboardFilterRules: Set<KeyboardFilterRule> = emptySet()
         private set
 
     private val pluginInfo = ConcurrentHashMap<String, PluginInfo>()
@@ -199,7 +199,7 @@ class PluginRegistry {
             }
             existing.getCapabilities().forEach { capabilityToPlugin.remove(it, existing) }
             unindexInterfaces(id)
-            unindexKeyboardDevices(id)
+            unindexKeyboardRules(id)
             Log.i(TAG, "Plugin $id: replacing v${existing.version} (${existingInfo.source}) with v${plugin.version} (${info.source})")
         }
 
@@ -208,7 +208,7 @@ class PluginRegistry {
         available[id] = true
         plugin.getCapabilities().forEach { capabilityToPlugin[it] = plugin }
         indexInterfaces(plugin)
-        indexKeyboardDevices(plugin)
+        indexKeyboardRules(plugin)
         return true
     }
 
@@ -374,37 +374,37 @@ class PluginRegistry {
     }
 
     /**
-     * Records the keyboard devices of a plugin that just took its slot. Asked once: the list is
+     * Records the keyboard filter rules of a plugin that just took its slot. Asked once: the list is
      * constant per instance, and the filter must not call into a plugin (or over binder) per key.
      * A plugin failing to answer simply gets no filtering; registration goes on.
      */
-    private fun indexKeyboardDevices(plugin: HalPlugin) {
-        val devices = try {
-            plugin.getKeyboardFilterDevices().toSet()
+    private fun indexKeyboardRules(plugin: HalPlugin) {
+        val rules = try {
+            plugin.getKeyboardFilterRules().toSet()
         } catch (e: Exception) {
-            Log.w(TAG, "getKeyboardFilterDevices() failed for ${plugin.pluginId}: ${e.message}")
+            Log.w(TAG, "getKeyboardFilterRules() failed for ${plugin.pluginId}: ${e.message}")
             emptySet()
         }
-        if (devices.isEmpty()) {
-            unindexKeyboardDevices(plugin.pluginId)
+        if (rules.isEmpty()) {
+            unindexKeyboardRules(plugin.pluginId)
             return
         }
-        keyboardDevicesByPlugin[plugin.pluginId] = devices
-        publishKeyboardDevices()
-        Log.i(TAG, "Plugin ${plugin.pluginId} keyboard filter devices: ${devices.joinToString()}")
+        keyboardRulesByPlugin[plugin.pluginId] = rules
+        publishKeyboardRules()
+        Log.i(TAG, "Plugin ${plugin.pluginId} keyboard filter rules: ${rules.joinToString()}")
     }
 
-    private fun unindexKeyboardDevices(pluginId: String) {
-        if (keyboardDevicesByPlugin.remove(pluginId) != null) publishKeyboardDevices()
+    private fun unindexKeyboardRules(pluginId: String) {
+        if (keyboardRulesByPlugin.remove(pluginId) != null) publishKeyboardRules()
     }
 
-    private fun publishKeyboardDevices() {
-        keyboardFilterDevices = keyboardDevicesByPlugin.values.flatten().toSet()
+    private fun publishKeyboardRules() {
+        keyboardFilterRules = keyboardRulesByPlugin.values.flatten().toSet()
     }
 
-    /** Keyboard devices registered by [pluginId]; empty when it has none or is not registered. */
-    fun keyboardFilterDevicesOf(pluginId: String): Set<KeyboardDeviceId> =
-        keyboardDevicesByPlugin[pluginId] ?: emptySet()
+    /** Keyboard filter rules registered by [pluginId]; empty when it has none or is not registered. */
+    fun keyboardFilterRulesOf(pluginId: String): Set<KeyboardFilterRule> =
+        keyboardRulesByPlugin[pluginId] ?: emptySet()
 
     /**
      * Toggles a registered plugin's dynamic availability. When unavailable, its capabilities are
@@ -551,7 +551,7 @@ class PluginRegistry {
         available.remove(pluginId)
         capabilityToPlugin.values.removeAll { it === plugin }
         unindexInterfaces(pluginId)
-        unindexKeyboardDevices(pluginId)
+        unindexKeyboardRules(pluginId)
         safeDispose(plugin, pluginId)
         Log.i(TAG, "Removed external plugin: $pluginId")
 

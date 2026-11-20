@@ -35,7 +35,27 @@ class KeyboardFilterTest {
     }
 
     @Test
-    fun `device id prints as hex usb id`() {
-        assertEquals("1A86:7523", KeyboardDeviceId(0x1A86, 0x7523).toString())
+    fun `rules print what they match`() {
+        assertEquals("USB 1A86:7523", KeyboardFilterRule.UsbDevice(0x1A86, 0x7523).toString())
+        assertEquals("event source 0x98123456", KeyboardFilterRule.EventSource(0x98123456.toInt()).toString())
+    }
+
+    @Test
+    fun `usb rule matches its device whatever the event source`() {
+        val rule = KeyboardFilterRule.UsbDevice(0x1A86, 0x7523)
+        assertTrue(rule.matches(KeyOrigin(0x1A86, 0x7523, source = 0x101)))
+        assertTrue(rule.matches(KeyOrigin(0x1A86, 0x7523, source = 0x201)))
+        assertFalse(rule.matches(KeyOrigin(0x1A86, 0x0001, source = 0x101)))
+        assertFalse(rule.matches(KeyOrigin(0, 0, source = 0x101)))
+    }
+
+    @Test
+    fun `source rule matches only its exact source`() {
+        val rule = KeyboardFilterRule.EventSource(0x98123456.toInt())
+        // Injected by the vendor service on Android's virtual keyboard (USB id 0000:0000).
+        assertTrue(rule.matches(KeyOrigin(0, 0, source = 0x98123456.toInt())))
+        // Other injected input, e.g. `adb shell input` (SOURCE_KEYBOARD), passes.
+        assertFalse(rule.matches(KeyOrigin(0, 0, source = 0x101)))
+        assertFalse(rule.matches(KeyOrigin(0, 0, source = 0x98123457.toInt())))
     }
 }
