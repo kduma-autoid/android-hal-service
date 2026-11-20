@@ -82,6 +82,7 @@ ich listę (np. `USB 324F:0113`, `event source 0x98123456`), status i przycisk d
 
 ## Migracja istniejących filtrów
 
-Plugin mający własną usługę dostępności (np. `Ss2222KeyboardFilterService` z PR #9) powinien ją usunąć
-(klasa, wpis w manifeście, XML, stringi), nadpisać `getKeyboardFilterRules()` regułą `UsbDevice` ze swoim VID/PID,
-a pole statusu (np. `keyboardFilterEnabled`) liczyć przez `KeyboardFilter.isEnabled`.
+Plugin mający własną usługę dostępności powinien ją usunąć (klasa, wpis w manifeście, XML, stringi),
+nadpisać `getKeyboardFilterRules()` regułą `UsbDevice` ze swoim VID/PID, a pole statusu
+(np. `keyboardFilterEnabled`) liczyć przez `KeyboardFilter.isEnabled`. Tak przeszedł SS2222 (PR #9),
+który wcześniej miał własną `Ss2222KeyboardFilterService`.

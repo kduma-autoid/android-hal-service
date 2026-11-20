@@ -1,6 +1,7 @@
 package dev.duma.android.hal.plugins.sunmi.scanner.ss2222
 
 import dev.duma.android.hal.contract.CommandResult
+import dev.duma.android.hal.contract.KeyboardFilterRule
 import dev.duma.android.hal.contract.allMethods
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
@@ -25,6 +26,14 @@ class SunmiSs2222DescriptorTest {
                 assertEquals("unsupported_method", (plugin.execute("${plugin.pluginId}.$operation", "{}") as CommandResult.Failure).code)
             }
         }
+    }
+
+    @Test fun `the scanner's keyboard is registered with HAL's keyboard filter by its USB id`() {
+        // No accessibility service of its own any more: HAL's single filter swallows these keys.
+        assertEquals(
+            listOf(KeyboardFilterRule.UsbDevice(vendorId = 0x324F, productId = 0x0113)),
+            SunmiSs2222ScannerPlugin().getKeyboardFilterRules(),
+        )
     }
 
     @Test fun `invalid writes are rejected even with no hardware and unknown interface methods stay unsupported`() = runTest {

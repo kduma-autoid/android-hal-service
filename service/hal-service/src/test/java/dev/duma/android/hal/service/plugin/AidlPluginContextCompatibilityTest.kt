@@ -44,6 +44,9 @@ class AidlPluginContextCompatibilityTest {
             unregistered++
         }
         override fun initialize(context: IPluginContext) { this.context = context }
+        override fun getSettingsJson() = "[]"
+        override fun onSettingChanged(key: String, value: Boolean) = Unit
+        override fun getKeyboardFilterRulesJson() = "[]"
     }
 
     @Test
@@ -143,6 +146,7 @@ class AidlPluginContextCompatibilityTest {
             override fun getAvailableCapabilities() = throw RemoteException("dead")
             override fun hasCapability(capability: String) = throw RemoteException("dead")
             override fun setPluginAvailable(available: Boolean): Unit = throw RemoteException("dead")
+            override fun getSetting(key: String): String? = throw RemoteException("dead")
         }
         val remote = RemotePluginContext(deadHost, ApplicationProvider.getApplicationContext())
         remote.setPluginAvailable(true)

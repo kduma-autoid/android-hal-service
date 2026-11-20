@@ -131,15 +131,18 @@ można odczytać również przed połączeniem.
 
 ## Filtr klawiatury Androida
 
-Biblioteka zawiera `Ss2222KeyboardFilterService`, dostępny również w HAL i bundle.
-Panel pluginu ma przycisk przejścia do ustawień dostępności. Użytkownik włącza usługę samodzielnie.
-Usługa konsumuje DOWN/UP tylko dla VID/PID SS2222 przez cały czas włączenia, również po
-zakończeniu skanu. Inne klawiatury działają normalnie. Usługa nie czyta treści okien.
-Skanowanie przez USB działa także przy wyłączonym filtrze.
+Plugin nie ma własnej usługi dostępności. Zgłasza HAL-owi regułę
+`KeyboardFilterRule.UsbDevice(0x324F, 0x0113)` przez `getKeyboardFilterRules()`, a filtruje ją
+wspólny filtr klawiatury HAL (`HalKeyboardFilterService`, zob. [`keyboard-filter.md`](keyboard-filter.md)).
+Użytkownik włącza w ustawieniach dostępności jedną usługę „HAL keyboard filter"; panel pluginu
+pokazuje regułę, stan filtra i przycisk przejścia do tych ustawień.
+Filtr konsumuje DOWN/UP tylko z klawiatury o VID/PID SS2222, przez cały czas włączenia, również po
+zakończeniu skanu. Inne klawiatury działają normalnie, a skanowanie przez USB działa także przy
+wyłączonym filtrze.
 
-`keyboardFilterEnabled` sprawdza globalne włączenie dostępności i konkretny komponent usługi
-w ustawieniach Androida. Nie dowodzi otrzymywania zdarzeń przez usługę: Android/OEM lub inny
-filtr dostępności może wpływać na ich dostarczanie. Trzeba to sprawdzić na terminalu.
+`keyboardFilterEnabled` (`KeyboardFilter.isEnabled`) sprawdza globalne włączenie dostępności
+i komponent filtra HAL w ustawieniach Androida. Nie dowodzi otrzymywania zdarzeń przez usługę:
+Android/OEM lub inny filtr dostępności może wpływać na ich dostarczanie. Trzeba to sprawdzić na terminalu.
 
 ## AIDL i wdrożenie
 

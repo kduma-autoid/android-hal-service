@@ -10,6 +10,8 @@ import dev.duma.android.hal.contract.DescriptorGroup
 import dev.duma.android.hal.contract.EventDescriptor
 import dev.duma.android.hal.contract.HalPluginEventCallback
 import dev.duma.android.hal.contract.InterfaceBinding
+import dev.duma.android.hal.contract.KeyboardFilter
+import dev.duma.android.hal.contract.KeyboardFilterRule
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
@@ -45,6 +47,14 @@ class SunmiSs2222ScannerPlugin internal constructor(
         ?.hasSystemFeature(PackageManager.FEATURE_USB_HOST) == true
 
     override fun getCapabilities() = listOf(ID)
+
+    /**
+     * The scanner's HID keyboard interface types every scan as keystrokes, trailing Enter included.
+     * HAL's keyboard filter swallows them while it is enabled, so a scan handled through this plugin
+     * does not also land in (or submit) the focused control. Scanning over USB works without it.
+     */
+    override fun getKeyboardFilterRules(): List<KeyboardFilterRule> =
+        listOf(KeyboardFilterRule.UsbDevice(Ss2222Driver.VENDOR_ID, Ss2222Driver.PRODUCT_ID))
 
     override fun getDescriptor(): PluginDescriptor = descriptor().let {
         if (BuildConfig.WITH_EXPERIMENTAL) it else it.stripExperimental()
@@ -177,7 +187,7 @@ class SunmiSs2222ScannerPlugin internal constructor(
         val active = driver
         put("state", active?.state?.name ?: "DISCONNECTED")
         put("available", active?.state in READY_STATES)
-        put("keyboardFilterEnabled", context?.let(Ss2222KeyboardFilterService::isEnabled) ?: false)
+        put("keyboardFilterEnabled", context?.let(KeyboardFilter::isEnabled) ?: false)
         put("device", if (active?.deviceInfo == null) JsonNull else deviceInfo(active))
     }
 
