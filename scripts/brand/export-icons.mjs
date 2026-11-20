@@ -11,7 +11,7 @@
 // Override the Chrome path with CHROME=/path/to/chrome.
 
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, copyFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, copyFileSync, statSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -96,6 +96,34 @@ function iconHtml(kind, shape, size) {
     + '</div></div>';
 }
 
+/**
+ * Renders `html` to `<base>.png` if that stays within `maxBytes`, else to `<base>.jpg` at the highest
+ * JPEG quality that does (macOS `sips`). The other format's stale file is removed. Returns the path.
+ */
+function exportWithinBudget(html, width, height, maxBytes, base) {
+  const png = join(work, `${Math.random().toString(36).slice(2)}.png`);
+  render(html, width, height, png);
+  const outPng = `${base}.png`;
+  const outJpg = `${base}.jpg`;
+  let out = null;
+  if (statSync(png).size <= maxBytes) {
+    copyFileSync(png, outPng);
+    out = outPng;
+  } else {
+    for (let quality = 92; quality >= 50; quality -= 4) {
+      execFileSync('sips', ['-s', 'format', 'jpeg', '-s', 'formatOptions', String(quality), png, '--out', outJpg], { stdio: 'ignore' });
+      if (statSync(outJpg).size <= maxBytes) {
+        out = outJpg;
+        break;
+      }
+    }
+    if (out === null) throw new Error(`${base}: no JPEG quality fits ${maxBytes} bytes`);
+  }
+  const stale = out === outPng ? outJpg : outPng;
+  if (existsSync(stale)) rmSync(stale);
+  return out;
+}
+
 function renderIcon(kind, shape, size, out) {
   render(iconHtml(kind, shape, size), size, size, out);
 }
@@ -136,6 +164,12 @@ try {
   }
   const social = svgElement(readFileSync(join(root, 'branding/social-preview.svg'), 'utf8'));
   render(social, 1280, 640, join(png, 'social-preview.png'));
+  // Social media banners with a file-size budget: PNG when it fits, otherwise the best JPEG that does.
+  for (const [width, height, maxKb] of [[720, 290, 100], [1250, 340, 200]]) {
+    const name = `social-banner-${width}x${height}`;
+    const svg = svgElement(readFileSync(join(root, `branding/${name}.svg`), 'utf8'));
+    exportWithinBudget(svg, width, height, maxKb * 1000, join(png, name));
+  }
   mkdirSync(join(root, 'clients/ts/example/public'), { recursive: true });
   copyFileSync(join(root, 'branding/hal-icon.svg'), join(root, 'clients/ts/example/public/favicon.svg'));
 

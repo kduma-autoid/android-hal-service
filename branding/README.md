@@ -14,6 +14,7 @@ thirds of the tile, details cut out rather than outlined, no second colour.
 | `hal-mark.svg`, `hal-plugin-mark.svg` | The bare mark (H / jigsaw), one colour (`currentColor`, indigo when standalone): tray / menu bar, monochrome, small print. |
 | `hal-logo.svg`, `hal-logo-dark.svg` | Icon + "HAL Service" wordmark for light / dark backgrounds (README, docs). |
 | `social-preview.svg` | GitHub social preview, 1280×640. |
+| `social-banner-720x290.svg`, `social-banner-1250x340.svg` | Social media banners. Rendered to `png/` within their file-size limits (under 100 KB and 200 KB): PNG when it fits, otherwise JPEG. |
 | `png/` | Rendered PNGs of the above (generated, see below). |
 
 The mark is drawn on the 108-unit grid of an Android adaptive icon (it spans 28..80, centre 54), so
