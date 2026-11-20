@@ -1,11 +1,9 @@
 package dev.duma.android.hal.service.plugin
 
-import android.view.InputDevice
 import android.view.KeyEvent
 import dev.duma.android.hal.contract.CommandResult
 import dev.duma.android.hal.contract.HalPlugin
 import dev.duma.android.hal.contract.HalPluginEventCallback
-import dev.duma.android.hal.contract.KeyOrigin
 import dev.duma.android.hal.contract.KeyboardFilterRule
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
@@ -101,17 +99,11 @@ class PluginRegistryKeyboardFilterTest {
 
     @Test
     fun filterConsumesOnlyDownAndUpMatchingARegisteredRule() {
-        val marker = 0x98123456.toInt()
-        val rules = setOf(msr, KeyboardFilterRule.EventSource(marker))
-        val fromMsr = KeyOrigin(0x1A86, 0x7523, InputDevice.SOURCE_KEYBOARD)
-        val injected = KeyOrigin(0, 0, marker)
-        assertTrue(HalKeyboardFilterService.shouldConsume(KeyEvent.ACTION_DOWN, fromMsr, rules))
-        assertTrue(HalKeyboardFilterService.shouldConsume(KeyEvent.ACTION_UP, fromMsr, rules))
-        assertTrue(HalKeyboardFilterService.shouldConsume(KeyEvent.ACTION_DOWN, injected, rules))
-        assertTrue(HalKeyboardFilterService.shouldConsume(KeyEvent.ACTION_UP, injected, rules))
-        assertFalse(HalKeyboardFilterService.shouldConsume(KeyEvent.ACTION_MULTIPLE, fromMsr, rules))
-        assertFalse(HalKeyboardFilterService.shouldConsume(KeyEvent.ACTION_DOWN, KeyOrigin(0x1A86, 0x0001, InputDevice.SOURCE_KEYBOARD), rules))
-        assertFalse(HalKeyboardFilterService.shouldConsume(KeyEvent.ACTION_DOWN, KeyOrigin(0, 0, InputDevice.SOURCE_KEYBOARD), rules))
-        assertFalse(HalKeyboardFilterService.shouldConsume(KeyEvent.ACTION_DOWN, fromMsr, emptySet()))
+        val rules = setOf(msr)
+        assertTrue(HalKeyboardFilterService.shouldConsume(KeyEvent.ACTION_DOWN, 0x1A86, 0x7523, rules))
+        assertTrue(HalKeyboardFilterService.shouldConsume(KeyEvent.ACTION_UP, 0x1A86, 0x7523, rules))
+        assertFalse(HalKeyboardFilterService.shouldConsume(KeyEvent.ACTION_MULTIPLE, 0x1A86, 0x7523, rules))
+        assertFalse(HalKeyboardFilterService.shouldConsume(KeyEvent.ACTION_DOWN, 0x1A86, 0x0001, rules))
+        assertFalse(HalKeyboardFilterService.shouldConsume(KeyEvent.ACTION_DOWN, 0x1A86, 0x7523, emptySet()))
     }
 }

@@ -14,7 +14,7 @@ import kotlin.test.assertEquals
 /** Keyboard filter rules crossing AIDL, including bundles and hosts of different ages. */
 class KeyboardFilterRulesAidlTest {
 
-    private val rules = listOf(KeyboardFilterRule.UsbDevice(0x324F, 0x0113), KeyboardFilterRule.EventSource(0x98123456.toInt()))
+    private val rules = listOf<KeyboardFilterRule>(KeyboardFilterRule.UsbDevice(0x1A86, 0x7523), KeyboardFilterRule.UsbDevice(0x324F, 0x0113))
 
     @BeforeEach
     fun mockLog() {
@@ -35,7 +35,7 @@ class KeyboardFilterRulesAidlTest {
     @Test
     fun `each rule is tagged with its kind`() {
         assertEquals(
-            """[{"type":"usb","vendorId":12879,"productId":275},{"type":"source","source":-1743637418}]""",
+            """[{"type":"usb","vendorId":6790,"productId":29987},{"type":"usb","vendorId":12879,"productId":275}]""",
             Json.encodeToString(rules),
         )
     }
