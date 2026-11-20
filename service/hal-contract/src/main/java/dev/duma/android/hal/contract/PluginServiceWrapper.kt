@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.RemoteCallbackList
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
 /**
@@ -55,7 +56,8 @@ class PluginServiceWrapper(
     }
 
     override fun getKeyboardFilterRulesJson(): String {
-        return Json.encodeToString(plugin.getKeyboardFilterRules())
+        // Explicit serializer: the `type` tag is written only when encoding as the sealed interface.
+        return Json.encodeToString(ListSerializer(KeyboardFilterRule.serializer()), plugin.getKeyboardFilterRules())
     }
 
     override fun registerEventCallback(callback: IPluginEventCallback) {

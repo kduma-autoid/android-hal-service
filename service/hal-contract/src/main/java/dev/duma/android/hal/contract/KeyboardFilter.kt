@@ -59,9 +59,8 @@ object KeyboardFilter {
      * Lists the input devices Android currently knows, for working out which one a keyboard-emulating
      * peripheral is. Contains device metadata only, never key events.
      *
-     * @param filtered rules whose [KeyboardFilterRule.UsbDevice] entries mark devices with
-     *   `"filtered": true` (e.g. the plugin's own list). [KeyboardFilterRule.EventSource] rules match
-     *   events rather than devices, so they mark nothing here.
+     * @param filtered rules marking the devices they match with `"filtered": true` (e.g. the
+     *   plugin's own list).
      */
     @JvmStatic
     @JvmOverloads
@@ -79,7 +78,7 @@ object KeyboardFilter {
                 put("sources", device.sources)
                 put("keyboard", device.sources and InputDevice.SOURCE_KEYBOARD == InputDevice.SOURCE_KEYBOARD)
                 put("virtual", device.isVirtual)
-                put("filtered", KeyboardFilterRule.UsbDevice(device.vendorId, device.productId) in filtered)
+                put("filtered", filtered.any { it.matches(device.vendorId, device.productId) })
             })
         }
         return result

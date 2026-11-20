@@ -9,13 +9,17 @@ import kotlinx.serialization.Serializable
  * own API. A plugin lists its rules in [HalPlugin.getKeyboardFilterRules]; an event matching any
  * registered rule is consumed.
  *
+ * The filter is an accessibility service, so it only sees key events of physical input devices.
+ * Keystrokes an app injects in software (`InputManager.injectInputEvent`, e.g. a vendor service
+ * that types card data) skip it and cannot be swallowed by any rule.
+ *
  * Bundles send the rules as JSON over AIDL, each tagged with its kind in `"type"`.
  */
 @Serializable
 sealed interface KeyboardFilterRule {
 
-    /** Whether a key event coming from [origin] is swallowed by this rule. */
-    fun matches(origin: KeyOrigin): Boolean
+    /** Whether a key event from the input device with [vendorId]:[productId] is swallowed. */
+    fun matches(vendorId: Int, productId: Int): Boolean
 
     /**
      * A USB HID keyboard (keyboard wedge) typing on its own, identified by its vendor and product id.
@@ -24,26 +28,9 @@ sealed interface KeyboardFilterRule {
     @Serializable
     @SerialName("usb")
     data class UsbDevice(val vendorId: Int, val productId: Int) : KeyboardFilterRule {
-        override fun matches(origin: KeyOrigin) = origin.vendorId == vendorId && origin.productId == productId
+        override fun matches(vendorId: Int, productId: Int) =
+            vendorId == this.vendorId && productId == this.productId
 
         override fun toString() = "USB %04X:%04X".format(vendorId, productId)
     }
-
-    /**
-     * Keystrokes a vendor service injects in software, e.g. a reader that is not a keyboard at all
-     * but whose vendor service types its data. Injected events come from Android's virtual keyboard,
-     * so they are told apart by the `KeyEvent.getSource()` value the vendor marks them with. Matches
-     * only events with exactly that source, whatever device they come from; other injected input
-     * (other apps, `adb shell input`) passes.
-     */
-    @Serializable
-    @SerialName("source")
-    data class EventSource(val source: Int) : KeyboardFilterRule {
-        override fun matches(origin: KeyOrigin) = origin.source == source
-
-        override fun toString() = "event source 0x%08X".format(source)
-    }
 }
-
-/** Where a key event comes from: its input device's USB id and the event's source. */
-data class KeyOrigin(val vendorId: Int, val productId: Int, val source: Int)
