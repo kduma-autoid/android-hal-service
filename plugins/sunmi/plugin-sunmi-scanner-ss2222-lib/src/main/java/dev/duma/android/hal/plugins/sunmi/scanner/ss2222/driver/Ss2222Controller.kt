@@ -6,7 +6,6 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -37,7 +36,7 @@ internal class Ss2222Controller(
     private val events: ControllerEvents,
     private val commandTimeoutMs: Long = 2_000,
     private val closeTimeoutMs: Long = 2_500,
-    private val singleReadSettleMs: Long = SINGLE_READ_SETTLE_MS,
+    private val singleReadAckTimeoutMs: Long = SINGLE_READ_ACK_TIMEOUT_MS,
 ) {
     private data class Pending(
         val opcode: Int,
@@ -560,6 +559,8 @@ internal class Ss2222Controller(
     private suspend fun command(
         opcode: Int,
         data: ByteArray = ByteArray(0),
+        timeoutMs: Long = commandTimeoutMs,
+        invalidateOnTimeout: Boolean = true,
         accepts: (SsiCodec.Packet) -> Boolean,
     ): SsiCodec.Packet = commandMutex.withLock {
         val active = ensureConnected()
@@ -575,7 +576,7 @@ internal class Ss2222Controller(
         fun elapsedMs() = (System.nanoTime() - startedAtNs) / 1_000_000
         events.onDiagnostic("SSI tx opcode=0x${opcode.toString(16)} state=$state ${active.diagnosticState()}")
         try {
-            withTimeout(commandTimeoutMs) {
+            withTimeout(timeoutMs) {
                 active.send(SsiCodec.encode(opcode, data))
                 events.onDiagnostic("SSI sent opcode=0x${opcode.toString(16)} elapsedMs=${elapsedMs()}")
                 request.result.await().also {
@@ -587,9 +588,12 @@ internal class Ss2222Controller(
             events.onDiagnostic(
                 "SSI timeout opcode=0x${opcode.toString(16)} elapsedMs=${elapsedMs()} ${active.diagnosticState()}",
             )
+            if (!invalidateOnTimeout) {
+                throw DriverException("ack_timeout", "No reply to SSI command 0x${opcode.toString(16)} within ${timeoutMs}ms", e)
+            }
             val failure = DriverException(
                 "command_timeout",
-                "No matching reply to SSI command 0x${opcode.toString(16)} within ${commandTimeoutMs}ms",
+                "No matching reply to SSI command 0x${opcode.toString(16)} within ${timeoutMs}ms",
                 e,
             )
             invalidate(active, failure)
@@ -664,16 +668,53 @@ internal class Ss2222Controller(
         if (autoStop) scope.launch { stopAfterSingleRead() }
     }
 
+    /**
+     * Disables the scanner as soon as the single barcode is in. Every millisecond it stays enabled it
+     * keeps decoding (and beeping): a fixed pause let it read two or three more frames of a rolling
+     * QR code. HAL discards those, but the user sees and hears them.
+     *
+     * The scanner may ignore a SCAN_DISABLE that arrives right after a decode (FLEX 3: EA sent 5 ms
+     * after the barcode got no ACK), so a missing ACK is retried quickly instead of invalidating the
+     * session; only once [SINGLE_READ_DISABLE_ATTEMPTS] short attempts failed does the regular stop,
+     * with its full timeout, take over.
+     */
     private suspend fun stopAfterSingleRead() {
-        // The scanner ignores SCAN_DISABLE that arrives right after a decode (seen on FLEX 3: EA sent
-        // 5 ms after the barcode got no ACK and the session was invalidated). Further barcodes of
-        // this session are already discarded, so waiting costs nothing but the scanner's light.
-        delay(singleReadSettleMs)
         events.onDiagnostic("Auto-stop after single barcode")
         try {
-            stop()
+            operationMutex.withLock {
+                val shouldStop = synchronized(sessionLock) {
+                    if (state != Ss2222Driver.State.SCANNING) return@withLock
+                    setState(Ss2222Driver.State.STOPPING)
+                    true
+                }
+                if (!shouldStop) return@withLock
+                for (attempt in 0 until SINGLE_READ_DISABLE_ATTEMPTS) {
+                    val packet = try {
+                        command(SsiCodec.SCAN_DISABLE, timeoutMs = singleReadAckTimeoutMs, invalidateOnTimeout = false) {
+                            SsiCodec.isAck(it) || SsiCodec.isNak(it)
+                        }
+                    } catch (e: DriverException) {
+                        if (e.code != "ack_timeout") throw e
+                        events.onDiagnostic("SCAN_DISABLE attempt ${attempt + 1} not acknowledged")
+                        null
+                    }
+                    if (packet != null && SsiCodec.isAck(packet)) {
+                        synchronized(sessionLock) {
+                            resetSessionLocked()
+                            if (state == Ss2222Driver.State.STOPPING) setState(Ss2222Driver.State.IDLE)
+                        }
+                        return@withLock
+                    }
+                    if (packet != null) break // NAK: let the regular stop report it
+                }
+                // Back to SCANNING so stopInternal() performs (and reports) the regular disable.
+                synchronized(sessionLock) {
+                    if (state == Ss2222Driver.State.STOPPING) setState(Ss2222Driver.State.SCANNING)
+                }
+                stopInternal()
+            }
         } catch (_: Throwable) {
-            // stop() already reports the terminal error through ControllerEvents.
+            // stopInternal()/command() already report the terminal error through ControllerEvents.
         }
     }
 
@@ -732,8 +773,9 @@ internal class Ss2222Controller(
         const val TRIGGER_MODE_DEFAULT = 0x11
         const val LIGHT_MODE_FIRMWARE = 0x00
         const val MAX_EARLY_BARCODES = 32
-        /** Pause between a single-shot barcode and its SCAN_DISABLE; see [stopAfterSingleRead]. */
-        const val SINGLE_READ_SETTLE_MS = 300L
-        val NON_INVALIDATING_ERRORS = setOf("closing", "device_disconnected", "nak")
+        /** Short ACK wait for a single-shot SCAN_DISABLE, retried; see [stopAfterSingleRead]. */
+        const val SINGLE_READ_ACK_TIMEOUT_MS = 150L
+        const val SINGLE_READ_DISABLE_ATTEMPTS = 5
+        val NON_INVALIDATING_ERRORS = setOf("closing", "device_disconnected", "nak", "ack_timeout")
     }
 }

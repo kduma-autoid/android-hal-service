@@ -8,6 +8,7 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.async
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -40,24 +41,39 @@ class Ss2222ControllerTest {
     }
 
     @Test
-    fun `single shot waits for the scanner to settle before disabling it`() = runTest {
-        // FLEX 3: SCAN_DISABLE sent 5 ms after the decode got no ACK and invalidated the session.
+    fun `single shot disables the scanner right after the barcode`() = runTest {
+        // Every millisecond the scanner stays enabled it decodes (and beeps) more frames of a
+        // rolling QR code, even though HAL discards them.
         val fixture = fixture(this)
         fixture.controller.initialize(fixture.transport)
         fixture.controller.start(singleShot = true)
-        val beforeBarcode = fixture.transport.opcodes.size
 
         fixture.controller.onMessage(fixture.transport, "CODE\r".encodeToByteArray())
         fixture.controller.onMessage(fixture.transport, "SECOND\r".encodeToByteArray())
-        advanceTimeBy(299) // SINGLE_READ_SETTLE_MS is 300
-        runCurrent()
-        assertEquals(beforeBarcode, fixture.transport.opcodes.size) // nothing sent yet
-        assertEquals(Ss2222Driver.State.SCANNING, fixture.controller.state)
+        runCurrent() // no virtual time passes
 
-        advanceUntilIdle()
         assertEquals(SsiCodec.SCAN_DISABLE, fixture.transport.opcodes.last())
         assertEquals(Ss2222Driver.State.IDLE, fixture.controller.state)
         assertEquals(listOf("CODE\r"), fixture.events.barcodes.map { it.decodeToString() })
+    }
+
+    @Test
+    fun `an ignored single-shot disable is retried without invalidating the session`() = runTest {
+        // FLEX 3: SCAN_DISABLE sent 5 ms after the decode got no ACK.
+        val fixture = fixture(this, commandTimeoutMs = 2_000)
+        fixture.controller.initialize(fixture.transport)
+        fixture.controller.start(singleShot = true)
+        val before = fixture.transport.opcodes.size
+        fixture.transport.ignoreTimes[SsiCodec.SCAN_DISABLE] = 2
+
+        fixture.controller.onMessage(fixture.transport, "CODE\r".encodeToByteArray())
+        advanceUntilIdle()
+
+        assertEquals(List(3) { SsiCodec.SCAN_DISABLE }, fixture.transport.opcodes.drop(before))
+        assertEquals(Ss2222Driver.State.IDLE, fixture.controller.state)
+        assertTrue(!fixture.transport.closed, "the session must not be invalidated")
+        assertTrue(fixture.events.errors.isEmpty(), fixture.events.errors.toString())
+        assertTrue(currentTime < 1_000, "retries must not wait for the full command timeout")
     }
 
     @Test
@@ -419,6 +435,8 @@ class Ss2222ControllerTest {
         var deliver: (ByteArray) -> Unit = {}
         val opcodes = mutableListOf<Int>()
         val suppress = mutableSetOf<Int>()
+        /** Opcodes the scanner silently drops this many more times before answering again. */
+        val ignoreTimes = mutableMapOf<Int, Int>()
         var wrongReadbackFor: Int? = null
         var wrongReadbackAfterWriteFor: Int? = null
         var partialWriteThenNakFor: Int? = null
@@ -434,6 +452,12 @@ class Ss2222ControllerTest {
             opcodes += packet.opcode
             beforeReply(packet.opcode)
             if (packet.opcode in suppress) return
+            ignoreTimes[packet.opcode]?.let { left ->
+                if (left > 0) {
+                    ignoreTimes[packet.opcode] = left - 1
+                    return
+                }
+            }
             if (blockNext == packet.opcode) {
                 blockNext = null
                 releaseBlocked.await()

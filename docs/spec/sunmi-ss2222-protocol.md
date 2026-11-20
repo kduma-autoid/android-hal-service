@@ -126,7 +126,8 @@ Komendy Newland (`~␁0000…;␃`, `@SCNMOD` itd.) i broadcast `Setting_cmd` ap
 
 - ACK na `EA`/`E9`: 6–80 ms ✔. `REPLY_REVISION`: ok. 80 ms ✔.
 - **`EA` wysłane ok. 5 ms po dekodowaniu kodu jest ignorowane** (brak ACK, brak jakichkolwiek raportów przez 2 s) ✔ (FLEX 3,
-  pojedynczy odczyt). HAL czeka 300 ms po kodzie przed `EA`.
+  pojedynczy odczyt). HAL wysyła `EA` od razu i przy braku ACK w 150 ms ponawia je (do 5 razy) bez unieważniania sesji.
+  Wcześniejsza stała pauza 300 ms pozwalała skanerowi odczytać w tym czasie 2–3 kolejne kody ✔ (CPad, rolling QR).
 - `F2 01`: ACK, po nim skaner znika z USB w ciągu ok. 0,15–0,3 s ✔.
 
 ## 5. Parametry

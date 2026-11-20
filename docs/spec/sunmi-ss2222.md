@@ -22,8 +22,11 @@ z urządzeniem i konkretną próbą połączenia; odmowa nie udostępnia skanera
 Inicjalizacja wyłącza skanowanie (`EA`), odczytuje wersję (`A3` → `A4`) i zapewnia tymczasowo
 tryb `8A=11` oraz światło sterowane przez firmware (`F202=00`). Zachowuje beep po odczycie.
 Skany spoza sesji są odrzucane. `trigger` uruchamia pojedynczą sesję bez limitu oczekiwania;
-pierwszy wynik zamyka przyjmowanie następnych i po 300 ms powoduje `EA` (skaner ignoruje `EA` wysłane
-tuż po dekodowaniu: na FLEX 3 brak ACK po 5 ms unieważniał sesję). `startContinuous` działa do
+pierwszy wynik zamyka przyjmowanie następnych i od razu powoduje `EA`. Skaner bywa, że ignoruje `EA`
+wysłane tuż po dekodowaniu (FLEX 3), więc brak ACK w 150 ms nie unieważnia sesji, tylko ponawia `EA`
+(do 5 prób); dopiero potem działa zwykły `stop` z pełnym limitem. Stała pauza przed `EA` (dawniej
+300 ms) zostawiała skaner włączony: szybko zmieniające się kody (rolling QR) czytał jeszcze 2–3 razy,
+z beepem, choć HAL przekazywał tylko pierwszy. `startContinuous` działa do
 `stop`. Kolejny start aktywnej sesji zwraca `busy`, a `stop` w bezczynności jest idempotentny.
 Odpowiedź sterująca wraca po potwierdzeniu komendy, wynik skanowania przychodzi zdarzeniem.
 
