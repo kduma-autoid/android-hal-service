@@ -139,7 +139,14 @@ describe('SunmiScreenClient', () => {
       const handler = vi.fn();
       await client.onScreensChanged(handler);
 
-      const eventData = { sn: 'SCR-001', type: 1, value: 0, extra: '' };
+      const eventData = {
+        sn: 'SCR-001',
+        type: 'option',
+        key: 7,
+        parameter: 'touchSwitch',
+        value: 0,
+        str: '',
+      };
       capturedHandler('sunmi.screen.screensChanged', eventData);
 
       expect(handler).toHaveBeenCalledWith(eventData);

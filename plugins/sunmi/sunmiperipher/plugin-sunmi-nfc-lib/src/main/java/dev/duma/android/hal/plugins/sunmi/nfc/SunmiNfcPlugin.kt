@@ -78,9 +78,10 @@ class SunmiNfcPlugin(
         events = listOf(
             EventDescriptor(
                 "sunmi.nfc.modulesChanged",
-                "Fired when the list of available NFC modules changes.",
+                "Fired when the list of available NFC modules changes. type: host (built-in), " +
+                    "ext (legacy external), accessory (external NFC reader), subScreen (NFC in external screen), unknown.",
                 "sunmi.nfc",
-                exampleEvent = """{"modules": [{"sn": "NFC-001"}, {"sn": "NFC-002"}]}"""
+                exampleEvent = """{"modules": [{"sn": "NFC-001", "type": "host", "selected": true}, {"sn": "NFC-002", "type": "subScreen", "selected": false}]}"""
             )
         )
     )
@@ -128,9 +129,25 @@ class SunmiNfcPlugin(
     private fun buildNfcListJson(nfcList: MutableList<Nfc>?): String {
         val arr = JSONArray()
         nfcList?.forEach { nfc ->
-            arr.put(JSONObject().apply { put("sn", nfc.sn) })
+            arr.put(JSONObject().apply {
+                put("sn", nfc.sn)
+                put("type", moduleType(nfc.type))
+                put("selected", nfc.isSelect)
+            })
         }
         return JSONObject().apply { put("modules", arr) }.toString()
+    }
+
+    /**
+     * Maps `Nfc.type`, which peripheralmanager fills with `com.sunmi.nfc.NfcType.ordinal()`
+     * (verified on OrderPAD 3: host=0, accessory=2, subScreen=3).
+     */
+    private fun moduleType(sdkType: Int): String = when (sdkType) {
+        0 -> "host"
+        1 -> "ext"
+        2 -> "accessory"
+        3 -> "subScreen"
+        else -> "unknown"
     }
 
     /**
