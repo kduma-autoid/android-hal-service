@@ -66,6 +66,13 @@ internal class Ss2222Controller(
     var state: Ss2222Driver.State = Ss2222Driver.State.DISCONNECTED
         private set
 
+    /**
+     * Leave the scanner reading on its own when HAL lets go of it after a failure, as it does
+     * without HAL, instead of disabling it until it is replugged. Graceful close always re-enables.
+     */
+    @Volatile
+    var keepScanningEnabled = false
+
     suspend fun initialize(newTransport: MessageTransport): ByteArray = operationMutex.withLock {
             val myGeneration = synchronized(sessionLock) {
                 if (transport != null) throw DriverException("already_open", "Scanner is already open")
@@ -517,7 +524,8 @@ internal class Ss2222Controller(
         events.onError(failure.code, failure.message ?: failure.code)
         withContext(NonCancellable) {
             try {
-                withTimeout(250) { active.send(SsiCodec.encode(SsiCodec.SCAN_DISABLE)) }
+                val release = if (keepScanningEnabled) SsiCodec.SCAN_ENABLE else SsiCodec.SCAN_DISABLE
+                withTimeout(250) { active.send(SsiCodec.encode(release)) }
             } catch (_: Throwable) { }
             bestEffortClose(active)
         }

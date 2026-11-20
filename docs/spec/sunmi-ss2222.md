@@ -29,7 +29,31 @@ Spóźniony ACK nie jest odpowiedzią na następną komendę. Fragmentacja HID m
 oraz 1 s na wiadomość; niepełne i błędne wiadomości są odrzucane.
 Puste transfery USB (0 B), obserwowane na Flex 3 pomiędzy poprawnymi raportami, nie są fragmentami
 HID: są pomijane bez przerywania składania wiadomości.
-Reconnect wraca do bezczynności, bez automatycznego wznowienia skanowania.
+Reconnect wraca do bezczynności; dalej decyduje ustawienie odczytu ciągłego (niżej).
+
+## Odczyt ciągły (ustawienie)
+
+Bez HAL skaner czyta kody cały czas. Sterownik HAL przejmuje go, wyłącza (`EA`) i włącza tylko na
+żądanie. Ustawienie pluginu **„Keep the scanner reading continuously"** (`continuousReading`,
+domyślnie włączone, na ekranie szczegółów pluginu w HAL; odpowiednik `autoListen` w MSR605X) wyłącza
+to zachowanie: skaner czyta tak jak bez HAL, a HAL zgłasza każdy kod zdarzeniem
+`barcode` / `barcodeScanner.onScan`, bez wywoływania `trigger`.
+
+Gdy jest włączone, plugin sam uruchamia sesję ciągłą (`E9`), ilekroć skaner jest bezczynny (`IDLE`):
+zaraz po inicjalizacji, po podłączeniu, po zakończeniu skanu (`trigger`, `stop`, auto-stop po
+pojedynczym odczycie) i po włączeniu ustawienia. Po błędzie USB/SSI (timeout, NAK) sterownik oddaje
+skaner włączony (`E9`) zamiast wyłączonego (`EA`), więc nie zostaje martwy do ponownego podłączenia.
+Kontrolowane zamknięcie przywraca parametry i włącza skaner niezależnie od ustawienia. Inicjalizacja
+nadal na chwilę wysyła `EA`, bo zapis parametrów wymaga bezczynności.
+
+- Operacje wymagające bezczynności (`trigger`, `startContinuous`, `setConfig`, `setParams`,
+  `rawCommand` `C6`/`E9`) najpierw zatrzymują sesję tła, a po nich odczyt ciągły wraca sam.
+  Po `trigger` wraca dopiero po pojedynczym odczycie (lub `stop`).
+- `stop` przy włączonym ustawieniu kończy bieżący skan, po czym odczyt ciągły wraca. Żeby skaner
+  przestał czytać, wyłącz ustawienie.
+- Wyłączenie ustawienia zatrzymuje tylko sesję uruchomioną przez plugin; sesja klienta trwa dalej.
+- Nieudany start jest ponawiany z rosnącym odstępem (1 s … 30 s), nie przy każdym `IDLE`.
+- `getStatus.continuous` mówi, czy ustawienie jest włączone.
 
 ## Metody
 
@@ -40,7 +64,7 @@ Natywne nazwy mają prefiks `sunmi.scanner.ss2222.`. Wszystkie parametry są obi
 | `trigger` | `{}` | `{"status":"scanning"}` po ACK, potem jeden wynik |
 | `stop` | `{}` | `{}` po ACK lub od razu w bezczynności |
 | `startContinuous` | `{}` | `{"status":"scanning"}` po ACK, kolejne wyniki |
-| `getStatus` | `{}` | `state`, `available`, `keyboardFilterEnabled`, `device` |
+| `getStatus` | `{}` | `state`, `available`, `keyboardFilterEnabled`, `continuous`, `device` |
 | `getDeviceInfo` | `{}` | `model`, `productId`, `hardwareVersion`, `firmwareVersion` |
 | `getConfig` | `{}` | `symbologies`, `goodReadBeep`, `beepVolume` |
 | `setConfig` | częściowa konfiguracja poniżej | `{}` po kontrolnym odczycie |
@@ -123,7 +147,8 @@ await scanner.trigger();
 // Po zakończeniu pracy: await offScan(); await offState().
 ```
 
-Po zdarzeniu `IDLE` można rozpocząć skanowanie ciągłe przez
+Przy włączonym ustawieniu odczytu ciągłego skaner czyta w tle sam, więc wystarczy `onScan`.
+Bez niego po zdarzeniu `IDLE` można rozpocząć skanowanie ciągłe przez
 `client.execute('sunmi.scanner.ss2222.startContinuous', {})` i zakończyć je przez `scanner.stop()`.
 Metody natywne są też w istniejącym panelu metod HAL. Przy niedostępnym urządzeniu nowy HAL
 ukrywa capability, więc jego metody nie są routowane. W aplikacji osadzającej AAR `getStatus`

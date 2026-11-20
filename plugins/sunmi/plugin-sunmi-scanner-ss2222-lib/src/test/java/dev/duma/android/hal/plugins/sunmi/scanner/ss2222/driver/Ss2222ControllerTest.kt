@@ -70,6 +70,33 @@ class Ss2222ControllerTest {
     }
 
     @Test
+    fun `a failure leaves the scanner disabled by default`() = runTest {
+        val fixture = fixture(this, commandTimeoutMs = 50)
+        fixture.controller.initialize(fixture.transport)
+        fixture.transport.suppress += SsiCodec.SCAN_ENABLE
+
+        assertFailsWith<DriverException> { fixture.controller.start(singleShot = true) }
+
+        assertEquals(listOf(SsiCodec.SCAN_ENABLE, SsiCodec.SCAN_DISABLE), fixture.transport.opcodes.takeLast(2))
+    }
+
+    @Test
+    fun `with keepScanningEnabled a failure hands the scanner back reading`() = runTest {
+        // As without HAL: the scanner keeps reading after HAL lets go of it, instead of staying off
+        // until it is replugged.
+        val fixture = fixture(this, commandTimeoutMs = 50)
+        fixture.controller.keepScanningEnabled = true
+        fixture.controller.initialize(fixture.transport)
+        fixture.transport.suppress += SsiCodec.SCAN_ENABLE
+
+        assertFailsWith<DriverException> { fixture.controller.start(singleShot = true) }
+
+        // The unanswered start, then the release: enable again, never disable.
+        assertEquals(listOf(SsiCodec.SCAN_ENABLE, SsiCodec.SCAN_ENABLE), fixture.transport.opcodes.takeLast(2))
+        assertEquals(Ss2222Driver.State.ERROR, fixture.controller.state)
+    }
+
+    @Test
     fun `controlled close restores all snapshots and enables scanner`() = runTest {
         val fixture = fixture(this)
         fixture.transport.parameters[0x38] = 1

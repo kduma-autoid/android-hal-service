@@ -128,6 +128,11 @@ class Ss2222Driver(
     private var closed = false
 
     val state: State get() = stateValue
+
+    /** See [Ss2222Controller.keepScanningEnabled]. */
+    var keepScanningEnabled: Boolean
+        get() = controller.keepScanningEnabled
+        set(value) { controller.keepScanningEnabled = value }
     val deviceInfo: DeviceInfo? get() = deviceInfoValue
 
     private val controller = Ss2222Controller(

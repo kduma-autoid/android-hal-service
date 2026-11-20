@@ -15,10 +15,17 @@ import dev.duma.android.hal.contract.KeyboardFilterRule
 import dev.duma.android.hal.contract.MethodDescriptor
 import dev.duma.android.hal.contract.PluginContext
 import dev.duma.android.hal.contract.PluginDescriptor
+import dev.duma.android.hal.contract.PluginSetting
 import dev.duma.android.hal.contract.stripExperimental
 import dev.duma.android.hal.plugins.sunmi.scanner.ss2222.driver.Ss2222Driver
 import dev.duma.android.hal.plugins.sunmi.scanner.ss2222.driver.DriverException
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
@@ -43,10 +50,38 @@ class SunmiSs2222ScannerPlugin internal constructor(
     private val generation = AtomicLong()
     private val commands = Mutex()
 
+    /** [SETTING_CONTINUOUS]: keep the scanner reading in the background whenever it is idle. */
+    @Volatile private var continuousEnabled = true
+    /** The current session was started by [resumeContinuous], not by a client. */
+    @Volatile private var autoSession = false
+    /** Consecutive failed automatic starts, for the retry back-off. */
+    @Volatile private var autoFailures = 0
+    /** Background work of the current driver generation; cancelled with it. */
+    @Volatile private var scope: CoroutineScope? = null
+
     override fun isSupported(): Boolean = context?.packageManager
         ?.hasSystemFeature(PackageManager.FEATURE_USB_HOST) == true
 
     override fun getCapabilities() = listOf(ID)
+
+    override fun getSettings(): List<PluginSetting> = listOf(
+        PluginSetting(
+            key = SETTING_CONTINUOUS,
+            title = "Keep the scanner reading continuously",
+            description = "Like the scanner without HAL: it reads every barcode in front of it, and HAL reports " +
+                "each one as an event. When off, HAL disables the scanner and enables it only for " +
+                "trigger / startContinuous.",
+            default = true,
+        )
+    )
+
+    override fun onSettingChanged(key: String, value: Boolean) {
+        if (key != SETTING_CONTINUOUS) return
+        continuousEnabled = value
+        driver?.keepScanningEnabled = value
+        autoFailures = 0
+        if (value) resumeContinuous() else stopAutoSession()
+    }
 
     /**
      * The scanner's HID keyboard interface types every scan as keystrokes, trailing Enter included.
@@ -65,12 +100,20 @@ class SunmiSs2222ScannerPlugin internal constructor(
         val epoch = generation.incrementAndGet()
         driver?.close()
         context = appContext?.applicationContext ?: pluginContext.applicationContext.applicationContext
+        continuousEnabled = pluginContext.getBooleanSetting(SETTING_CONTINUOUS, default = true)
+        autoSession = false
+        autoFailures = 0
+        scope?.cancel()
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         pluginContext.setPluginAvailable(false)
         val listener = object : Ss2222Driver.Listener {
             override fun onStateChanged(state: Ss2222Driver.State) {
                 if (generation.get() != epoch) return
                 pluginContext.setPluginAvailable(state in READY_STATES)
+                if (state !in ACTIVE_STATES) autoSession = false
                 emit("$ID.stateChanged", buildJsonObject { put("state", state.name) })
+                // Connected, or a scan (triggered, stopped or auto-stopped) ended: go back to reading.
+                if (state == Ss2222Driver.State.IDLE) resumeContinuous()
             }
 
             override fun onBarcode(raw: ByteArray) {
@@ -92,12 +135,17 @@ class SunmiSs2222ScannerPlugin internal constructor(
                 emit("$ID.error", buildJsonObject { put("code", code); put("message", message) })
             }
         }
-        driver = newDriver(context!!, listener).also { it.open() }
+        driver = newDriver(context!!, listener).also {
+            it.keepScanningEnabled = continuousEnabled
+            it.open()
+        }
     }
 
     @Synchronized
     override fun dispose() {
         generation.incrementAndGet()
+        scope?.cancel()
+        scope = null
         val previous = driver
         driver = null
         previous?.close()
@@ -115,6 +163,9 @@ class SunmiSs2222ScannerPlugin internal constructor(
                 "barcodeScanner.stop" -> "stop"
                 else -> method.removePrefix("$ID.")
             }
+            if (operation in IDLE_ONLY || (operation == "rawCommand" && input.rawWritesOrStarts())) {
+                pauseAutoSession()
+            }
             val body = when (operation) {
                 "getStatus" -> {
                     Ss2222Parameters.checkKeys(input, emptySet())
@@ -122,6 +173,7 @@ class SunmiSs2222ScannerPlugin internal constructor(
                 }
                 "trigger", "startContinuous" -> {
                     Ss2222Parameters.checkKeys(input, emptySet())
+                    autoSession = false
                     requireDriver().start(singleShot = operation == "trigger")
                     buildJsonObject { put("status", "scanning") }
                 }
@@ -188,6 +240,7 @@ class SunmiSs2222ScannerPlugin internal constructor(
         put("state", active?.state?.name ?: "DISCONNECTED")
         put("available", active?.state in READY_STATES)
         put("keyboardFilterEnabled", context?.let(KeyboardFilter::isEnabled) ?: false)
+        put("continuous", continuousEnabled)
         put("device", if (active?.deviceInfo == null) JsonNull else deviceInfo(active))
     }
 
@@ -242,6 +295,65 @@ class SunmiSs2222ScannerPlugin internal constructor(
         }
     }
 
+    /**
+     * Starts continuous reading if [SETTING_CONTINUOUS] is on and the scanner is idle. Queued behind
+     * client commands on [commands], so it never interleaves with one; whatever state a command left
+     * behind is re-checked here. A failed start retries with a back-off instead of on every IDLE.
+     */
+    private fun resumeContinuous(afterMs: Long = 0) {
+        val epoch = generation.get()
+        scope?.launch {
+            if (afterMs > 0) delay(afterMs)
+            commands.withLock {
+                val active = driver
+                if (generation.get() != epoch || active == null) return@withLock
+                if (!continuousEnabled || active.state != Ss2222Driver.State.IDLE) return@withLock
+                try {
+                    autoSession = true
+                    active.start(singleShot = false)
+                    autoFailures = 0
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: DriverException) {
+                    autoSession = false
+                    val wait = (1_000L shl autoFailures.coerceAtMost(5)).coerceAtMost(30_000L)
+                    autoFailures++
+                    Log.w("SS2222", "Continuous reading did not start (${e.code}); retrying in ${wait}ms")
+                    resumeContinuous(afterMs = wait)
+                }
+            }
+        }
+    }
+
+    /** Stops the background session before a command that needs an idle scanner; it resumes after. */
+    private suspend fun pauseAutoSession() {
+        val active = driver ?: return
+        if (autoSession && active.state in ACTIVE_STATES) active.stop()
+    }
+
+    /** The setting was turned off: end the background session (a client's own scan keeps running). */
+    private fun stopAutoSession() {
+        scope?.launch {
+            commands.withLock {
+                val active = driver ?: return@withLock
+                if (autoSession && active.state in ACTIVE_STATES) {
+                    try {
+                        active.stop()
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: DriverException) {
+                        Log.w("SS2222", "Could not stop continuous reading (${e.code})")
+                    }
+                }
+                autoSession = false
+            }
+        }
+    }
+
+    /** Raw SSI opcodes that write parameters (C6) or start a session (E9) — both need an idle scanner. */
+    private fun JsonObject.rawWritesOrStarts(): Boolean =
+        (this["opcode"] as? JsonPrimitive)?.content?.toIntOrNull() in setOf(0xC6, 0xE9)
+
     private fun emit(event: String, body: JsonObject) {
         try {
             callback?.onEvent(event, body.toString())
@@ -259,8 +371,8 @@ class SunmiSs2222ScannerPlugin internal constructor(
                 method("trigger", "Wait for one barcode until decoded or stopped.", output = "{\"status\":\"scanning\"}"),
                 method("stop", "Stop scanning; already idle is a successful no-op."),
                 method("startContinuous", "Read successive barcodes until stop.", output = "{\"status\":\"scanning\"}"),
-                method("getStatus", "Session state and keyboard filter setting (enabled does not prove effective filtering).",
-                    output = "{\"state\":\"IDLE\",\"available\":true,\"keyboardFilterEnabled\":false}"),
+                method("getStatus", "Session state, keyboard filter setting (enabled does not prove effective filtering) and whether continuous reading is on.",
+                    output = "{\"state\":\"SCANNING\",\"available\":true,\"keyboardFilterEnabled\":false,\"continuous\":true}"),
                 method("getDeviceInfo", "Read SS2222 product, hardware and firmware information.",
                     output = "{\"model\":\"SS2222\",\"hardwareVersion\":\"V3.0.A\",\"firmwareVersion\":\"2.4.94\"}"),
             )),
@@ -295,6 +407,10 @@ class SunmiSs2222ScannerPlugin internal constructor(
 
     companion object {
         const val ID = "sunmi.scanner.ss2222"
+        private const val SETTING_CONTINUOUS = "continuousReading"
+        /** Operations the controller only accepts while idle; the background session pauses for them. */
+        private val IDLE_ONLY = setOf("trigger", "startContinuous", "setConfig", "setParams")
+        private val ACTIVE_STATES = setOf(Ss2222Driver.State.STARTING, Ss2222Driver.State.SCANNING)
         private val READY_STATES = setOf(Ss2222Driver.State.IDLE, Ss2222Driver.State.STARTING,
             Ss2222Driver.State.SCANNING, Ss2222Driver.State.STOPPING)
     }
