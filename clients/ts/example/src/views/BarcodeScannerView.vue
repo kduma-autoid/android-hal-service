@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { ref, shallowRef, computed, watch, onUnmounted } from 'vue';
 import { useHalClient } from '../composables/useHalClient';
+import { usePageLifetime } from '../composables/usePageLifetime';
 import { useToast } from '../composables/useToast';
 import { SunmiBarcodeScannerClient } from '@kduma-autoid/hal-client-plugin-sunmi-barcode-scanner-facade';
 import type { InterfaceProvider, ScanResult } from '@kduma-autoid/hal-client-common';
 import { bindBackend, enabledBackends, serialized } from '../composables/backendBinding';
 
 const { client, isConnected } = useHalClient();
+// Subscriptions that resolve after the page is gone are released instead of kept.
+const page = usePageLifetime();
 const toast = useToast();
 
 const MAX_SCANS = 50;
@@ -48,10 +51,10 @@ async function stopScanSubscription() {
 async function subscribeScans() {
   await stopScanSubscription();
   if (!scanner.value) return;
-  unsubscribeScan = await scanner.value.onScan((scan) => {
+  unsubscribeScan = await page.keep(scanner.value.onScan((scan) => {
     scans.value.unshift({ ...scan, at: new Date() });
     if (scans.value.length > MAX_SCANS) scans.value.length = MAX_SCANS;
-  });
+  }));
 }
 
 // Two `system.interfaces.changed` in a row would otherwise run bind() concurrently and leave two
@@ -59,6 +62,7 @@ async function subscribeScans() {
 const bind = serialized((pluginId?: string) => bindOnce(pluginId));
 
 async function bindOnce(pluginId?: string) {
+  if (!page.isAlive()) return;
   if (!client.value || !isConnected.value) {
     await stopScanSubscription();
     scanner.value = null;
@@ -124,9 +128,9 @@ watch(
       await bind();
       if (client.value && !unsubscribeChanges) {
         // Hot-plug / interface reorder: re-resolve, keeping the user's pinned backend if it survives.
-        unsubscribeChanges = await SunmiBarcodeScannerClient.onChanged(client.value, () => {
+        unsubscribeChanges = await page.keep(SunmiBarcodeScannerClient.onChanged(client.value, () => {
           bind(selectedBackend.value || undefined);
-        });
+        }));
       }
     } else {
       await teardown();

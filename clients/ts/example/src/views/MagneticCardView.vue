@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, shallowRef, computed, watch, onUnmounted, reactive } from 'vue';
 import { useHalClient } from '../composables/useHalClient';
+import { usePageLifetime } from '../composables/usePageLifetime';
 import { useToast } from '../composables/useToast';
 import { usePluginAvailability } from '../composables/usePluginAvailability';
 import { bindBackend, enabledBackends, serialized } from '../composables/backendBinding';
@@ -19,6 +20,8 @@ import {
 } from '../utils/magneticCard';
 
 const { client, isConnected } = useHalClient();
+// Subscriptions that resolve after the page is gone are released instead of kept.
+const page = usePageLifetime();
 const toast = useToast();
 
 const MAX_READS = 20;
@@ -64,6 +67,7 @@ async function stopSwipeSubscription() {
 const bind = serialized((pluginId?: string) => bindOnce(pluginId));
 
 async function bindOnce(pluginId?: string) {
+  if (!page.isAlive()) return;
   if (!client.value || !isConnected.value) {
     await stopSwipeSubscription();
     reader.value = null;
@@ -97,7 +101,7 @@ async function bindOnce(pluginId?: string) {
 
   try {
     await stopSwipeSubscription();
-    unsubscribeSwipe = await reader.value.onSwipe((tracks) => addRead(tracks, 'event'));
+    unsubscribeSwipe = await page.keep(reader.value.onSwipe((tracks) => addRead(tracks, 'event')));
     eventError.value = '';
   } catch (e) {
     await stopSwipeSubscription();
@@ -342,9 +346,9 @@ watch(sunmi, async (s) => {
   sunmiInfo.value = null;
   if (!s) return;
   try {
-    unsubscribeSunmi = await s.onSwipe((data) => {
+    unsubscribeSunmi = await page.keep(s.onSwipe((data) => {
       sunmiLastSwipe.value = data;
-    });
+    }));
   } catch {
     /* no event channel (HTTP) — the info button still works */
   }
@@ -384,9 +388,9 @@ watch(
         // Hot-plug (the MSR605X is USB) / interface reorder: re-resolve, keeping the pinned backend.
         // Without an event channel (HTTP transport) there is nothing to follow; eventError says so.
         try {
-          unsubscribeChanges = await MagneticCardReaderClient.onChanged(client.value, () => {
+          unsubscribeChanges = await page.keep(MagneticCardReaderClient.onChanged(client.value, () => {
             bind(selectedBackend.value || undefined);
-          });
+          }));
         } catch {
           /* no event channel */
         }
