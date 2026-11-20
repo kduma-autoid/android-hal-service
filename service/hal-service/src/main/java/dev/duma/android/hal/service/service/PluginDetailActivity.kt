@@ -26,7 +26,7 @@ import dev.duma.android.hal.service.plugin.PluginRegistry
 
 class PluginDetailActivity : AppCompatActivity() {
 
-    /** Status line of the keyboard filter panel; null when this plugin declares no keyboard devices. */
+    /** Status line of the keyboard filter panel; null when this plugin declares no keyboard filter rules. */
     private var keyboardFilterStatus: TextView? = null
 
     companion object {
@@ -370,23 +370,23 @@ class PluginDetailActivity : AppCompatActivity() {
     }
 
     /**
-     * Shown for plugins that declared keyboard-emulating devices. The filter itself is one HAL-wide
+     * Shown for plugins that declared keyboard filter rules. The filter itself is one HAL-wide
      * accessibility service the user enables in Android settings; HAL cannot turn it on.
      */
     private fun keyboardFilterPanel(registry: PluginRegistry, pluginId: String): View? {
-        val devices = registry.keyboardFilterDevicesOf(pluginId)
-        if (devices.isEmpty()) return null
+        val rules = registry.keyboardFilterRulesOf(pluginId)
+        if (rules.isEmpty()) return null
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(sectionHeader("Keyboard filter"))
-            addView(infoRow("Devices (USB VID:PID)", devices.joinToString(", ")))
+            addView(infoRow("Rules", rules.joinToString(", ")))
             addView(TextView(this@PluginDetailActivity).also {
                 keyboardFilterStatus = it
                 it.setPadding(0, 4, 0, 8)
                 it.textSize = 14f
             })
             addView(TextView(this@PluginDetailActivity).apply {
-                text = "Key presses from these devices are swallowed while \"HAL keyboard filter\" is " +
+                text = "Key presses matching these rules are swallowed while \"HAL keyboard filter\" is " +
                     "enabled in Android accessibility settings. \"Enabled\" reflects the setting only; " +
                     "effective filtering must be verified with the hardware."
                 textSize = 12f

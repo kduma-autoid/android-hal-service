@@ -35,7 +35,11 @@ class KeyboardFilterTest {
     }
 
     @Test
-    fun `device id prints as hex usb id`() {
-        assertEquals("1A86:7523", KeyboardDeviceId(0x1A86, 0x7523).toString())
+    fun `usb rule prints and matches its device`() {
+        val rule = KeyboardFilterRule.UsbDevice(0x1A86, 0x7523)
+        assertEquals("USB 1A86:7523", rule.toString())
+        assertTrue(rule.matches(0x1A86, 0x7523))
+        assertFalse(rule.matches(0x1A86, 0x0001))
+        assertFalse(rule.matches(0, 0))
     }
 }

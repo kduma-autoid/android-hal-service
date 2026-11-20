@@ -30,13 +30,14 @@ interface HalPlugin {
     fun onSettingChanged(key: String, value: Boolean) {}
 
     /**
-     * Keyboard-emulating input devices owned by this plugin. While the user has enabled HAL's
-     * keyboard filter (one Android accessibility service in the HAL app, shared by all plugins),
-     * key DOWN/UP events from these devices are consumed so they never reach the focused app —
-     * the plugin delivers the data through its own API instead.
+     * Key events of this plugin's peripherals that HAL's keyboard filter should swallow, e.g. a HID
+     * keyboard by its USB id ([KeyboardFilterRule.UsbDevice]). While the user has enabled the filter
+     * (one Android accessibility service in the HAL app, shared by all plugins), matching key
+     * DOWN/UP events are consumed so they never reach the focused app — the plugin delivers the data
+     * through its own API instead. Keystrokes injected in software are out of its reach.
      *
      * Read once when the plugin registers; the list is expected to be constant for the instance.
      * Default: none.
      */
-    fun getKeyboardFilterDevices(): List<KeyboardDeviceId> = emptyList()
+    fun getKeyboardFilterRules(): List<KeyboardFilterRule> = emptyList()
 }
