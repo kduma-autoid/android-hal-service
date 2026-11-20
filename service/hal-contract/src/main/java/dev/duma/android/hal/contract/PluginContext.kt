@@ -22,7 +22,8 @@ interface PluginContext {
      * hot-pluggable or runtime-detected hardware call this from [HalPlugin.initialize] and from
      * hardware callbacks. Capabilities default to available once registered.
      *
-     * In-process (built-in) plugins only; for out-of-process (AIDL) plugins this is a no-op.
+     * In-process (built-in) and out-of-process (AIDL) plugins may use this. A host compiled against
+     * the older AIDL contract may ignore the request, as may a dead host connection.
      */
     fun setPluginAvailable(available: Boolean) {}
 

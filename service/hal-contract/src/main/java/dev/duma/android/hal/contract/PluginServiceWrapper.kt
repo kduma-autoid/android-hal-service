@@ -20,6 +20,8 @@ class PluginServiceWrapper(
 ) : IHardwarePlugin.Stub() {
 
     private val callbackList = RemoteCallbackList<IPluginEventCallback>()
+    private val mainHandler = Handler(Looper.getMainLooper())
+    @Volatile private var disposed = false
 
     init {
         plugin.setEventCallback(object : HalPluginEventCallback {
@@ -61,7 +63,7 @@ class PluginServiceWrapper(
     }
 
     override fun registerEventCallback(callback: IPluginEventCallback) {
-        callbackList.register(callback)
+        if (!disposed) callbackList.register(callback)
     }
 
     override fun unregisterEventCallback(callback: IPluginEventCallback) {
@@ -69,10 +71,13 @@ class PluginServiceWrapper(
     }
 
     override fun initialize(pluginContext: IPluginContext) {
+        if (disposed) return
         val appCtx = applicationContext ?: return
         val remoteContext = RemotePluginContext(pluginContext, appCtx)
-        Handler(Looper.getMainLooper()).post {
-            plugin.initialize(remoteContext)
+        mainHandler.post {
+            if (!disposed) {
+                plugin.initialize(remoteContext)
+            }
         }
     }
 
@@ -81,6 +86,11 @@ class PluginServiceWrapper(
      * plugins holding resources (e.g. a BroadcastReceiver) can release them.
      */
     fun dispose() {
+        if (disposed) return
+        disposed = true
+        mainHandler.removeCallbacksAndMessages(null)
+        plugin.setEventCallback(null)
+        callbackList.kill()
         plugin.dispose()
     }
 

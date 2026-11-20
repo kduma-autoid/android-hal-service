@@ -35,26 +35,40 @@ subprojects {
     }
 
     plugins.withId("com.android.library") {
-        extensions.configure<com.android.build.api.dsl.LibraryExtension> {
-            publishing {
-                // Publish every release variant. Plugin libraries carrying a `stability` flavor
-                // dimension publish both their `stable` and `development` release variants;
-                // flavourless libraries publish their single release variant.
-                multipleVariants("release") {
-                    includeBuildTypeValues("release")
-                    withSourcesJar()
-                    withJavadocJar()
+        extensions.configure<com.android.build.api.variant.LibraryAndroidComponentsExtension> {
+            finalizeDsl { library ->
+                library.publishing {
+                    // Flavors are declared in each module after the root plugin hook. Include
+                    // every value explicitly: filtering only by build type selects no variants
+                    // for a flavored library in AGP 9.
+                    multipleVariants("release") {
+                        includeBuildTypeValues("release")
+                        library.flavorDimensions.forEach { dimension ->
+                            val values = library.productFlavors.filter { it.dimension == dimension }
+                                .map { it.name }.toTypedArray()
+                            includeFlavorDimensionAndValues(dimension, *values)
+                        }
+                        withSourcesJar()
+                        withJavadocJar()
+                    }
                 }
             }
         }
 
         if (project.findProperty("publishLibrary")?.toString()?.toBoolean() == true) {
+            // Apply publishing before attaching the Android components after evaluation.
+            apply(plugin = "maven-publish")
             afterEvaluate {
-                apply(plugin = "maven-publish")
                 extensions.configure<org.gradle.api.publish.PublishingExtension> {
                     publications {
                         create<org.gradle.api.publish.maven.MavenPublication>("release") {
-                            from(components["release"])
+                            // AGP may register the component after this afterEvaluate callback,
+                            // especially for newly added flavored libraries. Attach it when it is
+                            // registered instead of depending on callback registration order.
+                            val publication = this
+                            components.matching { it.name == "release" }.all {
+                                publication.from(this)
+                            }
                             groupId = "dev.duma.android.hal"
                             artifactId = project.name
                             version = rootProject.version.toString()

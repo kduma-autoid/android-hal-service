@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sunmi SS2222 in its two USB modes HAL uses: factory keyboard + HID, and TTDATA (data mode). -->
+<resources>
+    <usb-device vendor-id="12879" product-id="275" />
+    <usb-device vendor-id="44953" product-id="32769" />
+</resources>
