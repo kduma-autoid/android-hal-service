@@ -4,6 +4,9 @@
 (minSdk 24). Moduł `plugins/sunmi/plugin-sunmi-scanner-ss2222-lib` dostarcza AAR;
 HAL Sunmi i `plugin-sunmi-bundle` zawierają go w wariantach `stable` i `development`.
 
+Tryby USB skanera, protokół SSI, parametry i pomiary czasów opisuje osobna specyfikacja referencyjna
+[`sunmi-ss2222-protocol.md`](sunmi-ss2222-protocol.md).
+
 Provider `barcodeScanner` ma priorytet 110. Gotowy SS2222 wyprzedza `sunmi.scanner.inner`
 (priorytet 100), z zachowaniem ustawień kolejności i włączenia providerów HAL.
 `isSupported()` oznacza obsługę USB Host przez Androida. Dostępność jest zgłaszana dopiero
