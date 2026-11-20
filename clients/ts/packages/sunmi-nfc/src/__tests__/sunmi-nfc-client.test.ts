@@ -64,6 +64,20 @@ describe('SunmiNfcClient', () => {
     });
   });
 
+  describe('getAntennaLocations', () => {
+    it('should execute the read-only antenna location method', async () => {
+      const snapshot = {
+        state: 'ready',
+        controller: 'builtin',
+        modules: [],
+      };
+      (mockClient.execute as ReturnType<typeof vi.fn>).mockResolvedValue(snapshot);
+
+      await expect(client.getAntennaLocations()).resolves.toEqual(snapshot);
+      expect(mockClient.execute).toHaveBeenCalledWith('sunmi.nfc.getAntennaLocations', {});
+    });
+  });
+
   describe('error propagation', () => {
     it('should propagate executor errors', async () => {
       const error = new Error('device_not_ready');
@@ -116,6 +130,30 @@ describe('SunmiNfcClient', () => {
       const result = await client.onModulesChanged(() => {});
 
       expect(result).toBe(unsub);
+    });
+
+    it('should subscribe to antenna location snapshots and pass the payload through', async () => {
+      let capturedHandler: (eventName: string, data: unknown) => void = () => {};
+      (mockClient.on as ReturnType<typeof vi.fn>).mockImplementation(async (_event, handler) => {
+        capturedHandler = handler;
+        return async () => {};
+      });
+
+      const handler = vi.fn();
+      await client.onAntennaLocationsChanged(handler);
+
+      expect(mockClient.on).toHaveBeenCalledWith(
+        'sunmi.nfc.antennaLocationsChanged',
+        expect.any(Function),
+      );
+
+      const snapshot = {
+        state: 'initializing',
+        controller: 'unknown',
+        modules: [],
+      };
+      capturedHandler('sunmi.nfc.antennaLocationsChanged', snapshot);
+      expect(handler).toHaveBeenCalledWith(snapshot);
     });
   });
 });

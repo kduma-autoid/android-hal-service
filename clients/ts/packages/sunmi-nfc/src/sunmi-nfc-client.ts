@@ -1,5 +1,8 @@
 import type { IHalClient } from '@kduma-autoid/hal-client-common';
-import type { NfcModulesChangedEvent } from './types.js';
+import type {
+  NfcAntennaLocationsSnapshot,
+  NfcModulesChangedEvent,
+} from './types.js';
 import { NFC_EVENTS } from './types.js';
 
 export const PLUGIN_ID = 'sunmi.nfc';
@@ -19,7 +22,20 @@ export class SunmiNfcClient {
     await this.client.execute('sunmi.nfc.setWatermarkAlpha', { alpha });
   }
 
+  async getAntennaLocations(): Promise<NfcAntennaLocationsSnapshot> {
+    return this.client.execute<NfcAntennaLocationsSnapshot>('sunmi.nfc.getAntennaLocations', {});
+  }
+
   async onModulesChanged(handler: (data: NfcModulesChangedEvent) => void): Promise<() => Promise<void>> {
     return this.client.on<NfcModulesChangedEvent>(NFC_EVENTS.MODULES_CHANGED, (_, data) => handler(data));
+  }
+
+  async onAntennaLocationsChanged(
+    handler: (data: NfcAntennaLocationsSnapshot) => void,
+  ): Promise<() => Promise<void>> {
+    return this.client.on<NfcAntennaLocationsSnapshot>(
+      NFC_EVENTS.ANTENNA_LOCATIONS_CHANGED,
+      (_, data) => handler(data),
+    );
   }
 }

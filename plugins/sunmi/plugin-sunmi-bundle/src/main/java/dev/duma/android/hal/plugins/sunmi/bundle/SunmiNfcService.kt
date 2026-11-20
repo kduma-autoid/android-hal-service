@@ -11,7 +11,18 @@ import dev.duma.android.hal.plugins.sunmi.nfc.SunmiNfcPlugin
  * in the main sunmi bundle.
  */
 class SunmiNfcService : Service() {
+    private var wrapper: PluginServiceWrapper? = null
+
     override fun onBind(intent: Intent): IBinder {
-        return PluginServiceWrapper(SunmiNfcPlugin(applicationContext), applicationContext)
+        return wrapper ?: PluginServiceWrapper(
+            SunmiNfcPlugin(applicationContext),
+            applicationContext
+        ).also { wrapper = it }
+    }
+
+    override fun onDestroy() {
+        wrapper?.dispose()
+        wrapper = null
+        super.onDestroy()
     }
 }

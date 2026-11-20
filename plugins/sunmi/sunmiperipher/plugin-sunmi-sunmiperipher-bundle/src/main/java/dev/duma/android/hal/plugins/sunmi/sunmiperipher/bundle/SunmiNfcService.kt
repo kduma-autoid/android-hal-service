@@ -10,7 +10,18 @@ import dev.duma.android.hal.plugins.sunmi.nfc.SunmiNfcPlugin
  * Android Service exposing [SunmiNfcPlugin] via AIDL for out-of-process usage.
  */
 class SunmiNfcService : Service() {
+    private var wrapper: PluginServiceWrapper? = null
+
     override fun onBind(intent: Intent): IBinder {
-        return PluginServiceWrapper(SunmiNfcPlugin(applicationContext), applicationContext)
+        return wrapper ?: PluginServiceWrapper(
+            SunmiNfcPlugin(applicationContext),
+            applicationContext
+        ).also { wrapper = it }
+    }
+
+    override fun onDestroy() {
+        wrapper?.dispose()
+        wrapper = null
+        super.onDestroy()
     }
 }

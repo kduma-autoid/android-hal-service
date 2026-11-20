@@ -1,5 +1,13 @@
 # Pluginy — implementacja
 
+## plugin-sunmi-nfc-lib: SunmiNfcPlugin
+
+Wersja deskryptora `2`, capability `sunmi.nfc`. Poza przełączaniem modułu
+i przezroczystością znacznika udostępnia listę modułów z położeniem anten:
+`sunmi.nfc.getAntennaLocations` i `sunmi.nfc.antennaLocationsChanged`.
+Pełny kontrakt, ograniczenia współrzędnych i procedura testu na Sunmi:
+[Sunmi NFC](sunmi-nfc.md).
+
 ## plugin-sunmi-printer-lib: SunmiPrinterPlugin
 
 Stub — drukarka Sunmi.
