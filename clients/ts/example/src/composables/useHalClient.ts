@@ -1,4 +1,4 @@
-import { ref, reactive, computed } from 'vue';
+import { ref, shallowRef, reactive, computed } from 'vue';
 import type { AuthState, ConnectionState } from '@kduma-autoid/hal-client-common';
 import type { HalClient } from '@kduma-autoid/hal-client';
 import { LocalStorageTokenStore } from '@kduma-autoid/hal-client-token-store-browser';
@@ -72,7 +72,13 @@ const defaultSettings: AppSettings = {
 };
 
 const settings = reactive<AppSettings>({ ...defaultSettings });
-const client = ref<HalClient | null>(null);
+/**
+ * Shallow on purpose: a deep `ref` hands out a reactive Proxy of the client, so its methods run with
+ * `this` as the Proxy and every object they read back is wrapped. The event transport then compared
+ * a wrapped handler entry against the raw one it pushed, never matched, and no unsubscribe ever
+ * removed a handler — each page visit left its listeners behind, firing on every later event.
+ */
+const client = shallowRef<HalClient | null>(null);
 /** The transport link as the library reports it (HTTP has no link to lose: `connected` once set up). */
 const linkState = ref<ConnectionState>('disconnected');
 const authState = ref<AuthState>('unauthenticated');

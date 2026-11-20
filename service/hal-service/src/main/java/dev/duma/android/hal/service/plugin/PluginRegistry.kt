@@ -41,6 +41,11 @@ class PluginRegistry {
         private const val ACTION_HARDWARE_PLUGIN = "dev.duma.android.hal.HARDWARE_PLUGIN"
         const val EVENT_PLUGINS_CHANGED = "system.plugins.changed"
         const val EVENT_INTERFACES_CHANGED = "system.interfaces.changed"
+
+        /** `change` values of [EVENT_PLUGINS_CHANGED]. */
+        const val CHANGE_AVAILABILITY = "availability"
+        const val CHANGE_CONNECTED = "connected"
+        const val CHANGE_DISCONNECTED = "disconnected"
     }
 
     enum class PluginSource { BUILT_IN, EXTERNAL }
@@ -375,9 +380,24 @@ class PluginRegistry {
             plugin.getCapabilities().forEach { capabilityToPlugin.remove(it, plugin) }
         }
         Log.i(TAG, "Plugin $pluginId availability -> $isAvailable")
+        emitPluginsChanged(pluginId, isAvailable, CHANGE_AVAILABILITY)
+    }
+
+    /**
+     * Tells clients the plugin list changed, so they re-read `system.status`/`system.describe`.
+     * [available] is whether [pluginId] is routable afterwards; [change] says why: hot-plug
+     * ([CHANGE_AVAILABILITY]), or an external plugin bound ([CHANGE_CONNECTED]) or went away
+     * ([CHANGE_DISCONNECTED]), which also covers a built-in it displaced or that came back.
+     * Nothing is sent before [initializeAll]: startup registration has no clients to tell.
+     */
+    private fun emitPluginsChanged(pluginId: String, available: Boolean, change: String) {
         pendingInit?.second?.emit(
             EVENT_PLUGINS_CHANGED,
-            """{"pluginId":"$pluginId","available":$isAvailable}""",
+            buildJsonObject {
+                put("pluginId", pluginId)
+                put("available", available)
+                put("change", change)
+            }.toString(),
             sourcePluginId = "system"
         )
     }
@@ -464,6 +484,7 @@ class PluginRegistry {
             unsupportedPlugins[pluginId] = plugin
             pluginInfo[pluginId] = extInfo
             Log.i(TAG, "External plugin not supported on this device: $pluginId from $packageName")
+            emitPluginsChanged(pluginId, available = false, CHANGE_CONNECTED)
             return true
         }
         if (!tryRegister(plugin, extInfo)) return false
@@ -471,6 +492,7 @@ class PluginRegistry {
         pendingInit?.let { (appContext, eventBus) ->
             initializePlugin(plugin, eventBus, appContext)
         }
+        emitPluginsChanged(pluginId, available = true, CHANGE_CONNECTED)
         return true
     }
 
@@ -492,6 +514,7 @@ class PluginRegistry {
             // registered under it since then owns the info now.
             if (!plugins.containsKey(unsupportedId)) pluginInfo.remove(unsupportedId)
             Log.i(TAG, "Removed unsupported external plugin: $unsupportedId")
+            emitPluginsChanged(unsupportedId, available = plugins.containsKey(unsupportedId), CHANGE_DISCONNECTED)
             return
         }
 
@@ -507,7 +530,10 @@ class PluginRegistry {
         safeDispose(plugin, pluginId)
         Log.i(TAG, "Removed external plugin: $pluginId")
 
-        val (builtInPlugin, builtInInfo) = displacedPlugins.remove(pluginId) ?: return
+        val (builtInPlugin, builtInInfo) = displacedPlugins.remove(pluginId) ?: run {
+            emitPluginsChanged(pluginId, available = false, CHANGE_DISCONNECTED)
+            return
+        }
         // The slot is empty now, so this is a plain registration, not a replacement.
         tryRegister(builtInPlugin, builtInInfo)
         // Re-initialize so the restored built-in re-acquires resources released on displacement.
@@ -515,6 +541,7 @@ class PluginRegistry {
             initializePlugin(builtInPlugin, eventBus, appContext)
         }
         Log.i(TAG, "Restored built-in plugin: $pluginId v${builtInPlugin.version}")
+        emitPluginsChanged(pluginId, available = isAvailable(pluginId), CHANGE_DISCONNECTED)
     }
 
     fun initializeAll(appContext: Context, eventBus: EventBus) {
