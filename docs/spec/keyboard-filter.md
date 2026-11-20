@@ -25,17 +25,23 @@ Filtr klawiatury HAL pochłania zdarzenia DOWN/UP z takich urządzeń.
 
 ## Reguły
 
-`KeyboardFilterRule` to sealed interface; każdy rodzaj reguły mówi wprost, po czym dopasowuje zdarzenie
-(`KeyOrigin`: VID/PID urządzenia wejściowego i `KeyEvent.getSource()`):
+`KeyboardFilterRule` to sealed interface; każdy rodzaj reguły mówi wprost, co dopasowuje. Dziś jest
+jeden:
 
 | Reguła | Dopasowuje | Kiedy |
 |--------|------------|-------|
-| `UsbDevice(vendorId, productId)` | każde zdarzenie z urządzenia o tym VID/PID | urządzenie samo jest klawiaturą USB HID (keyboard wedge), np. skaner SS2222 (PR #9) |
-| `EventSource(source)` | zdarzenia z dokładnie tym `source`, z dowolnego urządzenia | dane „wpisuje” serwis producenta przez `injectInputEvent`, oznaczając zdarzenia własną wartością `source` (np. czytnik MSR Sunmi) |
+| `UsbDevice(vendorId, productId)` | każde zdarzenie z urządzenia wejściowego o tym VID/PID | urządzenie samo jest klawiaturą USB HID (keyboard wedge), np. skaner SS2222 (PR #9) |
 
-Zdarzenia wstrzykiwane programowo przychodzą z wirtualnej klawiatury Androida (id -1, VID/PID
-`0000:0000`), więc `UsbDevice` ich nie złapie. `EventSource` łapie tylko zdarzenia z danym znacznikiem;
-inne wstrzykiwane wejście (inne aplikacje, `adb shell input`) przechodzi.
+Nowy rodzaj reguły to kolejny wariant z własnym `@SerialName`.
+
+### Czego filtr nie złapie: zdarzeń wstrzykiwanych programowo
+
+Usługa dostępności dostaje wyłącznie zdarzenia z fizycznych urządzeń wejściowych. Naciśnięcia, które
+aplikacja wstrzykuje przez `InputManager.injectInputEvent` (np. serwis producenta „wpisujący” dane
+czytnika), trafiają od razu do okna z fokusem — `onKeyEvent` ich nie widzi, niezależnie od urządzenia
+i `source`. Zmierzone na FLEX 3: w jednym oknie 318 zdarzeń skanera SM-2D (`324F:0113`) dotarło do
+filtra, a z 26 przeciągnięć karty (serwis Sunmi, `source` `0x98123456`) i z `adb shell input keyevent`
+— żadne. Takich naciśnięć nie da się pochłonąć żadną regułą.
 
 ```kotlin
 override fun getKeyboardFilterRules() = listOf(
@@ -48,10 +54,9 @@ Lista powinna być stała dla instancji pluginu (jest odczytywana tylko przy rej
 ## Zgodność AIDL
 
 Pluginy z bundli przekazują listę przez `IHardwarePlugin.getKeyboardFilterRulesJson()` — JSON z rodzajem
-reguły w polu `type` (`usb`, `source`), np. `[{"type":"usb","vendorId":12879,"productId":275}]`. Lista
+reguły w polu `type` (dziś tylko `usb`), np. `[{"type":"usb","vendorId":12879,"productId":275}]`. Lista
 z nieznanym rodzajem reguły jest odrzucana w całości (brak filtrowania zamiast filtrowania częściowego).
-Metoda jest dopisana na
-końcu interfejsu (numery wcześniejszych transakcji bez zmian). Nie jest to pole `PluginDescriptor`,
+Metoda jest dopisana na końcu interfejsu (numery wcześniejszych transakcji bez zmian). Nie jest to pole `PluginDescriptor`,
 bo stary host dekoduje deskryptor bez `ignoreUnknownKeys`.
 
 - nowy host + stary bundle — brak transakcji: `null`/wyjątek → brak reguł;
@@ -66,19 +71,19 @@ ustawień — nie dowodzi, że usługa otrzymuje zdarzenia (Android/OEM, inne fi
 działać); skuteczność trzeba sprawdzić na sprzęcie.
 
 Panel pluginu w aplikacji HAL (`PluginDetailActivity`) dla pluginów ze zgłoszonymi regułami pokazuje
-ich listę (np. `USB 324F:0113`, `event source 0x98123456`), status i przycisk do ustawień dostępności. Włączenie usługi wykonuje użytkownik.
+ich listę (np. `USB 324F:0113`), status i przycisk do ustawień dostępności. Włączenie usługi wykonuje
+użytkownik.
 
 ## Diagnostyka
 
-- `adb shell setprop log.tag.HalKbdFilter DEBUG` — usługa loguje raz na parę urządzenie/`source`
-  metadane (id, nazwa, VID:PID, `source`, descriptor) i czy zdarzenie jest filtrowane. Nigdy nie loguje kodów klawiszy.
+- `adb shell setprop log.tag.HalKbdFilter DEBUG` — usługa loguje raz na urządzenie jego metadane
+  (id, nazwa, VID:PID, descriptor) i czy jest filtrowane. Nigdy nie loguje kodów klawiszy.
 - `KeyboardFilter.describeInputDevices(filtered)` — lista `InputDevice` znanych Androidowi
   (bez zdarzeń klawiszy); plugin może ją udostępnić jako metodę diagnostyczną, aby ustalić VID/PID
-  urządzenia, z którego faktycznie przychodzą naciśnięcia. `filtered` oznacza urządzenia objęte regułą
-  `UsbDevice`; reguły `EventSource` dotyczą zdarzeń, nie urządzeń.
-- Gdy żadna klawiatura nie odpowiada czytnikowi, a znaki i tak się pojawiają, są wstrzykiwane programowo:
-  `adb shell getevent -l` nie pokaże wtedy `EV_KEY`, a `dumpsys input` pokaże zdarzenia klawiszy.
-  Wartość `source` znajdzie się w logu usługi (wyżej) albo w kodzie serwisu producenta.
+  urządzenia, z którego faktycznie przychodzą naciśnięcia.
+- Gdy żadna klawiatura nie odpowiada urządzeniu, a znaki i tak się pojawiają, są wstrzykiwane programowo:
+  `adb shell getevent -l` nie pokaże wtedy `EV_KEY`, a `dumpsys input` pokaże zdarzenia klawiszy. Filtr
+  ich nie złapie (patrz wyżej).
 
 ## Migracja istniejących filtrów
 
