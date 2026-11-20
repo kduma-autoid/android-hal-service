@@ -103,6 +103,23 @@ Kolejność steruje też domyślnym providerem (pierwszy dostępny+włączony). 
 wywołaniu: sufiks `metoda@providerId`. Handler zwracany jest w nagłówku odpowiedzi (`provider`).
 Pełny opis: [`interfaces.md`](interfaces.md).
 
+## Eventy zmian: system.plugins.changed / system.interfaces.changed
+
+Sygnał dla klienta, że wynik `system.status` / `system.describe` mógł się zmienić i warto go
+odczytać ponownie (demo robi to w `useSystemChanges`).
+
+`system.plugins.changed` — `{"pluginId": "...", "available": true|false, "change": "..."}`:
+
+| `change` | Kiedy | `available` |
+|----------|-------|-------------|
+| `availability` | hot-plug: plugin wywołał `setPluginAvailable` ze zmienioną wartością | nowa wartość |
+| `connected` | podpiął się plugin zewnętrzny (bundle APK), także wypierając wbudowany o tym samym id | `true` (`false`, gdy plugin nie jest wspierany na urządzeniu) |
+| `disconnected` | plugin zewnętrzny zniknął (proces padł, aplikacja wyłączona/aktualizowana) | `true`, jeśli wrócił wbudowany plugin o tym id; inaczej `false` |
+
+Rejestracja przy starcie serwisu nie emituje eventów — nie ma jeszcze klientów.
+
+`system.interfaces.changed` — `{"interfaceId": "..."}` po `system.interface.setOrder` / `setEnabled`.
+
 ## Filtrowanie per uprawnienia
 
 system.describe filtruje wynik na podstawie uprawnień tokenu:
