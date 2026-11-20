@@ -7,6 +7,7 @@ import PrinterView from './views/PrinterView.vue';
 import BarcodeScannerView from './views/BarcodeScannerView.vue';
 import MagneticCardView from './views/MagneticCardView.vue';
 import ScaleView from './views/ScaleView.vue';
+import RollingQrView from './views/RollingQrView.vue';
 import InterfacesView from './views/InterfacesView.vue';
 import InterfaceDetailView from './views/InterfaceDetailView.vue';
 import ScreensNfcView from './views/ScreensNfcView.vue';
@@ -24,6 +25,7 @@ export const router = createRouter({
     { path: '/barcode-scanner', name: 'barcodeScanner', component: BarcodeScannerView },
     { path: '/magnetic-card', name: 'magneticCard', component: MagneticCardView },
     { path: '/scale', name: 'scale', component: ScaleView },
+    { path: '/rolling-qr', name: 'rollingQr', component: RollingQrView },
     { path: '/interfaces', name: 'interfaces', component: InterfacesView },
     { path: '/interfaces/:interfaceId', name: 'interface-detail', component: InterfaceDetailView },
     { path: '/screens', name: 'screens', component: ScreensNfcView },

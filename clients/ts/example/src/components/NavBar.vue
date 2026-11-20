@@ -11,7 +11,7 @@ const { client, status, needsToken, requestNewToken, error, connect, disconnect 
 const menuOpen = ref(false);
 const demosOpen = ref(false);
 const isDescribeActive = computed(() => route.path.startsWith('/describe'));
-const DEMO_PATHS = ['/statuslight', '/printer', '/barcode-scanner', '/magnetic-card', '/scale', '/screens'];
+const DEMO_PATHS = ['/statuslight', '/printer', '/barcode-scanner', '/rolling-qr', '/magnetic-card', '/scale', '/screens'];
 const isDemosActive = computed(() => DEMO_PATHS.includes(route.path));
 
 function closeMenu() {
@@ -76,6 +76,7 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClick));
               <router-link to="/statuslight" class="nav-link dropdown-link" @click="closeMenu">Status Light</router-link>
               <router-link to="/printer" class="nav-link dropdown-link" @click="closeMenu">Printer</router-link>
               <router-link to="/barcode-scanner" class="nav-link dropdown-link" @click="closeMenu">Barcode Scanner</router-link>
+              <router-link to="/rolling-qr" class="nav-link dropdown-link" @click="closeMenu">Rolling QR Code</router-link>
               <router-link to="/magnetic-card" class="nav-link dropdown-link" @click="closeMenu">Magnetic Card</router-link>
               <router-link to="/scale" class="nav-link dropdown-link" @click="closeMenu">Scale</router-link>
               <router-link to="/screens" class="nav-link dropdown-link" @click="closeMenu">Screens &amp; NFC</router-link>
