@@ -39,6 +39,32 @@ function setup(options: Partial<HalClientOptions> = {}, tokens: string[] = ['t1'
 }
 
 describe('auth recovery', () => {
+  it('hands a token kept from an earlier session to the transports, so the socket authenticates with it', async () => {
+    // A page reload: the store still holds a valid token, and the auth state starts `authenticated`.
+    // The transports never got it, so the WebSocket skipped `authenticate`, the first command failed
+    // with "No token set" and — with nothing to renew from — the client reported the session expired.
+    const tokenStore = new InMemoryTokenStore();
+    tokenStore.setToken({ token: 'kept', permissions: ['*'], expiresAt: Date.now() + 3_600_000 });
+    const events = { token: null as string | null, setToken: vi.fn((t: string) => { events.token = t; }) };
+    const { client, commands } = setup({ tokenStore });
+    client.useEventTransport({
+      ...events, getToken: () => events.token, subscribe: vi.fn(), unsubscribe: vi.fn(), on: vi.fn(), off: vi.fn(), dispose: vi.fn(),
+    });
+
+    expect(client.authState).toBe('authenticated');
+    expect(commands.token).toBe('kept');
+    expect(events.token).toBe('kept');
+  });
+
+  it('does not hand an expired stored token to the transports', () => {
+    const tokenStore = new InMemoryTokenStore();
+    tokenStore.setToken({ token: 'old', permissions: ['*'], expiresAt: Date.now() - 1_000 });
+    const { client, commands } = setup({ tokenStore });
+
+    expect(client.authState).toBe('unauthenticated');
+    expect(commands.token).toBeNull();
+  });
+
   it('with a service key: renews a rejected token and retries the command once', async () => {
     const { client, auth, commands, states } = setup({ serviceKey: 'key' });
     await client.requestToken();
