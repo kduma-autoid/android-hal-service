@@ -91,15 +91,24 @@ Plugin mający własną usługę dostępności (np. `Ss2222KeyboardFilterService
 (klasa, wpis w manifeście, XML, stringi), nadpisać `getKeyboardFilterRules()` regułą `UsbDevice` ze swoim VID/PID,
 a pole statusu (np. `keyboardFilterEnabled`) liczyć przez `KeyboardFilter.isEnabled`.
 
-## Zarejestrowane urządzenia
+## Urządzenia
 
-### `sunmi.card` — czytnik kart magnetycznych (FLEX 3)
+### `sunmi.card` — czytnik kart magnetycznych (FLEX 3): niefiltrowalny
 
-- Zgłasza `1A86:7523` — ten sam VID/PID, po którym plugin wykrywa czytnik (mostek WCH). **Do potwierdzenia
-  na sprzęcie**: naciśnięcia mogą pochodzić z osobnego interfejsu HID o innym VID/PID.
-- `sunmi.card.getInfo` zwraca `keyboardFilterEnabled` (stan ustawień, patrz [Status](#status)).
-- `sunmi.card.listInputDevices` (tylko `development`) — wynik `KeyboardFilter.describeInputDevices`
-  z polem `filtered`. Procedura: podłączyć czytnik, wywołać metodę, znaleźć urządzenie z `keyboard: true`
-  odpowiadające czytnikowi; jeżeli `filtered` jest `false`, poprawić `KEYBOARD_DEVICES` w `SunmiCardPlugin`.
-- Dane karty nadal przychodzą zdarzeniem `sunmi.card.swipe` z `CardManager`; filtr nie składa
-  naciśnięć w dane.
+Plugin nie zgłasza reguł — naciśnięć czytnika nie da się pochłonąć filtrem.
+
+- Czytnik `1A86:7523` to mostek USB-serial WCH CH340, a nie klawiatura HID: Android nie ma dla niego
+  urządzenia wejściowego (`dumpsys input`), a `getevent` nie pokazuje przy przeciągnięciu żadnego `EV_KEY`.
+- Dane czyta serwis Sunmi (`com.sunmi.peripheralmanager:CardRemote`, `CardService.onData`; Sunmi
+  Peripheral Manager v1.0.64). Po zdekodowaniu karty zawsze wywołuje `sendText` — wstrzykuje znaki
+  (z sufiksem `msr_output_suffix`) przez `InputManager.injectInputEvent` na wirtualnej klawiaturze
+  (`KeyCharacterMap` -1, `setSource(0x98123456)`) — a dopiero potem `notifyListener` dla słuchaczy
+  `CardManager`.
+- Wstrzyknięte naciśnięcia omijają usługę dostępności (patrz
+  [Czego filtr nie złapie](#czego-filtr-nie-złapie-zdarzeń-wstrzykiwanych-programowo)); zmierzone na
+  FLEX 3 przy 26 przeciągnięciach.
+- Sunmi nie daje wyłączyć wpisywania: `IMsCardControl` ma tylko `get/setMsrOutputSuffix`, a ustawienie
+  systemowe `msr_function_enabled=0` wyłącza cały czytnik (znika z USB).
+- Dane karty nadal przychodzą zdarzeniem `sunmi.card.swipe` z `CardManager`.
+- Jedyna droga, by naciśnięcia nie trafiały do aplikacji, to własna metoda wprowadzania (IME), która
+  widzi zdarzenia klawiszy przed aplikacją, także wstrzyknięte — poza zakresem tego filtra.
