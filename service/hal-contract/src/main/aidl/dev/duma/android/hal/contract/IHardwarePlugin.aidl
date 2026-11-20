@@ -21,5 +21,5 @@ interface IHardwarePlugin {
     String getSettingsJson();
     void onSettingChanged(String key, boolean value);
     // Appended last to keep the transaction codes above stable for older bundles and hosts.
-    String getKeyboardFilterDevicesJson();
+    String getKeyboardFilterRulesJson();
 }

@@ -18,13 +18,13 @@ class AidlPluginAdapter(
     internal companion object {
         private const val TAG = "AidlPluginAdapter"
 
-        /** Decodes the bundle's keyboard device list; missing or malformed input means none. */
-        fun decodeKeyboardDevices(json: String?): List<KeyboardDeviceId> {
+        /** Decodes the bundle's keyboard filter rules; missing or malformed input means none. */
+        fun decodeKeyboardFilterRules(json: String?): List<KeyboardFilterRule> {
             if (json.isNullOrBlank()) return emptyList()
             return try {
-                Json.decodeFromString<List<KeyboardDeviceId>>(json)
+                Json.decodeFromString<List<KeyboardFilterRule>>(json)
             } catch (e: Exception) {
-                Log.w(TAG, "Malformed keyboard device list: ${e.message}")
+                Log.w(TAG, "Malformed keyboard filter rule list: ${e.message}")
                 emptyList()
             }
         }
@@ -48,16 +48,16 @@ class AidlPluginAdapter(
     /**
      * A bundle built before this transaction existed does not handle it: depending on the AIDL
      * generator the call returns no reply (read as `null`) or throws. Either way it simply has no
-     * keyboard devices, and must not fail registration.
+     * keyboard filter rules, and must not fail registration.
      */
-    override fun getKeyboardFilterDevices(): List<KeyboardDeviceId> {
+    override fun getKeyboardFilterRules(): List<KeyboardFilterRule> {
         val json = try {
-            binder.keyboardFilterDevicesJson
+            binder.keyboardFilterRulesJson
         } catch (e: Exception) {
-            Log.w(TAG, "getKeyboardFilterDevicesJson() unavailable: ${e.message}")
+            Log.w(TAG, "getKeyboardFilterRulesJson() unavailable: ${e.message}")
             return emptyList()
         }
-        return decodeKeyboardDevices(json)
+        return decodeKeyboardFilterRules(json)
     }
 
     override fun initialize(pluginContext: PluginContext) {
