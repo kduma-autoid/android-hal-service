@@ -1,10 +1,12 @@
 package dev.duma.android.hal.service.service
 
 import dev.duma.android.hal.service.R
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -16,12 +18,16 @@ import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
+import dev.duma.android.hal.contract.KeyboardFilter
 import dev.duma.android.hal.contract.allEvents
 import dev.duma.android.hal.contract.allMethods
 import dev.duma.android.hal.service.config.PluginSettingsConfig
 import dev.duma.android.hal.service.plugin.PluginRegistry
 
 class PluginDetailActivity : AppCompatActivity() {
+
+    /** Status line of the keyboard filter panel; null when this plugin declares no keyboard filter rules. */
+    private var keyboardFilterStatus: TextView? = null
 
     companion object {
         const val EXTRA_PLUGIN_ID = "plugin_id"
@@ -133,6 +139,8 @@ class PluginDetailActivity : AppCompatActivity() {
         layout.addView(infoRow("Source", sourceText))
 
         layout.addView(infoRow("Capabilities", desc.capabilities.joinToString(", ")))
+
+        keyboardFilterPanel(pluginReg, pluginId)?.let(layout::addView)
 
         if (isUnsupported) {
             layout.addView(TextView(this).apply {
@@ -353,6 +361,48 @@ class PluginDetailActivity : AppCompatActivity() {
         }
 
         setContentWithToolbar(toolbar, ScrollView(this).apply { addView(layout) })
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // The user comes back from Android's accessibility settings to this screen.
+        updateKeyboardFilterStatus()
+    }
+
+    /**
+     * Shown for plugins that declared keyboard filter rules. The filter itself is one HAL-wide
+     * accessibility service the user enables in Android settings; HAL cannot turn it on.
+     */
+    private fun keyboardFilterPanel(registry: PluginRegistry, pluginId: String): View? {
+        val rules = registry.keyboardFilterRulesOf(pluginId)
+        if (rules.isEmpty()) return null
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(sectionHeader("Keyboard filter"))
+            addView(infoRow("Rules", rules.joinToString(", ")))
+            addView(TextView(this@PluginDetailActivity).also {
+                keyboardFilterStatus = it
+                it.setPadding(0, 4, 0, 8)
+                it.textSize = 14f
+            })
+            addView(TextView(this@PluginDetailActivity).apply {
+                text = "Key presses matching these rules are swallowed while \"HAL keyboard filter\" is " +
+                    "enabled in Android accessibility settings. \"Enabled\" reflects the setting only; " +
+                    "effective filtering must be verified with the hardware."
+                textSize = 12f
+                setTextColor(Color.GRAY)
+                setPadding(0, 0, 0, 8)
+            })
+            addView(Button(this@PluginDetailActivity).apply {
+                text = "Open Accessibility settings"
+                setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+            })
+        }.also { updateKeyboardFilterStatus() }
+    }
+
+    private fun updateKeyboardFilterStatus() {
+        keyboardFilterStatus?.text =
+            if (KeyboardFilter.isEnabled(this)) "Keyboard filter: enabled" else "Keyboard filter: disabled"
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {

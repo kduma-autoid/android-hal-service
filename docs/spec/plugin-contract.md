@@ -14,6 +14,7 @@ interface HalPlugin {
     fun dispose() {}
     fun getSettings(): List<PluginSetting> = emptyList()          // ustawienia użytkownika
     fun onSettingChanged(key: String, value: Boolean) {}
+    fun getKeyboardFilterRules(): List<KeyboardFilterRule> = emptyList()  // patrz keyboard-filter.md
 }
 
 data class PluginSetting(val key: String, val title: String, val description: String = "", val default: Boolean)
@@ -145,6 +146,7 @@ interface IHardwarePlugin {
     // dopisane później (na końcu — zgodność ze starszymi bundle'ami / hal-service):
     String getSettingsJson();       // JSON List<PluginSetting>; starszy bundle → null = brak ustawień
     void onSettingChanged(String key, boolean value);
+    String getKeyboardFilterRulesJson();  // dopisane na końcu; JSON List<KeyboardFilterRule>
 }
 ```
 
@@ -175,6 +177,8 @@ Opakowuje IHardwarePlugin (Binder) → HalPlugin:
 - getDescriptor() parsuje JSON z getDescriptorJson()
 - initialize() — przekazuje `IPluginContext` (execute, capabilities, dostępność, ustawienia)
 - getSettings() / onSettingChanged() — przez `getSettingsJson` / `onSettingChanged` (starszy bundle → brak ustawień)
+- getKeyboardFilterRules() parsuje getKeyboardFilterRulesJson(); stary bundle bez tej
+  transakcji, `null` lub błędny JSON → pusta lista (rejestracja nie jest przerywana)
 
 ## PluginServiceWrapper
 
