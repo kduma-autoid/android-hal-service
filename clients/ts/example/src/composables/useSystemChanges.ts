@@ -49,10 +49,13 @@ export function useSystemChanges(onChange: () => void, debounceMs = 150): void {
     const c = client.value;
     if (!c || !isConnected.value) return;
     const mine = generation;
+    // A fresh function per subscription: the client keys handlers by identity, so reusing `schedule`
+    // let a stale subscription's off() (connect fires this twice) remove the live one too.
+    const handler = () => schedule();
     await Promise.all(
       SYSTEM_CHANGE_EVENTS.map((name) =>
         c
-          .on(name, schedule)
+          .on(name, handler)
           .then((off) => {
             // Disconnected or unmounted while the subscribe was in flight: release it at once.
             if (mine === generation) offs.push(off);
