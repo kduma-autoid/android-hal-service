@@ -34,6 +34,11 @@ import org.json.JSONObject
  * the only source. Peripheral Manager clears it on every power disconnect (even a short blip while
  * docking), so an empty value means "unknown", not necessarily "undocked".
  *
+ * `connected` comes from the system property [PROP_SMDSS_CONNECTED], which `smdss` sets when a dock
+ * MCU answers on the pogo UART. Properties cannot be observed, so it is polled every
+ * [CONNECTED_POLL_MS]. Seen set to 1 on CPad 8.7" (OS 4.5.46) but left at 0 on a docked CPad 14"
+ * (OS 4.5.49), so it is reported as is and not used to clear the SKU.
+ *
  * @param context Android Context needed to bind Docker controller service.
  */
 class SunmiDockerPlugin(
@@ -47,7 +52,16 @@ class SunmiDockerPlugin(
     private val mutex = Mutex()
     private var dockerController: IDockerController? = null
     private var skuObserver: ContentObserver? = null
-    private var lastSku: String? = null
+    private var lastState: DockState? = null
+    private val pollHandler = Handler(Looper.getMainLooper())
+    private val pollConnected = object : Runnable {
+        override fun run() {
+            context?.let { checkChanged(it) }
+            pollHandler.postDelayed(this, CONNECTED_POLL_MS)
+        }
+    }
+
+    private data class DockState(val sku: String?, val connected: Boolean?)
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
@@ -108,34 +122,31 @@ class SunmiDockerPlugin(
                 "Dock the tablet sits in, as reported by the dock to Sunmi Peripheral Manager: raw SKU " +
                     "(e.g. \"1\" or \"D05-000\") and " +
                     "model name. sku is null when unknown: no dock, or Peripheral Manager cleared it " +
-                    "after a power blip (it is not re-read until the tablet is docked again).",
+                    "after a power blip (it is not re-read until the tablet is docked again). " +
+                    "connected is the smdss property sys.smdss.device.connected (null when the " +
+                    "property is not set); not every Sunmi OS build updates it.",
                 "sunmi.docker",
                 experimental = true,
                 exampleParameters = "{}",
-                exampleOutput = """{"sku":"1","model":"Table-Side Stand","family":"tinno"}"""
+                exampleOutput = """{"sku":"1","model":"Table-Side Stand","family":"tinno","connected":true}"""
             )
         ),
         events = listOf(
             EventDescriptor(
                 "sunmi.docker.dockChanged",
-                "The dock SKU reported by Peripheral Manager changed (docked, undocked or cleared).",
+                "The dock SKU or the smdss connected flag changed (docked, undocked or cleared).",
                 "sunmi.docker",
                 experimental = true,
-                exampleEvent = """{"sku":"1","model":"Table-Side Stand","family":"tinno"}"""
+                exampleEvent = """{"sku":"1","model":"Table-Side Stand","family":"tinno","connected":true}"""
             )
         )
     )
 
     override fun initialize(pluginContext: PluginContext) {
         this.context?.let { ctx ->
-            lastSku = readSku(ctx)
-            val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
-                override fun onChange(selfChange: Boolean) {
-                    val sku = readSku(ctx)
-                    if (sku == lastSku) return
-                    lastSku = sku
-                    callback?.onEvent("sunmi.docker.dockChanged", dockInfoJson(sku))
-                }
+            lastState = readState(ctx)
+            val observer = object : ContentObserver(pollHandler) {
+                override fun onChange(selfChange: Boolean) = checkChanged(ctx)
             }
             try {
                 ctx.contentResolver.registerContentObserver(
@@ -143,6 +154,7 @@ class SunmiDockerPlugin(
                 )
                 skuObserver = observer
             } catch (_: Exception) { }
+            pollHandler.postDelayed(pollConnected, CONNECTED_POLL_MS)
         }
         this.context?.let { ctx ->
             try {
@@ -160,7 +172,7 @@ class SunmiDockerPlugin(
     override suspend fun onExecute(method: String, params: String): CommandResult = mutex.withLock {
         if (method == "sunmi.docker.getDockInfo") {
             val ctx = context ?: return@withLock CommandResult.unavailable("No context")
-            return@withLock CommandResult.Success(dockInfoJson(readSku(ctx)))
+            return@withLock CommandResult.Success(dockInfoJson(readState(ctx)))
         }
         val controller = dockerController
             ?: return@withLock CommandResult.unavailable("Docker controller not connected")
@@ -190,6 +202,7 @@ class SunmiDockerPlugin(
     }
 
     override fun dispose() {
+        pollHandler.removeCallbacks(pollConnected)
         val ctx = context ?: return
         skuObserver?.let { runCatching { ctx.contentResolver.unregisterContentObserver(it) } }
         skuObserver = null
@@ -203,12 +216,37 @@ class SunmiDockerPlugin(
             null
         }
 
-    private fun dockInfoJson(sku: String?): String {
-        val known = sku?.let { DockSku.find(it) }
+    /** Reads `sys.smdss.device.connected`; null when unset or unreadable. */
+    private fun readConnected(): Boolean? =
+        try {
+            val value = Class.forName("android.os.SystemProperties")
+                .getMethod("get", String::class.java, String::class.java)
+                .invoke(null, PROP_SMDSS_CONNECTED, "") as String
+            when (value.trim()) {
+                "1" -> true
+                "0" -> false
+                else -> null
+            }
+        } catch (_: Exception) {
+            null
+        }
+
+    private fun readState(ctx: Context) = DockState(readSku(ctx), readConnected())
+
+    private fun checkChanged(ctx: Context) {
+        val state = readState(ctx)
+        if (state == lastState) return
+        lastState = state
+        callback?.onEvent("sunmi.docker.dockChanged", dockInfoJson(state))
+    }
+
+    private fun dockInfoJson(state: DockState): String {
+        val known = state.sku?.let { DockSku.find(it) }
         return JSONObject()
-            .put("sku", sku ?: JSONObject.NULL)
+            .put("sku", state.sku ?: JSONObject.NULL)
             .put("model", known?.model ?: JSONObject.NULL)
             .put("family", known?.family ?: JSONObject.NULL)
+            .put("connected", state.connected ?: JSONObject.NULL)
             .toString()
     }
 
@@ -235,6 +273,11 @@ class SunmiDockerPlugin(
     private companion object {
         /** System setting Sunmi Peripheral Manager writes the dock SKU to. */
         const val KEY_DOCKER_SKU = "key_docker_sku"
+
+        /** Set by the `smdss` daemon when a dock MCU is connected (1) or gone (0). */
+        const val PROP_SMDSS_CONNECTED = "sys.smdss.device.connected"
+
+        const val CONNECTED_POLL_MS = 2_000L
     }
 
 }
