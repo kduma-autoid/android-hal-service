@@ -105,7 +105,8 @@ class SunmiDockerPlugin(
             ),
             MethodDescriptor(
                 "sunmi.docker.getDockInfo",
-                "Dock the tablet sits in, as reported by the dock to Sunmi Peripheral Manager: SKU and " +
+                "Dock the tablet sits in, as reported by the dock to Sunmi Peripheral Manager: raw SKU " +
+                    "(e.g. \"1\" or \"D05-000\") and " +
                     "model name. sku is null when unknown: no dock, or Peripheral Manager cleared it " +
                     "after a power blip (it is not re-read until the tablet is docked again).",
                 "sunmi.docker",
@@ -211,7 +212,11 @@ class SunmiDockerPlugin(
             .toString()
     }
 
-    /** SKU table of Sunmi Peripheral Manager 1.0.77 (`com.sunmi.docker.utils.SKUEnum`). */
+    /**
+     * SKU table of Sunmi Peripheral Manager 1.0.77 (`com.sunmi.docker.utils.SKUEnum`). Docks report
+     * longer strings than the table holds (a Printing Base answers `D05-000`, a Tinno stand `1`), so
+     * [find] matches by prefix like Peripheral Manager's `SkuFinder`.
+     */
     private enum class DockSku(val sku: String, val model: String, val family: String) {
         TABLE_SIDE_STAND("1", "Table-Side Stand", "tinno"),
         TABLE_SIDE_FIXED("2", "Table-Side Fixed Stand", "tinno"),
@@ -223,7 +228,7 @@ class SunmiDockerPlugin(
         MULTI_FUNCTION_D07("D07", "Multi-Function Pivoting Base", "sunmi");
 
         companion object {
-            fun find(sku: String) = entries.firstOrNull { it.sku == sku }
+            fun find(sku: String) = entries.firstOrNull { sku.startsWith(it.sku) }
         }
     }
 
